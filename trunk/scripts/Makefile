@@ -19,9 +19,6 @@ digikeyweborder: $(OBJS)
 
 all: digikeyweborder 				#bytecode
 
-test: 
-	./digikeyweborder  /home/tlh24/svn/myopen/emg_dsp/stage2_digikey_cleaned.csv 2 5 26990093 85189 
-
 clean: 
 	rm -f $(OBJS)
 	rm -f *.cmi

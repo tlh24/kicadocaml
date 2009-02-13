@@ -1,0 +1,49 @@
+scripts: 
+
+1. changeMinimumTextSize.pl
+	Small perl script to - surprise! - change the minimum size of the 
+	text elements on a board. 
+	*YOU MUST EDIT THIS FILE TO SET THE MINIMUM SIZE*
+	usage: 
+	./changeMinimumTextSize.pl in.brd out.brd
+	(do not use the same file name for both - 
+	copy the file back once you are satisfied with the result.)
+	
+2. hideAllValueTexts.pl
+	Another small script to hide the value (e.g. "1.2K", "2.2uf" etc.)
+	texts on a board. 
+	usage: 
+	./hideAllValueTexts.pl in.brd out.brd
+	(do not use the same file name for both - 
+	copy the file back once you are satisfied with the result.)
+	
+3. digikeyweborder
+	This reads in a CSV file, establishes a TCP connection with the Digikey
+	ordering web server, and repeatedly POSTs the quantities in your 
+	spreadsheet onto the active server pages.  If the minimum quantities
+	are not met for any of your items, it will first guess the next multiple of
+	10, and if that does not work, it will ask you for the quantity.  Digikey's
+	webserver occasionally balks under the torrent of POST and GETs, in 
+	which case you'll have to kill the script, start a new web order, 
+	and try again.  
+	
+	To compile, you'll need to: 
+	# apt-get install ocaml libpcre-ocaml-dev ocaml-findlib libocamlnet-ocaml-dev
+	then 'make'
+	
+	then run, e.g.: 
+	./digikeyweborder bom_digikey.csv 2 5 16973993 41138
+	
+	where: 
+	bom_digikey.csv is exported from your BOM spreadsheet,
+		and has digikey part numbers in one column, 
+		and quantities in another. 
+	2 is the column, zero-indexed, of the part number
+	5 is the colum, zero-indexed, of the quantities
+	16973993 is the WebID 
+	41138 is the AccessID
+	You can obtain the WebID and AccessID through http://ordering.digikey.com/
+	(at the top of the page as of Feb 13 2009)
+	
+	No guarantees are made of this program's functionality :-)
+	

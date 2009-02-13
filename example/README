@@ -1,0 +1,10 @@
+This is a digitally current-regulated microstimulator that I designed 
+for my research.  Two layer PCB, relatively large vias, nothing too 
+complciated. 
+
+When opening microstim8_3.brd in kicadocaml, the program will ask
+you for the associated schematic - here it is microstim8.sch.
+microstim.sch is dupliacted 8 times to generate each of the 8 channels
+(via the array feature :-)
+
+questions: sideskate@gmail.com

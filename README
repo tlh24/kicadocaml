@@ -1,0 +1,58 @@
+OVERVIEW: 
+
+Kicadocaml is a PCB layout tool that reads and writes Kicad's pcbnew *.brd
+files. It is unique in that it reads in BOTH the schematic and board, so you 
+can select and filter components & associated tracks based on schematic
+hierarchy.  Furthermore, it allows you to array duplicated sub-sheets of the 
+schematic, thereby saving time.  
+
+It was/is written by Tim Hanson, sideskate@gmail.com
+
+NETLIST & STARTING A NEW BOARD:
+
+Currently kicadocaml does not do netlist import, nor can it read kicad's footprint
+libraries; hence, to start a board, *you must use pcbnew*.  also, if you update
+the netlist, you must also use pcbnew.  sorry. Write me an email to complain 
+and maybe I'll fix it ;-)
+
+ISSUES:
+
+Kicadocaml requires OpenGL - e.g. an Nvidia video card (they seem to 
+work better than ATI products with Linux).  It works on my laptop, which has 
+an Intel 945GM graphics accelerator, but not nearly as awesomely as on my desktop
+(Nvidia 8800 GTX). 
+
+Note: pcbnew does not always save the net # in the tracks - therefore, when 
+opening a board that was previously saved in pcbnew yuo may want to 
+"Propagate netcodes to all tracks" (in the options menu) if kicadocaml
+does not automatically realize that it was prev. saved in pcbnew. 
+
+Kicadocaml features a novel triangle-based zone filling algorithm; if
+zone fill fails in pcbnew, you can fill it in kicadocaml.  However, you cannot 
+set the zone edges in the program - more missing features! 
+
+Preference support is severly lacking; kicadocaml should remember the 
+state of all options, as well as the grid resolution.
+
+Most all dimensions and measurements are in inches, with some display/
+entry support for milimeters. 
+
+BUILDING:
+
+To build from source, install (with apt-get or another manager):
+# apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib
+
+The liblablgl package in Debian Etch is broken, unfortunately, 
+so you must rebuild it from source.  To do this, run
+# apt-get -b source liblablgl-ocaml-dev
+in some directory, (and install any required dependencies) and then 
+# dpkg -i liblablgl-ocaml_1.02-2_i386.deb
+# dpkg -i liblablgl-ocaml-dev_1.02-2_i386.deb
+
+Then you can run 
+$ make opt
+(or just 'make' if you want the bytecode executable)
+and everything should work!
+Once you have started the program, be sure to look at 'about'
+hidden (for now) in the 'options' menu for the keyboard commands. 
+

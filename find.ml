@@ -14,14 +14,17 @@ let gmatchn = ref 0
 let find_output () = 
 	let len = Array.length !gmatches in
 	if len > 0 then (
-		printf "match %d of %d : " !gmatchn len ; 
+		printf "match %d of %d : " (!gmatchn + 1) len ; 
 		(* set the present as hit, all others as not hit *)
 		Array.iter (fun m -> m#setHit false) !gmatches ; 
-		(!gmatches.(!gmatchn))#setHit true ; 
+		let m = !gmatches.(!gmatchn) in
+		m#setHit true ; 
+		m#crossprobe () ; 
+		printf "package:%s " (m#getLibRef ()) ; 
 		List.iter (fun t -> printf "%s " (t#getText()) ; )
-			((!gmatches.(!gmatchn))#getTexts()) ; 
+			(m#getTexts()) ; 
 		printf "\n%!" ; 
-		(bbxCenter ((!gmatches.(!gmatchn))#getDrcBBX())), true
+		(bbxCenter (m#getDrcBBX())), true
 	) else (
 		printf "no matches! \n%!" ; 
 		(0.0, 0.0), false

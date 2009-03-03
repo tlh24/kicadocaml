@@ -27,7 +27,6 @@ end
 
 class pcb_module =
 object (self)
-	val mutable m_name = ""
 	val mutable m_x = 0
 	val mutable m_y = 0
 	val mutable m_rot = 0
@@ -155,6 +154,11 @@ object (self)
 			txt#setShow (not b) ; 
 			txt# updateColor(); 
 		); 
+	method crossprobe () = (
+		let txt = self#getRef() in
+		let s = ("$PART: " ^ txt ^ "\n" ) in
+		!gcrossprobe s ; 
+	)
 	method setMoving b = (
 		let (txt, found) = self#txthit () in
 		if b then (
@@ -164,9 +168,7 @@ object (self)
 				txt#setMoving b ; 
 			) else (
 				(*if we are starting a new move *)
-				let txt = self#getRef() in
-				let s = ("$PART: " ^ txt ^ "\n" ) in
-				!gcrossprobe s ; 
+				self#crossprobe () ; 
 				m_move <- (0. , 0.); 
 			)
 		) else (
@@ -247,7 +249,7 @@ object (self)
 			(* hiighlight the text if the module is selected *)
 			(* this makes it a bit easier to see. *)
 			if m_hit && (not m_washit) then (
-				let s =  ref ( "; module " ^ m_name ^ " : " ) in
+				let s =  ref ( "; module " ^ m_libRef ^ " : " ) in
 				List.iter (fun t -> 
 					let x = t#getText () in
 					s := !s ^ " " ^ x ; 

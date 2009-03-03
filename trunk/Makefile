@@ -7,7 +7,7 @@ LINKER = ocamlfind ocamlc -g
 OBJS = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
 	propagate.cmo schematic.cmo doarray.cmo mouse.cmo glwindow.cmo \
-	mesh.cmo poly.cmo zone.cmo blockrotate.cmo kicadocaml.cmo 
+	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo kicadocaml.cmo 
 #order matters here! 
 OPTOBJS = $(OBJS:.cmo=.cmx)
 SRC = $(OBJS:.cmo=.ml)

@@ -313,7 +313,9 @@ let abouttext =
 " F8 - select inner layer 4\n"  ^
 " .... \n" ^
 " Shift - select multiple modules for moving \n" ^
-"         (somewhat incomplete feature) \n"
+"         (somewhat incomplete feature) \n" ^
+" Ctrl-F - find \n" ^
+" F3 - find next \n"
 
 let helpbox name text top () =
 	let helptop = Toplevel.create ~name top in
@@ -1918,6 +1920,10 @@ let makemenu top togl filelist =
 			render togl ;
 		)
 	in
+	let center_found (x,y) = 
+		gpan := -1.0 *. x , -1.0 *. y ; 
+		render togl ;
+	in
 	(* bindings! *)
 	bindMouseMoveModule () ; (*default is to move modules *)
 	Mouse.bindMove top ~action:updatecurspos ; (* default move action is to simply watch the cursor *)
@@ -1938,6 +1944,9 @@ let makemenu top togl filelist =
 	bind ~events:[`Modified([`Control], `KeyPressDetail"v")] ~action:viasFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"s")] ~action:(fun _ -> saveall !gfname; ) top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"o")] ~action:(fun _ -> openCommand ()) top; 
+	bind ~events:[`Modified([`Control], `KeyPressDetail"f")] ~action:
+		(fun _ -> Find.find_dlg top !gmodules center_found) top ; 
+	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  
 	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun ev -> (* remove any tracks that were hit *)

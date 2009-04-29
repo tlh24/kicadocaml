@@ -40,3 +40,6 @@ clean:
 	rm -f *.cmi
 	rm -f *.o
 	rm -f kicadocaml kicadocaml.opt
+	
+install: 
+	cp kicadocaml.opt /usr/local/bin/kicadocaml

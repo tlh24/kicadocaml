@@ -874,6 +874,34 @@ let makemenu top togl filelist =
 		close_out_noerr oc; 
 	in
 	
+	let make_xyr () = 
+		(* make a xyr file, which contains the x, y, and rotation for each component, 
+		along with pin 1 absolute location. 
+		positions are in inches, decimal *)
+		let filetyp = [ {typename="x y rotation";extensions=[".xyr"];mactypes=[]} ] in
+		let filename = (getSaveFile ~defaultextension:".xyr" ~filetypes:filetyp ~title:"save XYR" ()) in
+		let oc = open_out filename in
+		fprintf oc "#PCB parts location file\n"; 
+		fprintf oc "#refdes	value	foot	x	y	r	p1x	p1y\n"; 
+		List.iter(fun m->
+			m#update(); (* just in case .. *)
+			let x,y = m#getPos() in
+			let r = (foi (m#getRot())) /. 10.0 in
+			(* the pad1 stuff is used for validation *)
+			let p1x,p1y = try 
+				let pad1 = List.find( fun p -> p#getPadName() = "1" )
+				(m#getPads()) in
+				pad1#getCenter()
+			with Not_found -> 0.0, 0.0 in
+			fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
+				(m#getRef())
+				(m#getValue())
+				(m#getLibRef())
+				x y r p1x p1y ; 
+		) !gmodules ; 
+		close_out_noerr oc; 
+	in
+	
 	(*add file menu entries *)
 	let filetyp = [ {typename="boards";extensions=[".brd"];mactypes=[]} ] in
 	let openCommand () = 
@@ -1854,6 +1882,8 @@ let makemenu top togl filelist =
 		~command:padSolderMaskAdjust ; 
 	Menu.add_command optionmenu ~label:"Save bill of materials" 
 		~command:makeBOM ; 
+	Menu.add_command optionmenu ~label:"Save XYR (part location) file" 
+		~command:make_xyr ; 
 	Menu.add_command optionmenu ~label:"Propagate netcodes to unconn. (nn=0) tracks" 
 		~command:(propagateNetcodes gmodules gtracks false false top 
 			(fun () -> render togl) redoRatNest ); 

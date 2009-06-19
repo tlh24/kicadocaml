@@ -222,6 +222,7 @@ object (self)
 	method getSy () = if m_rot = 900 || m_rot = 2700 then fois m_sx else fois m_sy 
 	method getDrill () = fois m_drill ; 
 	method getBBX () = m_g#getBBX()
+	method getCenter () = (bbxCenter (m_g#getBBX() ) ) 
 	method setMoveCallback f = m_moveCallback <- f 
 	method setSelCallback f = m_selCallback <- f 
 	method select () = m_selCallback () ; 

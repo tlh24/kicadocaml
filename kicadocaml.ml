@@ -15,6 +15,9 @@ open Drc
 open Schematic
 open Doarray
 
+module FDSet =
+  Set.Make(struct type t = Unix.file_descr let compare = compare end)
+  
 class pcb_generic_section = 
 (*generic storage of sections that we don't recognize, but want to keep in the file *)
 object 
@@ -885,7 +888,7 @@ let makemenu top togl filelist =
 		fprintf oc "#refdes	value	foot	x	y	r	p1x	p1y\n"; 
 		List.iter(fun m->
 			m#update(); (* just in case .. *)
-			let x,y = m#getPos() in
+			let x,y = m#getCenter false in
 			let r = (foi (m#getRot())) /. 10.0 in
 			(* the pad1 stuff is used for validation *)
 			let p1x,p1y = try 
@@ -2241,16 +2244,13 @@ let _ =
 		Unix.bind sockin (Unix.ADDR_INET (Unix.inet_addr_of_string "127.0.0.1",4242)); 
 		Unix.listen sockin 1 ; 
 		Unix.set_nonblock sockin ;
+		let clients = ref (FDSet.singleton sockin) in
 		let crossprobein () =
-			let s = "                                                                                                                   " in
-			let sl = String.length s in
-			let (can_read, _, _) = Unix.select [sockin] [] [] 0.00 in
-			List.iter ( fun client -> 
-				if client = sockin then (
-					let (client_sock, client_addr) = Unix.accept sockin in
-					let rcvlen = Unix.read client_sock s 0 sl in 
-					let ss = String.sub s 0 rcvlen in
-					let part = (Pcre.extract ~pat:"\$PART: (\w\d+)" ss).(1) in
+			let readstr ss = 
+				let arr,fnd = try (Pcre.extract ~pat:"\$PART: (\w\d+)" ss), true 
+					with Not_found -> [||],false in
+				if fnd then (
+					let part = arr.(1) in
 					print_endline part ; 
 					if !gcrossProbeRX then (
 						List.iter (fun (m:Mod.pcb_module) -> 
@@ -2266,9 +2266,40 @@ let _ =
 							) ; 
 						) !gmodules ; 
 					) ; 
+				); 
+			in
+			let s = "                                                                                                                   " in
+			let sl = String.length s in
+			let (can_read, _, _) = Unix.select (FDSet.elements !clients) [] [] 0.00 in
+			List.iter ( fun client -> 
+				if client = sockin then (
+					let (client_sock, client_addr) = Unix.accept sockin in
+					print_endline "accepted socket connection"; 
+					clients := FDSet.add client_sock !clients;
+					let rcvlen = Unix.read client_sock s 0 sl in 
+					let ss = String.sub s 0 rcvlen in
+					readstr ss ;
+				) else (
+					(* read .. *)
+					let chars_read =
+						try
+						Some (Unix.read client s 0 sl)
+						with Unix.Unix_error (error, _, _) ->
+						prerr_endline (Unix.error_message error);
+						None 
+					in
+					match chars_read with
+						| None | Some 0 ->
+						(* This would be the end of file, so close the client *)
+							Unix.close client ; 
+							clients := FDSet.remove client !clients;
+							print_endline "socket disconnected"
+						| Some chars_read -> (
+							let ss = String.sub s 0 chars_read in
+							readstr ss ;
+						)
 				)
 			) can_read ; 
-			(*Unix.shutdown client_sock Unix.SHUTDOWN_ALL ; *)
 		in
 		(*check for cross-probe event every 50 ms *)
 		Togl.timer_func ~ms:50 ~cb:crossprobein ; 

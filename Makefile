@@ -24,7 +24,7 @@ kicadocaml: $(OBJS)
 	$(LINKER) -linkpkg $(OPTIONS) $(OBJS) -o kicadocaml
 	
 kicadocaml.opt: $(OPTOBJS)
-	ocamlfind ocamlopt -o kicadocaml.opt -inline 3 -linkpkg $(OPTIONS) $(OPTOBJS) 
+	ocamlfind ocamlopt -o kicadocaml.opt -inline 3 -linkpkg $(OPTIONS) $(OPTOBJS) -verbose
 	
 dump.odoc : $(SRC)
 	ocamlfind ocamldoc $(OPTIONS) $(SRC) -dump dump.odoc

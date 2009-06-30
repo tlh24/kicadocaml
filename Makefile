@@ -24,7 +24,7 @@ kicadocaml: $(OBJS)
 	$(LINKER) -linkpkg $(OPTIONS) $(OBJS) -o kicadocaml
 	
 kicadocaml.opt: $(OPTOBJS)
-	ocamlfind ocamlopt -o kicadocaml.opt -inline 3 -linkpkg $(OPTIONS) $(OPTOBJS) -verbose
+	ocamlfind ocamlopt -o kicadocaml.opt -inline 3 -linkpkg $(OPTIONS) $(OPTOBJS)
 	
 dump.odoc : $(SRC)
 	ocamlfind ocamldoc $(OPTIONS) $(SRC) -dump dump.odoc
@@ -35,11 +35,12 @@ opt:	kicadocaml.opt  	#native code
 
 doc: dump.odoc # documenation (e.g. for cameleon)
 
+install: 
+	cp kicadocaml.opt /usr/local/bin/kicadocaml
+
 clean: 
 	rm -f $(OBJS) $(OPTOBJS)
 	rm -f *.cmi
 	rm -f *.o
 	rm -f kicadocaml kicadocaml.opt
-	
-install: 
-	cp kicadocaml.opt /usr/local/bin/kicadocaml
+

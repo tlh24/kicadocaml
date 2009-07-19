@@ -1,5 +1,3 @@
-
-
 let insidetri a b c d = 
 	cross (sub b a) (sub d a) >= 0.0 &&
 	cross (sub c b) (sub d b) >= 0.0 &&

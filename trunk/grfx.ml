@@ -5,7 +5,7 @@ open Comm (*common functions *)
 class grfx = 
 object (self)
 	val mutable verts : (float * float) list = [] 
-	val mutable rawv  = Raw.create `float 1
+	val mutable rawv  =  Raw.create_static `float 1
 	val mutable numverts = 0
 	val mutable color : (float * float * float)  = ( 1. , 1. , 1. )
 	val mutable alpha : float  = 0.5
@@ -24,7 +24,8 @@ method updateRaw () =
 	(* update the raw list *)
 	if(numverts > 3) then (
 		if (Raw.length rawv) != (3* numverts) then (* then should reallocate *)
-		rawv <- Raw.create `float (3 * numverts) ; 
+		Raw.free_static rawv ; 
+		rawv <- Raw.create_static `float (3 * numverts) ; 
 		let i = ref 0 in
 		List.iter (fun (x,y) ->
 			Raw.set_float rawv ~pos:(3* !i + 0) x ; 

@@ -32,8 +32,8 @@ object (self)
 	val mutable tracks2 = [| |] (*nodes associated with track ends *)
 	val mutable m_rn : (float * float * float * float * int ) list = []
 	val mutable m_rnsel : (float * float * float * float * int ) list = []
-	val mutable m_rawv = Raw.create `float 1
-	val mutable m_rawvsel = Raw.create `float 1
+	val mutable m_rawv = Raw.create_static `float 1
+	val mutable m_rawvsel = Raw.create_static `float 1
 	val mutable m_updateNN = SI.empty
 
 method ratsNestMakeRaw rn sel= 
@@ -41,7 +41,7 @@ method ratsNestMakeRaw rn sel=
 	let len = List.length rn in
 	(*print_endline ("m_rawv length " ^ (soi len)) ;*)
 	if len > 0 then (
-		let rawv = Raw.create `float (4 * len) in
+		let rawv = Raw.create_static `float (4 * len) in
 		let i = ref 0 in
 		List.iter (fun (sx,sy,ex,ey,nn) ->
 			Raw.set_float rawv ~pos:(4* !i + 0) sx ; 
@@ -51,8 +51,10 @@ method ratsNestMakeRaw rn sel=
 			incr i ; 
 		) rn ; 
 		if sel then (
+			Raw.free_static m_rawvsel ; 
 			m_rawvsel <- rawv ; 
 		)else(
+			Raw.free_static m_rawv ; 
 			m_rawv <- rawv ; 
 		) ; 
 	) ;
@@ -66,7 +68,9 @@ method padPos (m: Mod.pcb_module) (p: Pad.pcb_pad) =
 method clearAll () =
 	m_rn <- [] ; 
 	m_rnsel <- []; 
+	Raw.free_static m_rawv ; 
 	m_rawv <- Raw.create `float 1 ;
+	Raw.free_static m_rawvsel ; 
 	m_rawvsel <- Raw.create `float 1 ;
 	m_updateNN <- SI.empty ;
 

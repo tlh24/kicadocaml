@@ -15,7 +15,7 @@ let draw (xl,yl,xh,yh) gridsize alphain=
 	let hgrid =  gridrange yl yh in
 	if List.length hgrid > 0 && List.length vgrid > 0 then (
 		let numverts = ((List.length vgrid) + (List.length hgrid)) * 2 in
-		let raw = Raw.create `float (numverts * 2) in
+		let raw = Raw.create_static `float (numverts * 2) in
 		let cnt = ref 0 in
 		List.iter (fun x -> 
 			Raw.set_float raw ~pos:(!cnt*4+0) x ;  
@@ -37,6 +37,7 @@ let draw (xl,yl,xh,yh) gridsize alphain=
 		GlDraw.color ~alpha:a2 (0.5 , 0.5 , 1.); 
 		GlArray.vertex `two raw ; 
 		GlArray.draw_arrays `lines 0 numverts ; 
+		Raw.free_static raw ; 
 	); 
 	;;
 	

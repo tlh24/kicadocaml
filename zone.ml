@@ -24,8 +24,8 @@ object (self)
 	val mutable m_poly = [] (* list of poly coordinates, float*float*int*int *)
 	val mutable m_tris = [] (* list of triangles, ((float*float)*(float*float)*(float*float)) *)
 	val mutable m_rawv = [] (* list of raw arrays for the polys *)
-	val mutable m_rawv_tri = Raw.create `float 1 
-	val mutable m_rawv_fill = Raw.create `float 1 
+	val mutable m_rawv_tri = Raw.create_static `float 1 
+	val mutable m_rawv_fill = Raw.create_static `float 1 
 	val mutable m_g = new grfx (* used to store/compute color and Z-pos *)
 	
 	val mutable m_timestamp = ""
@@ -38,10 +38,18 @@ object (self)
 		m_corners <- [] ; (* list of lists, remember! *)
 		m_corners <- (List.map (fun (x,y) -> (x,y,0)) pts) :: m_corners ; 
 	)
-	method update () = (
+	method free () = ( (* bwtf, ocaml .. ? *)
+		List.iter(fun rw -> 
+			Raw.free_static rw ; 
+		) m_rawv ; 
 		m_rawv <- [] ; (* empty list of Raw *)
-		m_rawv_tri <- Raw.create `float 1 ; 
+		Raw.free_static m_rawv_tri ; 
+		m_rawv_tri <- Raw.create_static `float 1 ; 
+		Raw.free_static m_rawv_fill ; 
 		m_rawv_fill <- Raw.create `float 1 ; 
+	)
+	method update () = (
+		self#free () ; 
 		let i = ref 0 in
 		(* printf "updating poly lines length %d\n%!" len ; *)
 		let x0 = ref 0.0 in
@@ -51,7 +59,7 @@ object (self)
 				let (x2,y2,_) = (List.hd corners) in
 				x0 := x2 ; y0 := y2 ;
 				let len = (List.length corners) -1 in
-				let rawv = Raw.create `float (4 * len) in
+				let rawv = Raw.create_static `float (4 * len) in
 				i := 0 ; 
 				List.iter (fun (x1,y1,_) -> 
 					Raw.set_float rawv ~pos:(4 * !i + 0) !x0 ; 
@@ -67,7 +75,8 @@ object (self)
 		) m_corners ; 
 		if List.length m_tris > 2 then (
 			let len = (List.length m_tris * 3) in (* number of lines *)
-			m_rawv_tri <- Raw.create `float (len*4) ; 
+			Raw.free_static m_rawv_tri ; 
+			m_rawv_tri <- Raw.create_static `float (len*4) ; 
 			i := 0 ; 
 			List.iter ( fun (a,b,c) -> 
 				let line d e = 
@@ -83,7 +92,8 @@ object (self)
 			) m_tris ; 
 			(* make the fill triangles *)
 			let len = (List.length m_tris ) in (* number of triangles *)
-			m_rawv_fill <- Raw.create `float (len * 6) ; 
+			Raw.free_static m_rawv_fill ; 
+			m_rawv_fill <- Raw.create_static `float (len * 6) ; 
 			i := 0 ; 
 			List.iter (fun (a,b,c) -> 
 				let point d = 

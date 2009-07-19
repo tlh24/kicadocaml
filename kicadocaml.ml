@@ -410,7 +410,7 @@ let render togl  =
 	
 	let drawRect (xl,yl,xh,yh) = 
 		let count = ref 0 in
-		let raw = Raw.create `float 12 in
+		let raw = Raw.create_static `float 12 in
 		GlArray.vertex `three raw ; 
 		let vertex3 (x,y,z) = 
 			Raw.set_float raw ~pos:(!count*3 + 0) x ; 
@@ -423,6 +423,7 @@ let render togl  =
 		vertex3 ( xh , yh, 0.5) ; 
 		vertex3 ( xh , yl, 0.5) ; 
 		GlArray.draw_arrays `quads 0 4 ; 
+		Raw.free_static raw ; 
 	in
 	let drawCursor (x,y) = 
 		drawRect (x -. s,y -. s,x +. s,y +. s) 
@@ -2316,6 +2317,7 @@ let _ =
 		| Unix.Unix_error(Unix.EADDRINUSE, "bind", "") -> 
 			print_endline "could not open a unix socket to listen for eeschema: port already used (probably by pcbnew)" ; 
 	); 
+	 Mesh.makewindow top ;
 	(* test out the mesh module 
 	printf "-- testing meshing --\n%!"; 
 	let pts = List.map  (fun(x,y) -> foi x, foi y)

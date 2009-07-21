@@ -1,8 +1,15 @@
+PROFILE = FALSE
 
 OCAMLC = ocamlfind ocamlc -g -c -w x
 OCAMOPT = ocamlfind ocamlopt -c -w x -inline 3
 OPTIONS = -package pcre,lablGL,labltk,lablGL.togl,unix
 LINKER = ocamlfind ocamlc -g
+
+ifeq ($(PROFILE),TRUE)
+OCAMOPT = ocamlfind ocamlopt -p -c -w x
+else 
+OCAMOPT = ocamlfind ocamlopt -c -w x -inline 3
+endif
 
 OBJS = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
@@ -32,6 +39,7 @@ dump.odoc : $(SRC)
 all: kicadocaml 				#bytecode
 
 opt:	kicadocaml.opt  	#native code
+
 
 doc: dump.odoc # documenation (e.g. for cameleon)
 

@@ -2317,14 +2317,14 @@ let _ =
 		| Unix.Unix_error(Unix.EADDRINUSE, "bind", "") -> 
 			print_endline "could not open a unix socket to listen for eeschema: port already used (probably by pcbnew)" ; 
 	); 
-	 Mesh.makewindow top ;
+	(* Mesh.makewindow top ; *)
 	(* test out the mesh module 
 	printf "-- testing meshing --\n%!"; 
 	let pts = List.map  (fun(x,y) -> foi x, foi y)
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace...  *)
-	(* openFile top "/home/tlh24/Desktop/dac1.brd";  *)
+	(* openFile top "/home/jon/svn/myopen/emg_dsp/stage2.brd"; *)
 	(* let schema = new schematic in 
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 

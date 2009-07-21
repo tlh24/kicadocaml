@@ -38,7 +38,7 @@ object (self)
 		m_corners <- [] ; (* list of lists, remember! *)
 		m_corners <- (List.map (fun (x,y) -> (x,y,0)) pts) :: m_corners ; 
 	)
-	method free () = ( (* bwtf, ocaml .. ? *)
+	method free () = ( (* required by ocaml 3.11 & lablgl 1.05, blah. *)
 		List.iter(fun rw -> 
 			Raw.free_static rw ; 
 		) m_rawv ; 
@@ -46,7 +46,7 @@ object (self)
 		Raw.free_static m_rawv_tri ; 
 		m_rawv_tri <- Raw.create_static `float 1 ; 
 		Raw.free_static m_rawv_fill ; 
-		m_rawv_fill <- Raw.create `float 1 ; 
+		m_rawv_fill <- Raw.create_static `float 1 ; 
 	)
 	method update () = (
 		self#free () ; 

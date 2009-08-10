@@ -988,7 +988,7 @@ let makemenu top togl filelist =
 			flush oc ; 
 			close_out_noerr oc; 
 		); 
-	List.iter (fun (fil, schem) -> 
+	List.iter (fun (fil, _) -> 
 		Menu.add_command filemenu ~label:fil ~command:
 			(fun () -> openFile top fil) ; 
 		) filelist; 
@@ -1106,8 +1106,8 @@ let makemenu top togl filelist =
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
 			(* set the hit flags& get a netnum *)
-			let (nn, hs, ch ) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
-				let (ja,netnum1, hitsize1, clearhit1) = 
+			let (nn, _, _ ) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
+				let (_,netnum1, hitsize1, clearhit1) = 
 					m#hit (out, !ghithold, onlyworknet,
 						false, netnum, hitsize,clearhit) in
 				(netnum1, hitsize1, clearhit1)
@@ -1507,7 +1507,7 @@ let makemenu top togl filelist =
 			updatecurspos evinf ; 
 		) ; 
 		(* unbind the v-key *)
-		bind ~events:[`KeyPressDetail("v")] ~action:(fun ev -> ()) top; 
+		bind ~events:[`KeyPressDetail("v")] ~action:(fun _ -> ()) top; 
 	in
 			
 	let bindMouseMoveModule () = 
@@ -1609,7 +1609,7 @@ let makemenu top togl filelist =
 			updatecurspos evinf ; 
 		) ; 
 		(* unbind the v-key *)
-		bind ~events:[`KeyPressDetail("v")] ~action:(fun ev -> ()) top; 
+		bind ~events:[`KeyPressDetail("v")] ~action:(fun _ -> ()) top; 
 	in
 	
 	let bindMouseSelect () = 
@@ -1775,7 +1775,7 @@ let makemenu top togl filelist =
 	
 	(* tracks callback *)
 	(* i do this because I'm not sure how to update the menu .. *)
-	let tracksFun ev = 
+	let tracksFun _ = 
 		let dlog = Toplevel.create top in
 		ghithold := false ; (* because the user depressed 'shift' to get here *)
 		Wm.title_set dlog "Track sizes" ; 
@@ -1813,7 +1813,7 @@ let makemenu top togl filelist =
 	in
 	
 	(* vias callback *)
-	let viasFun ev = 
+	let viasFun _ = 
 		let dlog = Toplevel.create top in
 		ghithold := false ; (* because the user depressed 'shift' to get here *)
 		Wm.title_set dlog "Via sizes" ; 
@@ -1926,7 +1926,7 @@ let makemenu top togl filelist =
 			); 
 		) top ;
 	bind ~events:[`ButtonReleaseDetail(3)]  ~fields:[`MouseX; `MouseY] ~action:
-		(fun ev -> 
+		(fun _ -> 
 			Mouse.releaseMove top ; 
 			render togl ;
 		) top ; 
@@ -1948,7 +1948,7 @@ let makemenu top togl filelist =
 		); 
 		render togl ;
 	in
-	let doToggleShow ev = 
+	let doToggleShow _ = 
 		if !gmode = Mode_MoveText then (
 			List.iter (fun m -> m#toggleTextShow()) !gmodules ; 
 			render togl ;
@@ -1965,15 +1965,15 @@ let makemenu top togl filelist =
 	(* the strings in the bindings are from X11's keysymdef.h ... *)
 	bind ~events:[`KeyPressDetail("r")] ~action:doRotate top ;
 	bind ~events:[`ButtonPressDetail(2)] ~fields:[`MouseX; `MouseY] ~action:doRotate top ; (* middle mouse button rotates *)
-	bind ~events:[`KeyPressDetail("Page_Up")] ~action:(fun ev -> changelayercallback "Cop";) top;  
-	bind ~events:[`KeyPressDetail("Page_Down")] ~action:(fun ev -> changelayercallback "Cmp";) top;  
-	bind ~events:[`KeyPressDetail("F5")] ~action:(fun ev -> changelayercallback "L1";) top;  
-	bind ~events:[`KeyPressDetail("F6")] ~action:(fun ev -> changelayercallback "L2";) top;  
-	bind ~events:[`KeyPressDetail("F7")] ~action:(fun ev -> changelayercallback "L3";) top;  
-	bind ~events:[`KeyPressDetail("F8")] ~action:(fun ev -> changelayercallback "L4";) top;   
-	bind ~events:[`KeyPressDetail("m")] ~action:(fun ev -> updateMode "move module";) top;  
-	bind ~events:[`KeyPressDetail("t")] ~action:(fun ev -> updateMode "move track";) top; 
-	bind ~events:[`KeyPressDetail("a")] ~action:(fun ev -> updateMode "add track";) top; 
+	bind ~events:[`KeyPressDetail("Page_Up")] ~action:(fun _-> changelayercallback "Cop";) top;  
+	bind ~events:[`KeyPressDetail("Page_Down")] ~action:(fun _ -> changelayercallback "Cmp";) top;  
+	bind ~events:[`KeyPressDetail("F5")] ~action:(fun _ -> changelayercallback "L1";) top;  
+	bind ~events:[`KeyPressDetail("F6")] ~action:(fun _ -> changelayercallback "L2";) top;  
+	bind ~events:[`KeyPressDetail("F7")] ~action:(fun _ -> changelayercallback "L3";) top;  
+	bind ~events:[`KeyPressDetail("F8")] ~action:(fun _ -> changelayercallback "L4";) top;   
+	bind ~events:[`KeyPressDetail("m")] ~action:(fun _ -> updateMode "move module";) top;  
+	bind ~events:[`KeyPressDetail("t")] ~action:(fun _ -> updateMode "move track";) top; 
+	bind ~events:[`KeyPressDetail("a")] ~action:(fun _ -> updateMode "add track";) top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"t")] ~action:tracksFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"v")] ~action:viasFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"s")] ~action:(fun _ -> saveall !gfname; ) top; 
@@ -1983,7 +1983,7 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  
 	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
-		(fun ev -> (* remove any tracks that were hit *)
+		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 
 				( List.find (fun t -> t#getHit ()) !gtracks ), true
 				with Not_found -> (List.hd !gtracks), false
@@ -1996,7 +1996,7 @@ let makemenu top togl filelist =
 			)
 		) top ;
 	bind ~events:[`KeyPressDetail("e")] ~action:
-		(fun ev -> 
+		(fun _ -> 
 			let m,found = try 
 				( List.find (fun t -> t#getHit ()) !gmodules ), true
 				with Not_found -> (List.hd !gmodules), false
@@ -2053,7 +2053,7 @@ let makemenu top togl filelist =
 					let st2 = track2#getStart() in
 					let en2 = track2#getEnd() in
 					let w = ((track#getWidth()) +. (track2#getWidth())) *. 0.5 in
-					let st, mp, en, touch = 
+					let st, _, en, touch = 
 						if Pts2.distance st1 st2 < w then (
 							(* the starts are touching *)
 							en1, st1, en2, true
@@ -2274,7 +2274,7 @@ let _ =
 			let (can_read, _, _) = Unix.select (FDSet.elements !clients) [] [] 0.00 in
 			List.iter ( fun client -> 
 				if client = sockin then (
-					let (client_sock, client_addr) = Unix.accept sockin in
+					let (client_sock, _ ) = Unix.accept sockin in
 					print_endline "accepted socket connection"; 
 					clients := FDSet.add client_sock !clients;
 					let rcvlen = Unix.read client_sock s 0 sl in 

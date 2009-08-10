@@ -60,9 +60,9 @@ let rec maketri verts tris =
 	if len < 3 then (
 		()
 	)else if len = 3 then (
-		let (ax,ay,az) = verts.(0) in
-		let (bx,by,bz) = verts.(1) in
-		let (cx,cy,cz) = verts.(2) in
+		let (ax,ay,_) = verts.(0) in
+		let (bx,by,_) = verts.(1) in
+		let (cx,cy,_) = verts.(2) in
 		if not ((ax = bx) && (ax = cx)) && not ((ay = by) && (ay = cy)) then (
 			tris := ((ax,ay),(bx,by),(cx,cy)) :: !tris ; 
 		); 

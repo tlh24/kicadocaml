@@ -1,14 +1,13 @@
 PROFILE = FALSE
 
-OCAMLC = ocamlfind ocamlc -g -c -w x
-OCAMOPT = ocamlfind ocamlopt -c -w x -inline 3
+OCAMLC = ocamlfind ocamlc -g -c -w x -w Z
 OPTIONS = -package pcre,lablGL,labltk,lablGL.togl,unix
 LINKER = ocamlfind ocamlc -g
 
-ifeq ($(PROFILE),TRUE)
-OCAMOPT = ocamlfind ocamlopt -p -c -w x
+ifeq ($(strip $(PROFILE)),TRUE)
+OCAMOPT = ocamlfind ocamlopt -p -g -c -w x -w Z
 else 
-OCAMOPT = ocamlfind ocamlopt -c -w x -inline 3
+OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 3
 endif
 
 OBJS = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \

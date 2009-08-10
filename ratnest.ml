@@ -43,7 +43,7 @@ method ratsNestMakeRaw rn sel=
 	if len > 0 then (
 		let rawv = Raw.create_static `float (4 * len) in
 		let i = ref 0 in
-		List.iter (fun (sx,sy,ex,ey,nn) ->
+		List.iter (fun (sx,sy,ex,ey,_) ->
 			Raw.set_float rawv ~pos:(4* !i + 0) sx ; 
 			Raw.set_float rawv ~pos:(4* !i + 1) sy ; 
 			Raw.set_float rawv ~pos:(4* !i + 2) ex ; 
@@ -146,7 +146,7 @@ method updateTracks ?(final=true) nn (tracks : Track.pcb_track list) =
 			); 
 		) tracks ;
 		(* remove old lines *)
-		m_rn <- List.filter (fun (sx,sy,ex,ey,rnetnum) -> not (rnetnum = nn)) m_rn ; 
+		m_rn <- List.filter (fun (_,_,_,_,rnetnum) -> not (rnetnum = nn)) m_rn ; 
 		(* reconnect *)
 		if final then (
 			self#connectMst nn ; 
@@ -193,7 +193,7 @@ method highlight node netnum () =
 				rnselAppend bnode2; 
 			) tracks1.(netnum) tracks2.(netnum) ; 
 		) ; 
-		let rnLength (ax1,ay1,ax2,ay2,an) = 
+		let rnLength (ax1,ay1,ax2,ay2,_) = 
 			 Pts2.distance2 (ax1,ay1) (ax2,ay2)
 		in
 		if !gdragShow5Smallest then (
@@ -225,7 +225,7 @@ method highlight node netnum () =
 			) ((List.hd nodes.(netnum) ), 1e24) nodes.(netnum)
 		in
 		(* tracks too *)
-		let (cnode2,cdist2) = 
+		let (cnode2,_) = 
 			List.fold_left2 (fun (cnode1,cdist1) bnode1 bnode2 -> 
 				let d1 = Pts2.distance2 (Ratnode.getPos bnode1) pos in
 				let d2 = Pts2.distance2 (Ratnode.getPos bnode2) pos in
@@ -340,7 +340,7 @@ method update () =
 	let count = ref 0 in
 	SI.iter (fun netnum -> 
 		(* clear out old rat lines *)
-		m_rn <- List.filter (fun (sx,sy,ex,ey,rnetnum) -> not (rnetnum = netnum)) m_rn ; 
+		m_rn <- List.filter (fun (_,_,_,_,rnetnum) -> not (rnetnum = netnum)) m_rn ; 
 		incr count ;
 	) m_updateNN ;
 	if !count > 0 then (

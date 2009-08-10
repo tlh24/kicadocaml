@@ -50,7 +50,7 @@ let propagateNetcodes modules tracks doall checkpads top rendercb ratcb () =
 	let oldchangedtracks = ref [] in
 	oldchangedtracks := !tracks ; (* all tracks are changed at the start *)
 	while !change > 0 do (
-		let unconn, conn = List.partition (fun t -> t#getNet() = 0) !tracks in
+		let unconn, _ = List.partition (fun t -> t#getNet() = 0) !tracks in
 		change := 0 ;
 		changedtracks := [] ;
 		List.iter (fun t-> 

@@ -2,7 +2,7 @@ open Printf
 open Comm (* common functions *)
 
 class component = 
-object (self)
+object 
 	val mutable m_ts = ""; (* U 456AD34E *)
 	val mutable m_ref = ""; (* F0 *)
 	val mutable m_type = ""(* F1 *)
@@ -61,7 +61,7 @@ object (self)
 		if m_path = "" && List.length m_arlut > 0 then (
 			let fp =  path ^ "/" ^ m_ts in (* the 'full' path *)
 			(* printf "collapseAr full path %s \n%!" fp ; *)
-			let (pth, rf) = List.find (fun (p, r) -> p = fp ) m_arlut in
+			let (_, rf) = List.find (fun (p, _) -> p = fp ) m_arlut in
 			(* printf "collapseAr in component path %s ref %s\n%!" fp rf; *)
 			m_path <- path ; 
 			m_ref <- rf ;
@@ -71,7 +71,7 @@ object (self)
 end
 
 class sheet =
-object (self)
+object 
 	val mutable m_ts = "" (* U 456AD34E *)
 	val mutable m_ref = "" (* F0 *)
 	val mutable m_fname = "" (* F1 *)

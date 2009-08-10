@@ -29,8 +29,8 @@ let input_line2 ic =
 	linenum := !linenum + 1 ; 
 	(* print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
 	line ;;
-let nothingxy (x:float) (y:float) = () ;;
-let nothingsxy (s:string) (x:float) (y:float) = () ; 
+let nothingxy (_:float) (_:float) = () ;;
+let nothingsxy (_:string) (_:float) (_:float) = () ; 
 
 type pcb_mode_type = Mode_MoveModule | Mode_MoveText |
 		Mode_MoveTrack | Mode_AddTrack
@@ -42,7 +42,7 @@ let gpan = ref (0.0, 0.0)
 let ginfodisp = ref print_endline 
 let ginfodispappend = ref print_endline 
 let gcursordisp = ref nothingsxy 
-let print_nothing (s:string) = () 
+let print_nothing (_:string) = () 
 let gcrossprobe = ref print_nothing 
 let gdragShowAllNets = ref false 
 let gdragShow5Smallest = ref false 
@@ -57,7 +57,7 @@ let gmode = ref Mode_MoveModule
 let gsnapped = ref (0. , 0.)
 let gclearance = ref 0.0098  (* 0.125mm *)
 let gcurnet = ref 0 
-let glookupnet = ref (fun (n:int) -> "unkown")
+let glookupnet = ref (fun (_:int) -> "unkown")
 let gviaColor = ref (1., 1., 1.)
 let gshowPadNumbers = ref true
 let gselectRect = ref (1e99, 1e99, 1e99, 1e99)
@@ -289,5 +289,5 @@ struct
 			| _ -> s.c <- List.tl s.c ; List.hd s.c
 	let length s = List.length s.c
 	let iter f s = List.iter f s.c
-	let hd s = match s.c with hd::tl -> hd | [] -> raise Empty
+	let hd s = match s.c with hd::_ -> hd | [] -> raise Empty
 end 

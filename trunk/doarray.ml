@@ -43,7 +43,7 @@ let doArray sheets template ax ay
 	List.iter (fun i -> 
 		let sn = basename ^ (soi i) in
 		let (found, ar) = gschema#findSubSch sn "" in
-		(*if (not found) then ( raise Not_found ) *)
+		if (not found) then ( raise Not_found ) ; (* wonder why this was commented out? *)
 		lut.(!d) <- (i, sn, ar, []) ;
 		if (String.compare template sn) == 0 then templatets := ar ; 
 		incr d ; 

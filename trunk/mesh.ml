@@ -242,7 +242,7 @@ let mesh pts segs filter =
 			[(angle j.a j.b j.c);(angle j.b j.c j.a);(angle j.c j.a j.b);
 			(angle k.a k.b k.c);(angle k.b k.c k.a);(angle k.c k.a k.b)]
 	in
-	let orient fn gn frot = 
+	let orient fn frot = 
 		(* common edge is supplied in com wrt f : 0=ab 1=bc 2=ca *)
 		let f = rotate fn frot in (* rotate f so that edge AB is facing triangle g *)
 		let gn = f.abn in
@@ -260,7 +260,7 @@ let mesh pts segs filter =
 			(* given two triangles f and g whch share a common 
 			edge, flip this edge if it would make the smallest angle in both 
 			larger.  (I could do the delaunay criteria, but...lazy). *)
-			let f,g = orient fn gn frot in
+			let f,g = orient fn frot in
 			(* see if there are any angles > 180 - if so, cannot flip
 			since the corresponding quadralateral is concave *)
 			(* printf "trying flip f, g :\n%!"; printtri f ; printtri g; *)

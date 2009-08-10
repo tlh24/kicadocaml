@@ -28,8 +28,8 @@ object (self)
 		val mutable m_drcBBX = (0. , 0. , 0. , 0.)
 		val mutable m_visible = true
 		
-		val mutable m_moveStartConstraint = (fun (a:(float * float)) (b:(float * float)) -> (0. , 0.))
-		val mutable m_moveEndConstraint = (fun (a:(float * float)) (b:(float * float)) -> (0. , 0.))
+		val mutable m_moveStartConstraint = (fun (_:(float * float)) (_:(float * float)) -> (0. , 0.))
+		val mutable m_moveEndConstraint = (fun (_:(float * float)) (_:(float * float)) -> (0. , 0.))
 		val mutable m_hasStartConstraint = false ; 
 		val mutable m_hasEndConstraint = false ; 
 		

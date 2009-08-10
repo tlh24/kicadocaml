@@ -11,10 +11,10 @@ let thrd (_,_,a) = a ;;
 (* moveActionStack is a list of callback functions for listening to mouse move. *)
 (* when you start listening, you push a function on the list ; *)
 (* when you stop, you pop it off & set to the next lowest (if it exists) *)
-let moveActionStack = ref [ (fun (ev:eventInfo) -> ()) ] (* list of (fun (ev:eventInfo) -> () ) *)
+let moveActionStack = ref [ (fun (_:eventInfo) -> ()) ] (* list of (fun (ev:eventInfo) -> () ) *)
 
 let popActionStack () = 
-	let nul = (fun ev -> ()) in
+	let nul = (fun _ -> ()) in
 	if List.length !moveActionStack > 0 then (
 		moveActionStack := List.tl !moveActionStack ; 
 		if List.length !moveActionStack > 0 then (
@@ -152,13 +152,13 @@ object (self)
 				self#render togl ;
 			) top ; 
 		bind ~events:[`KeyPressDetail("Up")] ~action:
-			(fun ev -> m_xrot <- m_xrot +. 2.0; self#render togl ;) top ; 
+			(fun _ -> m_xrot <- m_xrot +. 2.0; self#render togl ;) top ; 
 		bind ~events:[`KeyPressDetail("Down")] ~action:
-			(fun ev -> m_xrot <- m_xrot -. 2.0; self#render togl ;) top ; 
+			(fun _ -> m_xrot <- m_xrot -. 2.0; self#render togl ;) top ; 
 		bind ~events:[`KeyPressDetail("Left")] ~action:
-			(fun ev -> m_yrot <- m_yrot +. 2.0; self#render togl ;) top ; 
+			(fun _ -> m_yrot <- m_yrot +. 2.0; self#render togl ;) top ; 
 		bind ~events:[`KeyPressDetail("Right")] ~action:
-			(fun ev -> m_yrot <- m_yrot -. 2.0; self#render togl ;) top ; 
+			(fun _ -> m_yrot <- m_yrot -. 2.0; self#render togl ;) top ; 
 			
 		let doZoom ev zm = 
 			self#updateCursorPos ev ; 

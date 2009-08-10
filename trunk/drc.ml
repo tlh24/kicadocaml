@@ -207,7 +207,7 @@ let testdrcAll tracks modules top rendercb () =
 						if (t#getLayer() = lay2 || viaend)  then (
 							Pts2.distance2 en2 (t#getStart() ) < w22
 						) else false ) tracks5 in
-					let hitendend,tracks7 = List.partition (fun t -> 
+					let hitendend,_ = List.partition (fun t -> 
 						if (t#getLayer() = lay2 || viaend) && not (t#isVia()) then (
 							Pts2.distance2 en2 (t#getEnd() ) < w22
 						) else false ) tracks6 in

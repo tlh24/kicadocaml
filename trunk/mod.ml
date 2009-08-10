@@ -7,7 +7,7 @@ open Shape
 open Pad
 
 class shape3d = 
-object (self)
+object
 (* this is a very simple class - just stores the string contents of the section *)
 	val mutable m_str = [] ; 
 	method read ic = 
@@ -297,7 +297,7 @@ object (self)
 		(* return list that associates module timestamp ^ padname with netnum. *)
 		(* again, only return non-zero associations. *)
 		let modts = self#pathLast () in
-		List.filter (fun (modts, nn) -> nn != 0)
+		List.filter (fun (_, nn) -> nn != 0)
 			(List.map (fun p-> 
 				( ( modts ^ "_" ^ p#getPadName() ), p#getNet () ) 
 			) m_pads )
@@ -355,7 +355,7 @@ object (self)
 		in
 		let parse_remaining = 
 			let line = ref (input_line2 ic) in
-			let add_shape shapetype = 
+			let add_shape _ = 
 				let shape = new pcb_shape in
 				shape#read ic !line Shape_Segment ; 
 				m_shapes <- (shape :: m_shapes) ; 

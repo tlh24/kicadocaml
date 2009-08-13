@@ -38,7 +38,7 @@ object (self)
 	val mutable m_doc = ""
 	val mutable m_keyword = ""
 	val mutable m_path = ""
-	val mutable m_timestamp = ""
+	(*val mutable m_timestamp = "" *)
 	val mutable m_cntRot90 = 0
 	val mutable m_cntRot180 = 0
 	val mutable m_attributes = ""
@@ -275,6 +275,7 @@ object (self)
 		if m_moving then bbxTranslate m_drcBBX m_move
 		else m_drcBBX
 	)
+	method getTimeStamp () = ( m_TimeStamp )
 	method pathHas pth = ( Pcre.pmatch ~pat:pth m_path )
 	method pathLast () = ( Pcre.extract ~pat:"\/([^\/]+)$" m_path ).(1)
 	method pathSheet () =  ( Pcre.extract ~pat:"\/([^\/]+)\/[^\/]+$" m_path ).(1)
@@ -339,8 +340,8 @@ object (self)
 					with Not_found -> m_keyword ); 
 				d := input_line2 ic ; 
 			) done;
-			m_timestamp <- try (Pcre.extract ~pat:"^Sc (.+)" !d).(1)
-					with Not_found -> "" ; 
+			(* m_timestamp <- try (Pcre.extract ~pat:"^Sc (.+)" !d).(1)
+					with Not_found -> "" ; *)
 		in
 		let parse_line4 = 
 			try 
@@ -411,7 +412,7 @@ object (self)
 		if (String.length m_keyword) > 0 then (
 			fprintf oc "Kw %s\n" m_keyword ; 
 		) ; 
-		fprintf oc "Sc %s\n" m_timestamp ; 
+		fprintf oc "Sc %s\n" m_TimeStamp ; 
 		fprintf oc "AR %s\n" m_path ; 
 		fprintf oc "Op %d %d 0\n" m_cntRot90 m_cntRot180 ; 
 		if (String.length m_attributes) > 0 then (

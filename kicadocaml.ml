@@ -650,7 +650,7 @@ let makemenu top togl filelist =
 			[Tk.coe msg; Tk.coe sheets; Tk.coe msg2; Tk.coe template ; 
 			Tk.coe msg3; Tk.coe xentry; Tk.coe msg4; Tk.coe yentry; Tk.coe but]; 
 	in
-	
+		
 	(* adjust via drill sizes *)
 	let viaDrillAdjust () = 
 		let dlog = Toplevel.create top in
@@ -1905,6 +1905,28 @@ let makemenu top togl filelist =
 		~command: (fun () -> List.iter (fun z -> z#fill !gtracks !gmodules) !gzones) ; 
 	Menu.add_command optionmenu ~label:"Show zone fill algorithm window"
 		~command: (fun () -> Mesh.makewindow top ) ; 
+	Menu.add_command optionmenu ~label:"Move modules based on schematic position"
+		~command: ( fun () -> 
+		let dlog = Toplevel.create top in
+		Wm.title_set dlog "Move mods" ; 
+		let msg = Message.create ~text:"scaling:"  dlog in
+		let scaling = Entry.create ~width:10 dlog in
+		Entry.insert ~index:(`Num 0) ~text:"4000" scaling ; 
+		let button = Button.create ~text:("move!")  dlog ~command:
+		( fun () -> 
+			List.iter (fun m -> 
+				let scl = fos (Entry.get scaling) in
+				let ts = m#getTimeStamp () in
+				let p = gschema#componentPositon ts in
+				m#setPos (Pts2.scl p (1.0 /. scl)); 
+				m#update (); 
+			) !gmodules ; 
+			render togl ; 
+		) in
+		let all = [Tk.coe msg; Tk.coe scaling; Tk.coe button;] in
+		Tk.pack ~fill:`Both ~expand:true all; 
+	) ; 
+
 	Menu.add_command optionmenu ~label:"About" ~command:(helpbox "about" abouttext top) ; 
 	(* get the menus working *)
 	Menubutton.configure fileb ~menu:filemenu;

@@ -1,9 +1,11 @@
 open Printf
 open Comm (* common functions *)
+open Mod
 
 class component = 
 object 
 	val mutable m_ts = ""; (* U 456AD34E *)
+	val mutable m_pos = (0.0, 0.0); 
 	val mutable m_ref = ""; (* F0 *)
 	val mutable m_type = ""(* F1 *)
 	val mutable m_footprint = ""; (* F2 *)
@@ -27,6 +29,10 @@ object
 				| 'A' -> (
 					let sp = parse "AR Path=\"([^\"]+)\" Ref=\"([^\"]+)" in
 					m_arlut <- ( (sp.(1)) , (sp.(2)) ) :: m_arlut ; 
+				)
+				| 'P' -> (
+					let sp = parse "P (\d+) (\d+)" in
+					m_pos <- (fos sp.(1)),(fos sp.(2)) ; 
 				)
 				| 'F' -> (
 					let sp = parse "F (\d+) " in
@@ -68,6 +74,8 @@ object
 			() (* don't need to return anything *)
 		)
 	)
+	method getTimeStamp () = ( m_ts )
+	method getPos () = ( m_pos )
 end
 
 class sheet =
@@ -112,7 +120,6 @@ object (self)
 	val mutable m_ts = ""
 	val mutable m_ref = "" (* the name of the schematic if it is sub to another *)
 	val mutable m_fileName = ""
-	
 	
 	method openFile fname ts fref = (
 		(* clear out the previous hierarchy *)
@@ -192,6 +199,20 @@ object (self)
 				if found then (true, ffp) 
 				else a
 			) (false, "") m_subSch
+		)
+	)
+	
+	method componentPositon (ts:string) = (
+		(* find the component position *)
+		let comp =
+			try Some (List.find (fun c ->
+				c#getTimeStamp () = ts
+			) m_components )
+			with Not_found -> (Printf.printf "comonent not found!\n"; None)
+		in
+		(match comp with 
+			| Some c -> c#getPos () ;
+			| None -> (0.0, 0.0) ;
 		)
 	)
 end

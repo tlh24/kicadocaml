@@ -2346,7 +2346,7 @@ let _ =
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace...  *)
-	(* openFile top "/home/jon/svn/myopen/emg_dsp/stage2.brd"; *)
+	(* openFile top "/home/tlh24/svn/myopen/emg_dsp/emg_dsp.brd";  *)
 	(* let schema = new schematic in 
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 

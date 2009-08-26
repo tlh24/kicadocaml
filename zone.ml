@@ -7,7 +7,7 @@ open Track
 open Mod
 open Pad
 
-let fudge = 1.06
+let fudge = 1.06 (* yea.. a fudge factor. *)
 class zone = 
 object (self)
 	val mutable m_net = 0
@@ -408,35 +408,39 @@ object (self)
 		let conv n = fois (ios n) in
 		while not (Pcre.pmatch ~rex !line) do (
 			(* printf "%s\n%!" !line ;  *)
-			let tp = (Pcre.extract ~pat:"^([\w\$]+)" !line).(1) in
+			let tp = try Some (Pcre.extract ~pat:"^([\w\$]+)" !line).(1) with _ -> None in
 			(
 			match tp with 
-				| "ZInfo" -> (
-					let sp = Pcre.extract ~pat:"^\w+ (\w+) (\d+) \"([^\"]+)\"" !line in
-					m_timestamp <- sp.(1) ; 
-					m_net <- ios (sp.(2)) ; 
-					m_netname <- sp.(3) ; 
-					)
-				| "ZLayer" -> (
-					let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
-					m_layer <- ios (sp.(1)); 
-					) 
-				| "ZAux" -> ( m_aux <- !line ; )
-				| "ZClearance" -> (
-					let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
-					m_clearance <- (conv (sp.(1)))  ; 
-					)
-				| "ZMinThickness" -> (
-					let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
-					m_minthick <- conv (sp.(1)) ; 
-					)
-				| "ZOptions" -> ( m_options <- !line ; )
-				| "ZCorner" -> (
-					let sp = Pcre.extract ~pat:"^\w+ ([\d-]+) ([\d-]+) (\d+)" !line in
-					corners := ( (conv (sp.(1))),(conv (sp.(2))),(ios (sp.(3))) ) :: !corners ;
-					)
-				| "$POLYSCORNERS" -> (self#read_poly ic)
-				| _ -> () 
+				| Some tpp -> (
+					match tpp with 
+					| "ZInfo" -> (
+						let sp = Pcre.extract ~pat:"^\w+ (\w+) (\d+) \"([^\"]+)\"" !line in
+						m_timestamp <- sp.(1) ; 
+						m_net <- ios (sp.(2)) ; 
+						m_netname <- sp.(3) ; 
+						)
+					| "ZLayer" -> (
+						let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
+						m_layer <- ios (sp.(1)); 
+						) 
+					| "ZAux" -> ( m_aux <- !line ; )
+					| "ZClearance" -> (
+						let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
+						m_clearance <- (conv (sp.(1)))  ; 
+						)
+					| "ZMinThickness" -> (
+						let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
+						m_minthick <- conv (sp.(1)) ; 
+						)
+					| "ZOptions" -> ( m_options <- !line ; )
+					| "ZCorner" -> (
+						let sp = Pcre.extract ~pat:"^\w+ ([\d-]+) ([\d-]+) (\d+)" !line in
+						corners := ( (conv (sp.(1))),(conv (sp.(2))),(ios (sp.(3))) ) :: !corners ;
+						)
+					| "$POLYSCORNERS" -> (self#read_poly ic)
+					| _ -> () 
+				) 
+				| None -> ()
 			) ; 
 			line := input_line2 ic ; 
 		) done ;

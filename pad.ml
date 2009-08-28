@@ -287,9 +287,9 @@ object (self)
 			m_x <- ios sp.(1) ;
 			m_y <- ios sp.(2) ; 
 		in
-		parse_line1; (* ocaml is sort-of like c - your let statements *)
-		parse_line2; (* must come before imperative statements *)
-		parse_line3; (* or so I think .. *)
+		parse_line1; 
+		parse_line2; 
+		parse_line3; 
 		parse_line4; 
 		parse_line5; 
 		ignore( input_line2 ic); (*read the last line, $EndPAD *)

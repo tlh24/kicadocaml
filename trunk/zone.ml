@@ -21,8 +21,10 @@ object (self)
 	therefore the rendering and meshing of zones here will have larger holes than in kicad or 
 	in the gerbers that kicad produces. *)
 	val mutable m_corners = [] (* list of lists of coordinates, float*float*int  *)
-	val mutable m_poly = [] (* list of poly coordinates, float*float*int*int *)
-	val mutable m_tris = [] (* list of triangles, ((float*float)*(float*float)*(float*float)) *)
+	val mutable m_poly = [] (* list of poly coordinates, float*float*int*int 
+							-- this is read in from the board file *)
+	val mutable m_tris = [] (* list of triangles, ((float*float)*(float*float)*(float*float)) 
+							-- this is computed from the triangularization / filtering *)
 	val mutable m_rawv = [] (* list of raw arrays for the polys *)
 	val mutable m_rawv_tri = Raw.create_static `float 1 
 	val mutable m_rawv_fill = Raw.create_static `float 1 
@@ -125,6 +127,10 @@ object (self)
 		(* now need to manage the color ; use grfx to compute this *)
 		m_g#updateLayer false m_layer; 
 	)
+	method empty () = (
+		m_tris <- [] ; 
+		self#update () ; 
+	)
 	method fill (tracks : Track.pcb_track list) (mods : Mod.pcb_module list) = (
 		m_tris <- [] ; 
 		m_poly <- [] ; 
@@ -148,7 +154,8 @@ object (self)
 		(* keep the pads associated with their module, for position *)
 		
 		(* unfortunately grfx.ml works with quads, not polygons - 
-		and we need polys, or a closed sequence of vertices, for meshing *)
+		and we need polys, or a closed sequence of vertices, for meshing 
+		hence routines need to be duplicated. *)
 		let makeCircle (x,y) w = 
 			let n = 16 in
 			let v = ref [] in

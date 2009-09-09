@@ -597,13 +597,11 @@ let makemenu top togl filelist =
 	let fileb = Menubutton.create ~text:"File" menubar
 	and optionb = Menubutton.create ~text:"Options" menubar
 	and viab = Menubutton.create ~text:"Via" menubar 
-	and trackb = Menubutton.create ~text:"Track" menubar
-	and alignb = Menubutton.create ~text:"Align" menubar in
+	and trackb = Menubutton.create ~text:"Track" menubar in
 	let filemenu = Menu.create ~tearoff:false fileb
 	and optionmenu = Menu.create ~tearoff:false optionb
 	and viamenu = Menu.create ~tearoff:false viab 
-	and trackmenu = Menu.create ~tearoff:false trackb 
-	and alignmenu = Menu.create ~tearoff:false alignb in
+	and trackmenu = Menu.create ~tearoff:false trackb in
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursordisp = Text.create ~width:17 ~height:2 menubar in
 	(* information display callback *)
@@ -680,21 +678,75 @@ let makemenu top togl filelist =
 		Tk.pack  ~fill:`X ~side:`Left 
 			[Tk.coe msg; Tk.coe min; Tk.coe msg2; Tk.coe max; Tk.coe msg3; Tk.coe drill; Tk.coe button]; 
 	in
+	let entryframe dlog txt = 
+		let frame1 = Frame.create dlog in
+		let msg = Message.create ~text:txt ~width:110 frame1 in
+		let ntry = Entry.create ~width:12 frame1 in
+		Tk.pack ~fill:`X ~expand:true ~side:`Left [Tk.coe msg; Tk.coe ntry]; 
+		(frame1, fun () -> Entry.get ntry )
+	in
+	let msgframe dlog text = 
+		let frame1 = Frame.create dlog in
+		let msg = Message.create ~text frame1 in
+		Tk.pack ~fill:`X ~expand:true ~side:`Left [msg] ; 
+		frame1 
+	in
+	(* adjust text position / rotations on modules following a template *)
+	let textPositionAdjust () = 
+		let dlog = Toplevel.create top in
+		Wm.title_set dlog "Change text position";
+		let frame1  = msgframe dlog 
+			"Change text position, size, and orientation based on a template module" in
+		let exemplarFrm, exemplarCb = entryframe dlog "Template module (e.g. Q1)" in
+		let frame2 = Frame.create dlog in
+		let button = Button.create ~text:"set!" 
+		~command:(fun () -> 
+			let exemplar = exemplarCb () in
+			(* find the exemplar *)
+			let emod , fnd= try
+				(List.find (fun m -> m#getRef() = exemplar) !gmodules), true
+			with Not_found ->(List.hd !gmodules), false in
+			if fnd then (
+				let libref = emod#getLibRef () in
+				let others = List.filter (fun m -> 
+					m#getRef() != exemplar && 
+					m#getLibRef() = libref
+				) !gmodules in
+				List.iter (fun etxt -> (* iterate over all exemplar texts *)
+					let typ = etxt#getType () in
+					List.iter (fun m -> (* iter over all similar modules *)
+						let txts = List.filter (fun t -> 
+							t#getType() = typ
+						) (m#getTexts ()) in
+						List.iter (fun t -> 
+							t#setSize (etxt#getSize ()) ; 
+							t#setPos (etxt#getPos ()) ; 
+							t#setRot (etxt#getRot ()) ; 
+							t#setShow (etxt#getShow ()) ; 
+							t#setWidth (etxt#getWidth ()) ; 
+							(* everything but the actual content :-) *)
+							t#update2 () ; 
+							render togl ; 
+						) txts ; 
+					) others ; 
+				) (emod#getTexts ()) ; 
+			) else (
+				printf "module with reference %s not found!\n%!" exemplar ; 
+			)
+		) frame2 in
+		Tk.pack ~side:`Left~fill:`X [button] ; 
+		let all = [frame1; frame2 ; exemplarFrm] in
+		Tk.pack ~fill:`Both ~expand:true all ; 
+	in
 	(* adjust text sizes on specific modules *)
 	let textSizeAdjust () = 
 		let dlog = Toplevel.create top in
 		Wm.title_set dlog "Change text sizes on select modules";
+		let frame1  = msgframe dlog "Change text sizes on select modules" in
 		let msgs = [|"module name (footprint)";"text width (x)";"text height (y)";
 			"text line thickness";"Limit to modules on the same sheet & sub-sheets as:"^
 			"(eg. R21; leave blank for all modules)"|] in
-		let entryframe txt = 
-			let frame1 = Frame.create dlog in
-			let msg = Message.create ~text:txt ~width:110 frame1 in
-			let ntry = Entry.create ~width:12 frame1 in
-			Tk.pack ~fill:`X ~expand:true ~side:`Left [Tk.coe msg; Tk.coe ntry]; 
-			(frame1, fun () -> Entry.get ntry )
-		in
-		let framelist = Array.map entryframe msgs in
+		let framelist = Array.map (entryframe dlog) msgs in
 		let frames = Array.to_list (Array.map fst framelist) in
 		let cbs = Array.map snd framelist in
 		(* radiobuttons for show/hide *)
@@ -743,7 +795,38 @@ let makemenu top togl filelist =
 			render togl ; 
 		) frame2 in
 		Tk.pack ~side:`Left~fill:`X [button] ; 
-		let all = frame2 :: (showframe :: frames) in
+		let all = frame1 :: frame2 :: showframe :: frames in
+		Tk.pack ~fill:`Both ~expand:true all ; 
+	in
+	let minTextSizeAdjust () = 
+		let dlog = Toplevel.create top in
+			Wm.title_set dlog "minimum text size";
+		let frame1  = msgframe dlog "Change the minimum text dimensions for *all* modules" in
+		let msgs = [| "text height";"text width";"text line thickness" |] in
+		let framelist = Array.map (entryframe dlog) msgs in
+		let frames = Array.to_list (Array.map fst framelist) in
+		let cbs = Array.map snd framelist in
+		let frame2 = Frame.create dlog in
+		let button = Button.create ~text:"set!" 
+		~command:(fun () -> 
+			let width = fos ((cbs.(0))()) in
+			let height = fos ((cbs.(1))()) in
+			let thickness = fos ((cbs.(2))()) in
+			let cnt = ref 0 in
+			List.iter (fun m -> 
+				List.iter (fun t -> 
+					let w,h = t#getSize () in
+					t#setSize ((max w width),(max h height)); 
+					let tk = t#getWidth () in
+					t#setWidth (max tk thickness) ;
+					incr cnt; 
+					render togl ; (* interactive! *)
+				) (m#getTexts()) ;
+			) !gmodules ; 
+			printf "Updated %d texts\n%!" !cnt ; 
+		) frame2 in
+		Tk.pack ~side:`Left~fill:`X [button] ; 
+		let all = frame1 :: frame2  :: frames in
 		Tk.pack ~fill:`Both ~expand:true all ; 
 	in
 	let padSolderMaskAdjust () = 
@@ -926,42 +1009,6 @@ let makemenu top togl filelist =
 			schema#print "" ; 
 		); 
 	*)
-	Menu.add_command filemenu ~label:"testMesh" ~command:
-	(fun () -> 
-		let pts = Array.init 200 (fun _ -> (Random.float 4.0, Random.float 4.0)) in
-		let p = List.rev_append (List.rev_map (fun (a,b) -> ((foi a),(foi b)))
-			[(1,1);(1,1);(1,1);(1,1);(1,1);(1,1);(1,1);(1,1);(1,1); 
-			 (0,0);(2,2);(4,4);(3,3);(5,5)] ) 
-			(Array.to_list pts) in
-		ignore(Mesh.mesh p [] (fun _ -> true)); 
-	); 
-	Menu.add_command filemenu ~label:"testZone" ~command:
-	(fun () -> 
-		let z = new zone in
-		(* setup a simple square zone, 10x10*)
-		z#set_corners (List.map (fun(x,y) -> foi x, foi y) [(0,0);(0,10);(10,10);(10,0)]);  
-		let trk = new pcb_track in
-		trk#setStart (2.0,5.0) ; 
-		trk#setEnd (5.0, 2.0) ; 
-		trk#setNet 1 ; 
-		trk#setWidth 1.0 ; 
-		let trk2 = new pcb_track in
-		trk2#setStart (5.0,2.0) ; 
-		trk2#setEnd (5.0, 8.0) ; 
-		trk2#setNet 1 ; 
-		trk2#setWidth 1.0 ; 
-		let trk3 = new pcb_track in
-		trk3#setStart (5.0,8.0) ; 
-		trk3#setEnd (12.0, 5.0) ; 
-		trk3#setNet 1 ; 
-		trk3#setWidth 1.0 ; 
-		let trk4 = new pcb_track in
-		trk4#setStart (5.0,2.0) ; 
-		trk4#setEnd (10.0, 1.0) ; 
-		trk4#setNet 1 ; 
-		trk4#setWidth 1.0 ; 
-		z#fill [trk;trk2;trk3;trk4] []; 
-	); 
 	Menu.add_command filemenu ~label:"Array" ~command:arrayFun; 
 	Menu.add_command filemenu ~label:"Save As" ~command:
 		(fun () -> 
@@ -992,18 +1039,6 @@ let makemenu top togl filelist =
 		Menu.add_command filemenu ~label:fil ~command:
 			(fun () -> openFile top fil) ; 
 		) filelist; 
-		
-	let addAlignCmd label cmd = 
-		Menu.add_command alignmenu ~label ~command:
-		(fun () -> 
-			cmd (List.filter (fun m-> m#getHit ()) !gmodules); 
-			render togl ; 
-		); 
-	in
-	addAlignCmd "Align X (vertical)" Align.alignX ; 
-	addAlignCmd "Align Y (horizontal)" Align.alignY ; 
-	addAlignCmd "Distribute X (horizontal)" Align.distributeX ; 
-	addAlignCmd "Distribute Y (vertical)" Align.distributeY ; 
 		
 	(* add the layer buttons *)
 	let makeLayerFrame choicelist layerlist radiocallback checkcallback container =
@@ -1741,37 +1776,9 @@ let makemenu top togl filelist =
 	in
 	Tk.pack ~side:`Left ~fill:`X mlist;
 	
-	(*add options*)
-	let addOption label cmd ic = 
-		let v = Textvariable.create() in
-		Textvariable.set v (if ic then "On" else "Off") ; 
-		Menu.add_checkbutton optionmenu ~label ~indicatoron:true
-			~variable:v
-			~offvalue:"Off" ~onvalue:"On"
-			~command:(fun () -> cmd( (Textvariable.get v)="On" )) ; 
-	in 
-	addOption "z buffer" (fun b -> genabledepth := b ) !genabledepth; 
-	addOption "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
-	addOption "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
-	addOption "draw tracks" (fun b -> gdrawtracks := b) !gdrawtracks ; 
-	addOption "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
-	addOption "draw module text" (fun b -> gdrawText := b) !gdrawText ; 
-	addOption "draw ratsnest" (fun b -> gdrawratsnest := b) !gdrawratsnest ; 
-	addOption "draw pad numbers" (fun b -> gshowPadNumbers := b) !gshowPadNumbers ; 
-	(*the following option no longer works *)
-	addOption "show all nets when selected" (fun b -> gdragShowAllNets := b ) !gdragShowAllNets; 
-	addOption "show 4 smallest nets when selected" (fun b -> gdragShow5Smallest := b ) !gdragShow5Smallest; 
-	addOption "limit ratnest computation to nets with < 200 nodes"
-		(fun b -> gLimitRatnest200 := b) !gLimitRatnest200 ; 
-	addOption "135 degree routing" (fun b -> groute135 := b) !groute135 ; 
-	addOption "when dragging tracks mantain slope" (fun b -> gtrackKeepSlope := b) !gtrackKeepSlope ; 
-	addOption "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
-	addOption "cross probe transmit" (fun b -> gcrossProbeTX := b) !gcrossProbeTX ; 
-	addOption "cross probe recieve" (fun b -> gcrossProbeRX := b) !gcrossProbeRX ; 
-
 	(* to milimeter function *)
 	let tomm gg = (sof gg) ^ " (" ^ (sof (gg *. 25.4)) ^ " mm)" in
-	
+	let viaprint pad drill = "pad " ^ (tomm pad) ^ " drill " ^ (tomm drill) in
 	
 	(* tracks callback *)
 	(* i do this because I'm not sure how to update the menu .. *)
@@ -1804,6 +1811,18 @@ let makemenu top togl filelist =
 				gtrackwidth := w ;
 				print_endline ("track width set to " ^ (sof w));
 				gtrackwidthlist := List.sort compare !gtrackwidthlist; 
+				(* find the sorted index *)
+				let j = ref 0 in
+				let indx = ref 1 in
+				List.iter (fun ww -> 
+					if ww = w then ( indx := !j ) ;
+					incr j ; 
+				) !gtrackwidthlist ; 
+				(* add into the menu  .. sorted *)
+				Menu.insert_command ~index:(`Num !indx) trackmenu ~label:(tomm w) ~command: (fun _ -> 
+					gtrackwidth := w ; 
+					print_endline ("track width set to " ^ (sof w));
+				) ; 
 				Tk.destroy dlog; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 			) frame in
@@ -1822,12 +1841,11 @@ let makemenu top togl filelist =
 		let setvia pad drill = 
 			gviapad := pad; 
 			gviadrill := drill ;  
-			print_endline ("via pad set to " ^ (sof pad));
-			print_endline ("via drill set to " ^ (sof drill));
+			print_endline ("via set to " ^ (viaprint pad drill));
 		in
 		let buttons = List.map (fun (pad,drill) -> 
 			let frame = Frame.create dlog in
-			let button = Button.create ~text:("pad " ^ (tomm pad) ^ " drill " ^ (tomm drill) )
+			let button = Button.create ~text: (viaprint pad drill)
 				~command:(fun () -> 
 					setvia pad drill ; 
 					(* Tk.destroy dlog; *)
@@ -1849,6 +1867,18 @@ let makemenu top togl filelist =
 				setvia pad drill ; 
 				gviasizelist := ( pad ,drill ) :: !gviasizelist; 
 				gviasizelist := List.sort compare_I2 !gviasizelist; 
+				(* find the sorted index *)
+				let j = ref 0 in
+				let indx = ref 1 in
+				List.iter (fun pd -> 
+					if pd = (pad,drill) then ( indx := !j ) ;
+					incr j ; 
+				) !gviasizelist ; 
+				(* add into the menu  .. sorted *)
+				Menu.insert_command ~index:(`Num !indx) viamenu 
+					~label:( viaprint pad drill )
+					~command: (fun _ -> setvia pad drill 
+					) ; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 				Tk.destroy dlog; 
 			) frame in
@@ -1873,39 +1903,112 @@ let makemenu top togl filelist =
 				gviadrill := drill ;  
 			); 
 	) !gviasizelist; 
-	Menu.add_command viamenu ~label:"add ..." ~command:viasFun; 
-		
-	(*add about menu entries *)
-	Menu.add_command optionmenu ~label:"Tracks ... (Ctrl-T)" ~command:tracksFun ; 
-	Menu.add_command optionmenu ~label:"Vias ... (Ctrl-V)" ~command:viasFun ;
-	Menu.add_command optionmenu ~label:"Grids ... " 
+	Menu.add_command viamenu ~label:"add ..." ~command:viasFun;
+	
+	(* add in the sub-options menus .. *)
+	let displaySub = Menu.create ~tearoff:false optionmenu in (* pass the contatining menu as the final argument *)
+	let tracksSub = Menu.create ~tearoff:false optionmenu in
+	let viasSub = Menu.create ~tearoff:false optionmenu in
+	let textsSub = Menu.create ~tearoff:false optionmenu in
+	let zonesSub = Menu.create ~tearoff:false optionmenu in
+	let gridsSub = Menu.create ~tearoff:false optionmenu in
+	let ratsnestSub = Menu.create ~tearoff:false optionmenu in
+	let alignSub = Menu.create optionmenu in
+	let checkSub = Menu.create optionmenu in
+	let miscSub = Menu.create optionmenu in
+	(* add them *)
+	Menu.add_cascade ~label:"Display options ..."  ~menu:displaySub optionmenu ; 
+	Menu.add_cascade ~label:"Tracks ..."  ~menu:tracksSub optionmenu; 
+	Menu.add_cascade ~label:"Vias ..."  ~menu:viasSub optionmenu; 
+	Menu.add_cascade ~label:"Texts ..."  ~menu:textsSub optionmenu; 
+	Menu.add_cascade ~label:"Zones ..."  ~menu:zonesSub optionmenu; 
+	Menu.add_cascade ~label:"Grids ..."  ~menu:gridsSub optionmenu; 
+	Menu.add_cascade ~label:"Ratsnest ..."  ~menu:ratsnestSub optionmenu; 
+	Menu.add_cascade ~label:"Align ..."  ~menu:alignSub optionmenu; 
+	Menu.add_cascade ~label:"Check ..."  ~menu:checkSub optionmenu; 
+	Menu.add_cascade ~label:"Misc ..."  ~menu:miscSub optionmenu; 
+	(*add options*)
+	let addOption menu label cmd ic = 
+		let v = Textvariable.create() in
+		Textvariable.set v (if ic then "On" else "Off") ; 
+		Menu.add_checkbutton menu ~label ~indicatoron:true
+			~variable:v
+			~offvalue:"Off" ~onvalue:"On"
+			~command:(fun () -> cmd( (Textvariable.get v)="On" )) ; 
+	in 
+	addOption displaySub "z buffer" (fun b -> genabledepth := b ) !genabledepth; 
+	addOption displaySub "draw tracks" (fun b -> gdrawtracks := b) !gdrawtracks ; 
+	addOption displaySub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
+	addOption displaySub "draw module text" (fun b -> gdrawText := b) !gdrawText ; 
+	addOption displaySub "draw ratsnest" (fun b -> gdrawratsnest := b) !gdrawratsnest ; 
+	addOption displaySub "draw pad numbers" (fun b -> gshowPadNumbers := b) !gshowPadNumbers ; 
+	
+	Menu.add_command tracksSub ~label:"Tracks dialog (Ctrl-T)" ~command:tracksFun ; 
+	addOption tracksSub "135 degree routing" (fun b -> groute135 := b) !groute135 ; 
+	addOption tracksSub "when dragging tracks mantain slope" (fun b -> gtrackKeepSlope := b) !gtrackKeepSlope ; 
+	addOption tracksSub "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
+	
+	Menu.add_command viasSub ~label:"Vias dialog (Ctrl-V)" ~command:viasFun ;
+	Menu.add_command viasSub ~label:"Adjust via drill sizes" ~command:viaDrillAdjust ; 
+	
+	Menu.add_command textsSub ~label:"Adjust text sizes per module" ~command:textSizeAdjust ; 
+	Menu.add_command textsSub ~label:"Adjust minimum text sizes" ~command:minTextSizeAdjust ; 
+	Menu.add_command textsSub ~label:"Adjust text position from template" ~command:textPositionAdjust ; 
+	
+	Menu.add_command zonesSub ~label:"Refill all zones"
+		~command: (fun () -> List.iter (fun z -> z#fill !gtracks !gmodules) !gzones) ; 
+	Menu.add_command zonesSub ~label:"Empty all zones"
+		~command: (fun () -> List.iter (fun z -> z#empty ()) !gzones) ; 
+	Menu.add_command zonesSub ~label:"Show zone fill algorithm window"
+		~command: (fun () -> Mesh.makewindow top ) ; 
+	
+	Menu.add_command gridsSub ~label:"Grids ... " 
 		~command:(fun _ -> Grid.dialog top (fun () -> render togl) );
-	Menu.add_command optionmenu ~label:"Adjust via drill sizes" ~command:viaDrillAdjust ; 
-	Menu.add_command optionmenu ~label:"Adjust text sizes" ~command:textSizeAdjust ; 
-	Menu.add_command optionmenu ~label:"Check soldermask on through-hole pads" 
-		~command:padSolderMaskAdjust ; 
-	Menu.add_command optionmenu ~label:"Save bill of materials" 
-		~command:makeBOM ; 
-	Menu.add_command optionmenu ~label:"Save XYR (part location) file" 
-		~command:make_xyr ; 
-	Menu.add_command optionmenu ~label:"Propagate netcodes to unconn. (nn=0) tracks" 
+	addOption gridsSub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
+	addOption gridsSub "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
+	
+	Menu.add_command ratsnestSub ~label:"Propagate netcodes to unconn. (nn=0) tracks" 
 		~command:(propagateNetcodes gmodules gtracks false false top 
 			(fun () -> render togl) redoRatNest ); 
-	Menu.add_command optionmenu ~label:"Propagate netcodes to all tracks" 
+	Menu.add_command ratsnestSub ~label:"Propagate netcodes to all tracks" 
 		~command:(propagateNetcodes gmodules gtracks true false top 
 			(fun () -> render togl) redoRatNest ); 
-	Menu.add_command optionmenu ~label:"Check pad connectivity" 
+	(*the following option no longer works *)
+	addOption ratsnestSub "show all nets when selected" (fun b -> gdragShowAllNets := b ) !gdragShowAllNets; 
+	addOption ratsnestSub "show 4 smallest nets when selected" (fun b -> gdragShow5Smallest := b ) !gdragShow5Smallest; 
+	addOption ratsnestSub "limit ratnest computation to nets with < 200 nodes"
+		(fun b -> gLimitRatnest200 := b) !gLimitRatnest200 ; 
+		
+	let addAlignCmd label cmd = 
+		Menu.add_command alignSub ~label ~command:
+		(fun () -> 
+			cmd (List.filter (fun m-> m#getHit ()) !gmodules); 
+			render togl ; 
+		); 
+	in
+	addAlignCmd "Align X (vertical)" Align.alignX ; 
+	addAlignCmd "Align Y (horizontal)" Align.alignY ; 
+	addAlignCmd "Distribute X (horizontal)" Align.distributeX ; 
+	addAlignCmd "Distribute Y (vertical)" Align.distributeY ; 
+
+	Menu.add_command checkSub ~label:"Check soldermask on through-hole pads" 
+		~command:padSolderMaskAdjust ; 
+	Menu.add_command checkSub ~label:"Check pad connectivity" 
 		~command:(propagateNetcodes gmodules gtracks true true top 
 			(fun () -> render togl) redoRatNest );  
-	Menu.add_command optionmenu ~label:"Check DRC (track/pad copper spacing)"
+	Menu.add_command checkSub ~label:"Check DRC (track/pad copper spacing)"
 		~command:(testdrcAll gtracks gmodules top (fun () -> render togl)); 
-	Menu.add_command optionmenu ~label:"Filter modules by schematic sheet"
+
+	addOption miscSub "cross probe transmit" (fun b -> gcrossProbeTX := b) !gcrossProbeTX ; 
+	addOption miscSub "cross probe recieve" (fun b -> gcrossProbeRX := b) !gcrossProbeRX ; 
+
+	Menu.add_command miscSub ~label:"Save bill of materials" 
+		~command:makeBOM ; 
+	Menu.add_command miscSub ~label:"Save XYR (part location) file" 
+		~command:make_xyr ; 
+	Menu.add_command miscSub ~label:"Filter modules by schematic sheet"
 		~command:filterModulesBySheet; 
-	Menu.add_command optionmenu ~label:"Refill all zones"
-		~command: (fun () -> List.iter (fun z -> z#fill !gtracks !gmodules) !gzones) ; 
-	Menu.add_command optionmenu ~label:"Show zone fill algorithm window"
-		~command: (fun () -> Mesh.makewindow top ) ; 
-	Menu.add_command optionmenu ~label:"Move modules based on schematic position"
+	Menu.add_command miscSub ~label:"Move modules based on schematic position"
 		~command: ( fun () -> 
 		let dlog = Toplevel.create top in
 		Wm.title_set dlog "Move mods" ; 
@@ -1926,6 +2029,42 @@ let makemenu top togl filelist =
 		let all = [Tk.coe msg; Tk.coe scaling; Tk.coe button;] in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	) ; 
+	Menu.add_command miscSub ~label:"triangle meshing test" ~command:
+	(fun () -> 
+		let pts = Array.init 200 (fun _ -> (Random.float 4.0, Random.float 4.0)) in
+		let p = List.rev_append (List.rev_map (fun (a,b) -> ((foi a),(foi b)))
+			[(1,1);(1,1);(1,1);(1,1);(1,1);(1,1);(1,1);(1,1);(1,1); 
+			 (0,0);(2,2);(4,4);(3,3);(5,5)] ) 
+			(Array.to_list pts) in
+		ignore(Mesh.mesh p [] (fun _ -> true)); 
+	); 
+	Menu.add_command miscSub ~label:"zone fill test" ~command:
+	(fun () -> 
+		let z = new zone in
+		(* setup a simple square zone, 10x10*)
+		z#set_corners (List.map (fun(x,y) -> foi x, foi y) [(0,0);(0,10);(10,10);(10,0)]);  
+		let trk = new pcb_track in
+		trk#setStart (2.0,5.0) ; 
+		trk#setEnd (5.0, 2.0) ; 
+		trk#setNet 1 ; 
+		trk#setWidth 1.0 ; 
+		let trk2 = new pcb_track in
+		trk2#setStart (5.0,2.0) ; 
+		trk2#setEnd (5.0, 8.0) ; 
+		trk2#setNet 1 ; 
+		trk2#setWidth 1.0 ; 
+		let trk3 = new pcb_track in
+		trk3#setStart (5.0,8.0) ; 
+		trk3#setEnd (12.0, 5.0) ; 
+		trk3#setNet 1 ; 
+		trk3#setWidth 1.0 ; 
+		let trk4 = new pcb_track in
+		trk4#setStart (5.0,2.0) ; 
+		trk4#setEnd (10.0, 1.0) ; 
+		trk4#setNet 1 ; 
+		trk4#setWidth 1.0 ; 
+		z#fill [trk;trk2;trk3;trk4] []; 
+	); 
 
 	Menu.add_command optionmenu ~label:"About" ~command:(helpbox "about" abouttext top) ; 
 	(* get the menus working *)
@@ -1933,7 +2072,6 @@ let makemenu top togl filelist =
 	Menubutton.configure optionb ~menu:optionmenu;
 	Menubutton.configure viab ~menu:viamenu;
 	Menubutton.configure trackb ~menu:trackmenu; 
-	Menubutton.configure alignb ~menu:alignmenu;
 	(* bind the buttons?? *)
 	(* default *)
 	bind ~events:[`ButtonPressDetail(3)] ~fields:[`MouseX; `MouseY] ~action:
@@ -2120,7 +2258,7 @@ let makemenu top togl filelist =
 		~fields:[`MouseX; `MouseY] ~action:(fun ev -> doZoom ev 1.2) top;
 	(* display them *)
 	pack ~side:`Left 
-		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; Tk.coe alignb ; 
+		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 
 		Tk.coe infodisp; Tk.coe cursordisp ; Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)

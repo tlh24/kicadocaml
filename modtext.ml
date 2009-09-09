@@ -5,12 +5,12 @@ open Grfx
 class pcb_modtext = 
 object (self)
 	val mutable m_type = 0
-	val mutable m_x = 0
+	val mutable m_x = 0 (* our location relative to the parent module *)
 	val mutable m_y = 0
 	val mutable m_sx = 0
 	val mutable m_sy = 0
 	val mutable m_rot = 0
-	val mutable m_ox = 0 (*module offset*)
+	val mutable m_ox = 0 (*module offset (location)*)
 	val mutable m_oy = 0 (*module offset*)
 	val mutable m_orot = 0 (*owning module rotation*)
 	val mutable m_width = 0
@@ -51,11 +51,12 @@ object (self)
 	method setSize (x,y) = 
 		m_sx <- iofs x; 
 		m_sy <- iofs y; 
-	method setWidth w = m_width <- iofs w ; 
 	method getPos () = Pts2.fois m_x m_y
 	method setPos (x,y) = 
 		m_x <- iofs x; 
 		m_y <- iofs y; 
+	method getWidth () = fois m_width ; 
+	method setWidth w = m_width <- iofs w ; 
 	method getShow () = m_show; 
 	method setShow b = m_show <- b; 
 	method getRot () = m_rot; 

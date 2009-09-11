@@ -1709,6 +1709,12 @@ let makemenu top togl filelist =
 					(fun evv -> 
 						let prescurspos = calcCursPos evv !gpan true in
 						gdrag :=  Pts2.sub prescurspos startPos ; 
+						if !ggridSnap then (
+							(* discretize the drag to be a multiple of the grid distance *)
+							let cx,cy = !gdrag in
+							let grd = ggrid.(0) in
+							gdrag := (snap cx grd),(snap cy grd) ; 
+						) ; 
 						!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 						List.iter (fun m -> m#move !gdrag ) modules ; 
 						List.iter (fun t -> t#move !gdrag ) tracks ; 

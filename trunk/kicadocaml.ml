@@ -175,6 +175,8 @@ let gdrawratsnest = ref true
 let gpushrouting = ref false
 let gcrossProbeTX = ref true
 let gcrossProbeRX = ref true
+let gTrackAdd = ref (fun _ -> ())
+let gViaAdd = ref (fun _ _ -> ())
 
 let readlines ic =
 	(*remove the old modules *)
@@ -288,7 +290,7 @@ let abouttext =
 "written in Ocaml (yay) \n" ^
 "by Tim Hanson, sideskate@gmail.com \n" ^
 "for use with the Kicad suite of programs.\n" ^
-"   (not meant to work by itself) \n" ^
+"   (not meant to work wholly by itself) \n" ^
 "Based on Kicad sources, " ^
 "Spaceman Spiff game by Robert Bridson, " ^
 "and stuff from the web ;) \n\n" ^
@@ -550,18 +552,9 @@ let openFile top fname =
 			trackWidth := SI.add (round((t#getWidth())*.1000.0)) !trackWidth ; 
 		)
 	) !gtracks; 
-	(* add in some useful defaults.. *)
-	trackWidth := SI.add 5 !trackWidth ; 
-	trackWidth := SI.add 8 !trackWidth ; 
-	trackWidth := SI.add 10 !trackWidth ; 
-	trackWidth := SI.add 15 !trackWidth ; 
-	trackWidth := SI.add 25 !trackWidth ; 
 	(* convert them to floating-point *)
-	gtrackwidthlist := [];
-	SI.iter (fun tw -> gtrackwidthlist :=  ((foi tw) /. 1000.0) :: !gtrackwidthlist ) !trackWidth; 
-	(* sort the list *)
-	gtrackwidthlist := List.sort compare !gtrackwidthlist; 
-	
+	SI.iter (fun tw -> !gTrackAdd ((foi tw) /. 1000.0) ) !trackWidth; 
+
 	(* do the same for the vias. *)
 	let viaSize = ref (SI2.empty) in
 	List.iter (fun t-> 
@@ -572,14 +565,7 @@ let openFile top fname =
 				) !viaSize ; 
 		)
 	) !gtracks; 
-	(* add in a few useful defaults *)
-	viaSize := SI2.add (16,6) !viaSize ; 
-	viaSize := SI2.add (25,10) !viaSize ; 
-	viaSize := SI2.add (45,20) !viaSize ; 
-	gviasizelist := [];
-	SI2.iter (fun tw -> gviasizelist := (((foi (fst tw)) /. 1000.0),((foi (snd tw)) /. 1000.0)) :: !gviasizelist ) !viaSize; 
-	(* sort the list *)
-	gviasizelist := List.sort compare_I2 !gviasizelist; 
+	SI2.iter (fun tw -> !gViaAdd ((foi (fst tw)) /. 1000.0) ((foi (snd tw)) /. 1000.0) ) !viaSize; 
 	
 	linenum := 0 ; 
 	let schfil = selectSch top fname in
@@ -588,7 +574,6 @@ let openFile top fname =
 		gschema#collapseAr ""; 
 	) ;
 	(* gschema#print "" ; *)
-	
 	;;
 
 let makemenu top togl filelist = 
@@ -1491,6 +1476,7 @@ let makemenu top togl filelist =
 				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
 				gcurnet := !workingnet;
 				render togl ;
+				print_endline "---" ; 
 			) ; 
 		)
 		~onRelease:
@@ -1708,12 +1694,6 @@ let makemenu top togl filelist =
 					(fun evv -> 
 						let prescurspos = calcCursPos evv !gpan true in
 						gdrag :=  Pts2.sub prescurspos startPos ; 
-						if !ggridSnap then (
-							(* discretize the drag to be a multiple of the grid distance *)
-							let cx,cy = !gdrag in
-							let grd = ggrid.(0) in
-							gdrag := (snap cx grd),(snap cy grd) ; 
-						) ; 
 						!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 						List.iter (fun m -> m#move !gdrag ) modules ; 
 						List.iter (fun t -> t#move !gdrag ) tracks ; 
@@ -1785,8 +1765,33 @@ let makemenu top togl filelist =
 	let tomm gg = (sof gg) ^ " (" ^ (sof (gg *. 25.4)) ^ " mm)" in
 	let viaprint pad drill = "pad " ^ (tomm pad) ^ " drill " ^ (tomm drill) in
 	
-	(* tracks callback *)
-	(* i do this because I'm not sure how to update the menu .. *)
+	let trackAdd w = 
+		gtrackwidth := w ;
+		if not (List.mem w !gtrackwidthlist) then (
+			gtrackwidthlist := w :: !gtrackwidthlist; 
+			gtrackwidthlist := List.sort compare !gtrackwidthlist; 
+			(* find the sorted index *)
+			let j = ref 0 in
+			let indx = ref 1 in
+			List.iter (fun ww -> 
+				if ww = w then ( indx := !j ) ;
+				incr j ; 
+			) !gtrackwidthlist ; 
+			(* add into the menu  .. sorted *)
+			Menu.insert_command ~index:(`Num !indx) trackmenu 
+				~label:(tomm w) ~command: (fun _ -> 
+				gtrackwidth := w ; 
+				print_endline ("track width set to " ^ (tomm w));
+			) ; 
+		) else (
+			(* print_endline ("track width already in list " ^ (tomm w)); *)
+		)
+	in
+	gTrackAdd := trackAdd ; 
+	trackAdd 0.005 ;  (* useful defaults *)
+	trackAdd 0.010 ; 
+	trackAdd 0.015 ; 
+	trackAdd 0.025 ; 
 	let tracksFun _ = 
 		let dlog = Toplevel.create top in
 		ghithold := false ; (* because the user depressed 'shift' to get here *)
@@ -1796,8 +1801,8 @@ let makemenu top togl filelist =
 		let buttons = List.map (fun w -> 
 			let frame = Frame.create dlog in
 			let button = Button.create ~text:("width " ^ (tomm w))
-				~command:(
-					fun () -> gtrackwidth := w; 
+				~command:(fun () -> 
+					gtrackwidth := w; 
 					print_endline ("track width set to " ^ (sof w));
 				(* Tk.destroy dlog; *) 
 				)
@@ -1812,22 +1817,7 @@ let makemenu top togl filelist =
 		let button = Button.create ~text:("add") ~command: 
 			(fun () -> 
 				let w = fos (Entry.get newwidth) in
-				gtrackwidthlist := w :: !gtrackwidthlist; 
-				gtrackwidth := w ;
-				print_endline ("track width set to " ^ (sof w));
-				gtrackwidthlist := List.sort compare !gtrackwidthlist; 
-				(* find the sorted index *)
-				let j = ref 0 in
-				let indx = ref 1 in
-				List.iter (fun ww -> 
-					if ww = w then ( indx := !j ) ;
-					incr j ; 
-				) !gtrackwidthlist ; 
-				(* add into the menu  .. sorted *)
-				Menu.insert_command ~index:(`Num !indx) trackmenu ~label:(tomm w) ~command: (fun _ -> 
-					gtrackwidth := w ; 
-					print_endline ("track width set to " ^ (sof w));
-				) ; 
+				trackAdd w ;
 				Tk.destroy dlog; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 			) frame in
@@ -1835,19 +1825,43 @@ let makemenu top togl filelist =
 		let all = frame :: buttons in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	in
-	
 	(* vias callback *)
+	let setvia pad drill = 
+		gviapad := pad; 
+		gviadrill := drill ;  
+		print_endline ("via set to " ^ (viaprint pad drill));
+	in
+	let viaAdd pad drill = 
+		setvia pad drill ; 
+		if not (List.mem (pad,drill) !gviasizelist) then (
+			gviasizelist := ( pad ,drill ) :: !gviasizelist; 
+			gviasizelist := List.sort compare_I2 !gviasizelist; 
+			(* find the sorted index *)
+			let j = ref 0 in
+			let indx = ref 1 in
+			List.iter (fun pd -> 
+				if pd = (pad,drill) then ( indx := !j ) ;
+				incr j ; 
+			) !gviasizelist ; 
+			(* add into the menu  .. sorted *)
+			Menu.insert_command ~index:(`Num !indx) viamenu 
+				~label:( viaprint pad drill )
+				~command: (fun _ -> setvia pad drill 
+				) ; 
+		) else (
+			(* print_endline ("via size already present: "^(viaprint pad drill));  *)
+		)
+	in
+	gViaAdd := viaAdd ;
+	viaAdd 0.016 0.006 ; (* some good defaults .. *)
+	viaAdd 0.025 0.010 ; 
+	viaAdd 0.045 0.020 ; 
 	let viasFun _ = 
 		let dlog = Toplevel.create top in
 		ghithold := false ; (* because the user depressed 'shift' to get here *)
 		Wm.title_set dlog "Via sizes" ; 
 		(* make a bunch of buttons for selecting the track size, 
 		plus one at the end for adding a new track size *)
-		let setvia pad drill = 
-			gviapad := pad; 
-			gviadrill := drill ;  
-			print_endline ("via set to " ^ (viaprint pad drill));
-		in
 		let buttons = List.map (fun (pad,drill) -> 
 			let frame = Frame.create dlog in
 			let button = Button.create ~text: (viaprint pad drill)
@@ -1869,21 +1883,7 @@ let makemenu top togl filelist =
 			(fun () -> 
 				let pad = fos (Entry.get newpad) in
 				let drill = fos (Entry.get newdrill) in
-				setvia pad drill ; 
-				gviasizelist := ( pad ,drill ) :: !gviasizelist; 
-				gviasizelist := List.sort compare_I2 !gviasizelist; 
-				(* find the sorted index *)
-				let j = ref 0 in
-				let indx = ref 1 in
-				List.iter (fun pd -> 
-					if pd = (pad,drill) then ( indx := !j ) ;
-					incr j ; 
-				) !gviasizelist ; 
-				(* add into the menu  .. sorted *)
-				Menu.insert_command ~index:(`Num !indx) viamenu 
-					~label:( viaprint pad drill )
-					~command: (fun _ -> setvia pad drill 
-					) ; 
+				viaAdd pad drill ; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 				Tk.destroy dlog; 
 			) frame in
@@ -1892,22 +1892,9 @@ let makemenu top togl filelist =
 		let all = frame :: buttons in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	in
-	
-	(* manage the track widths ... *)
-	List.iter (fun width -> 
-		Menu.add_command trackmenu ~label:("track " ^ (string_of_float  width) ^ "\"")
-			~command:(fun () -> gtrackwidth := width); 
-	) !gtrackwidthlist; 
+	(* let the user expand this list *)
 	Menu.add_command trackmenu ~label:"add ..." ~command:tracksFun; 
-	
-	(* manage the via sizes ... *)
-	List.iter (fun (pad,drill) -> 
-		Menu.add_command viamenu ~label:("pad " ^ (tomm pad) ^ " drill " ^ (tomm drill) )
-			~command:(fun () -> 
-				gviapad := pad; 
-				gviadrill := drill ;  
-			); 
-	) !gviasizelist; 
+	(*likewise for vias. *)
 	Menu.add_command viamenu ~label:"add ..." ~command:viasFun;
 	
 	(* add in the sub-options menus .. *)
@@ -2489,7 +2476,7 @@ let _ =
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace...  *)
-	(* openFile top "/home/tlh24/svn/myopen/emg_dsp/emg_dsp.brd";  *)
+	(* openFile top "/home/tlh24/svn/neurorecord/microstim/microstim.brd"; *)
 	(* let schema = new schematic in 
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 

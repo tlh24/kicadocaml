@@ -61,6 +61,7 @@ object (self)
 				let (x2,y2,_) = (List.hd corners) in
 				x0 := x2 ; y0 := y2 ;
 				let len = (List.length corners) -1 in
+				Printf.printf "zone update corners %d\n%!" len; 
 				let rawv = Raw.create_static `float (4 * len) in
 				i := 0 ; 
 				List.iter (fun (x1,y1,_) -> 
@@ -79,6 +80,7 @@ object (self)
 			let len = (List.length m_tris * 3) in (* number of lines *)
 			Raw.free_static m_rawv_tri ; 
 			m_rawv_tri <- Raw.create_static `float (len*4) ; 
+			Printf.printf "zone update tris %d\n%!" len; 
 			i := 0 ; 
 			List.iter ( fun (a,b,c) -> 
 				let line d e = 
@@ -129,6 +131,7 @@ object (self)
 	)
 	method empty () = (
 		m_tris <- [] ; 
+		m_poly <- [] ; (* don't delete the corners *)
 		self#update () ; 
 	)
 	method fill (tracks : Track.pcb_track list) (mods : Mod.pcb_module list) = (
@@ -467,10 +470,10 @@ object (self)
 	
 	method draw () =  (* really should accept a screenbox here for culling *)
 		GlDraw.color ~alpha:0.5 (m_g#getColor()) ;
-		List.iter (fun rawv -> 
-			if (Raw.length rawv) > 2 then (
-				let len = (Raw.length rawv)/2 in
-				GlArray.vertex `two rawv;
+		List.iter (fun rv -> 
+			if (Raw.length rv) > 2 then (
+				let len = (Raw.length rv)/2 in
+				GlArray.vertex `two rv;
 				GlArray.draw_arrays `lines 0 len ; 
 			) ;
 		) m_rawv ; 

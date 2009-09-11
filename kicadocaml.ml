@@ -1491,7 +1491,6 @@ let makemenu top togl filelist =
 				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
 				gcurnet := !workingnet;
 				render togl ;
-				print_endline "---" ; 
 			) ; 
 		)
 		~onRelease:

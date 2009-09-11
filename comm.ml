@@ -289,5 +289,7 @@ struct
 			| _ -> s.c <- List.tl s.c ; List.hd s.c
 	let length s = List.length s.c
 	let iter f s = List.iter f s.c
-	let hd s = match s.c with hd::_ -> hd | [] -> raise Empty
+	let hd s = match s.c with 
+		| hd::_ -> hd 
+		| [] -> raise Empty
 end 

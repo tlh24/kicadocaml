@@ -13,7 +13,7 @@ object (self)
 	val mutable m_ox = 0 (*module offset (location)*)
 	val mutable m_oy = 0 (*module offset*)
 	val mutable m_orot = 0 (*owning module rotation*)
-	val mutable m_width = 0
+	val mutable m_width = 0 (* what I call thickness elsewhere *)
 	val mutable m_mirror = false
 	val mutable m_show = true
 	val mutable m_layer = 0

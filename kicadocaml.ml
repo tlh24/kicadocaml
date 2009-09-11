@@ -663,17 +663,18 @@ let makemenu top togl filelist =
 		Tk.pack  ~fill:`X ~side:`Left 
 			[Tk.coe msg; Tk.coe min; Tk.coe msg2; Tk.coe max; Tk.coe msg3; Tk.coe drill; Tk.coe button]; 
 	in
-	let entryframe dlog txt = 
+	let entryframe dlog (txt,default) = 
 		let frame1 = Frame.create dlog in
 		let msg = Message.create ~text:txt ~width:110 frame1 in
 		let ntry = Entry.create ~width:12 frame1 in
+		Entry.insert ~index:(`Num 0) ~text:default ntry ; 
 		Tk.pack ~fill:`X ~expand:true ~side:`Left [Tk.coe msg; Tk.coe ntry]; 
 		(frame1, fun () -> Entry.get ntry )
 	in
 	let msgframe dlog text = 
 		let frame1 = Frame.create dlog in
 		let msg = Message.create ~text frame1 in
-		Tk.pack ~fill:`X ~expand:true ~side:`Left [msg] ; 
+		Tk.pack ~fill:`Both ~expand:true [msg] ; 
 		frame1 
 	in
 	(* adjust text position / rotations on modules following a template *)
@@ -682,7 +683,7 @@ let makemenu top togl filelist =
 		Wm.title_set dlog "Change text position";
 		let frame1  = msgframe dlog 
 			"Change text position, size, and orientation based on a template module" in
-		let exemplarFrm, exemplarCb = entryframe dlog "Template module (e.g. Q1)" in
+		let exemplarFrm, exemplarCb = entryframe dlog ("Template module (e.g. Q1)","") in
 		let frame2 = Frame.create dlog in
 		let button = Button.create ~text:"set!" 
 		~command:(fun () -> 
@@ -731,7 +732,8 @@ let makemenu top togl filelist =
 		let msgs = [|"module name (footprint)";"text width (x)";"text height (y)";
 			"text line thickness";"Limit to modules on the same sheet & sub-sheets as:"^
 			"(eg. R21; leave blank for all modules)"|] in
-		let framelist = Array.map (entryframe dlog) msgs in
+		let msgs2 = Array.map (fun a -> (a, "")) msgs in
+		let framelist = Array.map (entryframe dlog) msgs2 in
 		let frames = Array.to_list (Array.map fst framelist) in
 		let cbs = Array.map snd framelist in
 		(* radiobuttons for show/hide *)
@@ -786,8 +788,23 @@ let makemenu top togl filelist =
 	let minTextSizeAdjust () = 
 		let dlog = Toplevel.create top in
 			Wm.title_set dlog "minimum text size";
-		let frame1  = msgframe dlog "Change the minimum text dimensions for *all* modules" in
-		let msgs = [| "text height";"text width";"text line thickness" |] in
+		let frame1  = msgframe dlog "Change the minimum text dimensions for *all* modules.  (Initial setting: the present minimum)" in
+		(* maybe should get the minimum sizes here .. ? *)
+		let minwidth = ref 10.0 in
+		let minheight = ref 10.0 in
+		let minthick = ref 10.0 in
+		List.iter (fun m -> 
+			List.iter (fun t -> 
+				let width,height = t#getSize() in
+				let thick = t#getWidth () in
+				minwidth := min width !minwidth ; 
+				minheight := min height !minheight ; 
+				minthick := min thick !minthick ; 
+			) (m#getTexts ())
+		) !gmodules ; 
+		let msgs = [| ("text height",(sof !minheight));
+			("text width",(sof !minwidth));
+			("text line thickness",(sof !minthick)) |] in
 		let framelist = Array.map (entryframe dlog) msgs in
 		let frames = Array.to_list (Array.map fst framelist) in
 		let cbs = Array.map snd framelist in
@@ -804,13 +821,14 @@ let makemenu top togl filelist =
 					t#setSize ((max w width),(max h height)); 
 					let tk = t#getWidth () in
 					t#setWidth (max tk thickness) ;
+					t#update2 (); 
 					incr cnt; 
 					render togl ; (* interactive! *)
 				) (m#getTexts()) ;
 			) !gmodules ; 
 			printf "Updated %d texts\n%!" !cnt ; 
 		) frame2 in
-		Tk.pack ~side:`Left~fill:`X [button] ; 
+		Tk.pack ~side:`Left~fill:`Both [button] ; 
 		let all = frame1 :: frame2  :: frames in
 		Tk.pack ~fill:`Both ~expand:true all ; 
 	in

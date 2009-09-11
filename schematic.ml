@@ -23,7 +23,7 @@ object
 			let first = String.get !line 0 in
 			(match first with 
 				| 'U' -> (
-					let sp = parse "U (\d+) (\d+) (\w+)" in
+					let sp = parse "U ([\d-]+) ([\d-]+) (\w+)" in
 					m_ts <- sp.(3) ; 
 				)
 				| 'A' -> (
@@ -31,7 +31,7 @@ object
 					m_arlut <- ( (sp.(1)) , (sp.(2)) ) :: m_arlut ; 
 				)
 				| 'P' -> (
-					let sp = parse "P (\d+) (\d+)" in
+					let sp = parse "P ([\d-]+) ([\d-]+)" in
 					m_pos <- (fos sp.(1)),(fos sp.(2)) ; 
 				)
 				| 'F' -> (

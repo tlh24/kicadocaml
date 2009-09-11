@@ -2348,6 +2348,7 @@ let _ =
 		);
 		| None -> ()
 	); 
+	gfilelist := List.rev !gfilelist ;
 	let top = maketop in
 	let togl = Togl.create ~width:1024 ~height:700 
 		~rgba:true ~double:true ~depth:true top in

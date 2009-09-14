@@ -1711,7 +1711,14 @@ let makemenu top togl filelist =
 					Mouse.bindMove top ~action:
 					(fun evv -> 
 						let prescurspos = calcCursPos evv !gpan true in
-						gdrag :=  Pts2.sub prescurspos startPos ; 
+						let cx,cy =  Pts2.sub prescurspos startPos in
+						if !ggridSnap then (
+							(* move it an integer multiple of the smallest grid *)
+							let grd = ggrid.(0) in
+							gdrag := (snap cx grd),(snap cy grd) ; 
+						) else (
+							gdrag := cx,cy ; 
+						); 
 						!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 						List.iter (fun m -> m#move !gdrag ) modules ; 
 						List.iter (fun t -> t#move !gdrag ) tracks ; 

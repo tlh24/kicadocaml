@@ -274,3 +274,37 @@ let testdrcAll tracks modules top rendercb () =
 		) (* intersection found *)
 	) (* pad violation *)
 	;;
+	
+let enlargeDrc tracks modules maxwidth increment renderfun = 
+	(* see if we can make any track larger, up to maxwidth, 
+	without violating DRC. *)
+	(* this is somewhat order-dependent, so start by rasing the 
+	minimum width slowly *)
+	(* really need this to *not* change the size of tracks leaving pads - 
+	this may cause solder bridges. well, I can add that later. *)
+	let startw = List.fold_left (fun mn t -> min mn (t#getWidth())) 1.0 tracks in
+	let rec enlarge1 tracks1 w =
+		Printf.printf "enlargeDRC with %d, width %f \n%!" (List.length tracks1) w; 
+		if (List.length tracks1) > 0  && w <= maxwidth then (
+			let tracks2 = List.filter (fun t -> 
+				(* see if this track can be enlarged a bit .. *)
+				(* but do not make it smaller! *)
+				let oldw = t#getWidth() in
+				if oldw < w then (
+					t#setWidth w; 
+					t#update() ; 
+					let violation = testdrc2 t tracks modules in
+					if violation then (
+						t#setWidth oldw; 
+						t#update() ; 
+						false
+					) else true
+				) else true (* keep it around until we know there is a violation .. *)
+			) tracks1 in
+			renderfun (); t
+			enlarge1 tracks2 (w +. increment)
+		) else ()
+	in
+	enlarge1 tracks startw 
+	;;
+	

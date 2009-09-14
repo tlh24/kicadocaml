@@ -2046,6 +2046,22 @@ let makemenu top togl filelist =
 		let all = [Tk.coe msg; Tk.coe scaling; Tk.coe button;] in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	) ; 
+	Menu.add_command miscSub ~label:"Enlarge tracks, mantain DRC"
+		~command: ( fun () -> 
+		let dlog = Toplevel.create top in
+		Wm.title_set dlog "enlarge tracks" ; 
+		let msg = Message.create ~text:"max track size:"  dlog in
+		let size = Entry.create ~width:10 dlog in
+		Entry.insert ~index:(`Num 0) ~text:"0.025" size ; 
+		let button = Button.create ~text:("enlarge")  dlog ~command:
+		( fun () -> 
+			enlargeDrc !gtracks !gmodules 
+				(fos (Entry.get size) ) 0.001
+				(fun () -> render togl); 
+		) in
+		let all = [Tk.coe msg; Tk.coe size; Tk.coe button;] in
+		Tk.pack ~fill:`Both ~expand:true all; 
+	) ; 
 	Menu.add_command miscSub ~label:"triangle meshing test" ~command:
 	(fun () -> 
 		let pts = Array.init 200 (fun _ -> (Random.float 4.0, Random.float 4.0)) in

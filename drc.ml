@@ -287,21 +287,43 @@ let enlargeDrc tracks modules maxwidth increment renderfun =
 		Printf.printf "enlargeDRC with %d, width %f \n%!" (List.length tracks1) w; 
 		if (List.length tracks1) > 0  && w <= maxwidth then (
 			let tracks2 = List.filter (fun t -> 
-				(* see if this track can be enlarged a bit .. *)
-				(* but do not make it smaller! *)
-				let oldw = t#getWidth() in
-				if oldw < w then (
-					t#setWidth w; 
-					t#update() ; 
-					let violation = testdrc2 t tracks modules in
-					if violation then (
-						t#setWidth oldw; 
+				(* first see if this track hits a pad, and if so, the suggested width
+				is larger than the minimum pad size *)
+				let st = t#getStart() in
+				let en = t#getEnd() in
+				let bbx = t#getDrcBBX() in
+				let hitpad = List.exists (fun m -> 
+					if bbxIntersect bbx (m#getDrcBBX()) then (
+						List.exists (fun p -> 
+							(* we do not test netcodes here  *)
+							let hitstart, _ = p#pointInPad (Pts2.sub st (m#getPos())) in
+							let hitend, _ = p#pointInPad (Pts2.sub en (m#getPos())) in
+							if hitstart || hitend then (
+								(* check the size .. *)
+								if w < p#getSx() && w < p#getSy() then 
+									false (* size can change *) 
+								else true (* must not change size *)
+							) else false
+						) (m#getPads())
+					) else false
+				) modules in
+				if hitpad then false else (
+					(* see if this track can be enlarged a bit .. *)
+					(* but do not make it smaller! *)
+					let oldw = t#getWidth() in
+					if oldw < w then (
+						t#setWidth w; 
 						t#update() ; 
-						false
-					) else true
-				) else true (* keep it around until we know there is a violation .. *)
+						let violation = testdrc2 t tracks modules in
+						if violation then (
+							t#setWidth oldw; 
+							t#update() ; 
+							false
+						) else true
+					) else true (* keep it around until we know there is a violation .. *)
+				)
 			) tracks1 in
-			renderfun (); t
+			renderfun (); 
 			enlarge1 tracks2 (w +. increment)
 		) else ()
 	in

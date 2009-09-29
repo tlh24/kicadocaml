@@ -9,8 +9,8 @@ let iofs x = (round( x *. 10000.))
 let sof = string_of_float
 let soi = string_of_int
 let fabs = abs_float
-let mod2 a b = 
-	if a >= 0 then (a mod b) 
+let mod2 a b =  (*this modulus maps to the positive numbers, unlike regular mod, which preserves sign *)
+	if a >= 0 then (a mod b) (* it implements, in effect, a continuous sawtooth function *)
 	else (
 		let c = a + (-1*a/b+1)*b in
 		c mod b

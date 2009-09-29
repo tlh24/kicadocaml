@@ -2470,10 +2470,14 @@ let _ =
 				if client = sockin then (
 					let (client_sock, _ ) = Unix.accept sockin in
 					print_endline "accepted socket connection"; 
+					Unix.set_nonblock client_sock;
 					clients := FDSet.add client_sock !clients;
-					let rcvlen = Unix.read client_sock s 0 sl in 
-					let ss = String.sub s 0 rcvlen in
-					readstr ss ;
+					let rcvlen,got = try Unix.read client_sock s 0 sl , true
+						with Unix.Unix_error(_,"read",_) -> 0, false in
+					if got then (
+						let ss = String.sub s 0 rcvlen in
+						readstr ss ;
+					); 
 				) else (
 					(* read .. *)
 					let chars_read =

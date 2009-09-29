@@ -36,7 +36,9 @@ object (self)
 		m_orot <- rot ; 
 		m_ox <- ox; 
 		m_oy <- oy; 
-		m_g#makeText m_x m_y m_rot m_ox m_oy m_orot (fois m_sx) (fois m_sy) 
+		m_g#makeText ~mirror:m_mirror 
+			m_x m_y m_rot m_ox m_oy m_orot 
+			(fois m_sx) (fois m_sy) 
 			((fois m_width) *. 0.5) m_text ; 
 		self#updateColor(); 
 	)
@@ -91,9 +93,7 @@ object (self)
 			GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
 		); 
 		m_g#draw ~hit:(m_hit || highlight) bbox; 
-		if m_moving then (
-			GlMat.pop() ; 
-		) ; 
+		if m_moving then ( GlMat.pop() ) ; 
 	)
 	method setMoving b = (
 		if b then (
@@ -128,7 +128,7 @@ object (self)
 			m_width <- ios sp.(7) ;
 			m_mirror <- (
 				match sp.(8) with
-					| "N" -> true
+					| "M" -> true
 					| _ -> false
 				); 
 			m_show <- (
@@ -137,7 +137,7 @@ object (self)
 					| _ -> true
 				); 
 			m_layer <- ios sp.(10) ;
-			m_textMirror <- "N" ; 
+			m_textMirror <- "N" ; (* always seems to be this .. *)
 			m_text <- sp.(11) ; 
 		in
 		parse_line1 ; 
@@ -145,7 +145,7 @@ object (self)
 	method save oc = (
 		fprintf oc "T%d %d %d %d %d %d %d %s %s %d %s\"%s\"\n" 
 			m_type m_x m_y m_sx m_sy (m_rot+m_orot) m_width
-			(if m_mirror then "N" else "M" )
+			(if m_mirror then "M" else "N" )
 			(if m_show then "V" else "I")
 			m_layer m_textMirror m_text
 	)

@@ -212,15 +212,16 @@ method makeOvalRing n (ox,oy) w h id =
 	self#updateBBX (); 
 	self#updateRaw () ; 
 	
-method makeChar ch sy sx width xoff = (
+method makeChar ch sy sx width xoff mirror = ( 
+	(* mirror flips along the y-axis. *)
 	(* note the x & y sizes are reversed, because coordinates are stored in 
 	(y, x) pairs in grfonte.ml *)
 	let lst = Grfonte.shapes.(ch) in
 	let oldx = ref 42 in
 	let oldy = ref 42 in
 	let trans (dx, dy) = 
-		let fx = ((foi dx) +. xoff ) *. (sx /. 10.) in
-		let fy = ((foi dy) -. 4.5)*. (sy /. -9.) in
+		let fx = ((foi dx) *. 1.05 +. xoff ) *. (sx /. 10. ) in 
+		let fy = ((foi dy) -. 4.5)*. (sy /. -9. *. mirror) in (* empirically arrived at. *)
 		(fx, fy)
 	in
 	let rect a b width = 
@@ -257,12 +258,13 @@ method makeChar ch sy sx width xoff = (
 	) lst ; 
 )
 
-method makeText x y rot ox oy orot sx sy width text = (
+method makeText ?(mirror=false) x y rot ox oy orot sx sy width text = (
+	let m = if mirror then -1.0 else 1.0 in
 	let a = Array.init (String.length text) (fun i -> int_of_char(String.get text i)) in
-	let off = (foi (String.length text)) *. -5. in
+	let off = (foi (String.length text)) *. -6. in
 	Array.iteri (fun i ch ->
-		let xoff = (foi i) *. 10. +. off in
-		self#makeChar ch sx sy width xoff
+		let xoff = (foi i) *. 12. +. off in
+		self#makeChar ch sx sy width xoff m
 	) a ; 
 	self#rotateTranslate rot x y ; 
 	self#rotateTranslate orot ox oy ;

@@ -62,7 +62,7 @@ let gviaColor = ref (1., 1., 1.)
 let gshowPadNumbers = ref true
 let gselectRect = ref (1e99, 1e99, 1e99, 1e99)
 let ggrid = [| 0.01; 0.05; 0.1; 0.5; 1.0 |]
-let ggridDraw = ref true 
+let ggridDraw = ref false 
 let ggridSnap = ref true 
 let gdrawText= ref true 
 
@@ -116,13 +116,13 @@ let string_to_layer s =
 
 let layer_to_color layer = 
 	match layer with 
-		| 0 -> (0. , 1. , 0. ) ; (*green, layer 'copper' *)
+		| 0 -> (0. , 1. , 0. ) ; (*green, copper, bottom *)
 		| 1 -> (0. , 0. , 1. ) ; (*blue, inner L1 *)
 		| 2 -> (0.6 , 0.75 , 0.6 ) ; (*gray, inner L2 *)
 		| 3 -> (0.6 , 0.6 , 0.0 ) ; (*magenta, inner L3 *)
 		| 4 -> (0.0 , 0.6 , 0.6 ) ; (*cyan, inner L4 *)
 		| 5 -> (0.8 , 0.2 , 0. ) ; (*red, inner L5 *)
-		| 15 -> (1. , 0. , 0. ) ; (*red, component *)
+		| 15 -> (1. , 0. , 0. ) ; (*red, component , top*)
 		| 20 -> (1.0, 0.9, 0.65 ) ; (* magentaish, silkscreen copper *)
 		| 21 -> (0.65, 1.0, 0.9 ) ; (* cyanish, silkscreen component *)
 		| 24 -> (0.65, 0.65, 0.65 ) ; (* drawings *)

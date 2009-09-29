@@ -968,12 +968,13 @@ let makemenu top togl filelist =
 		(* make a xyr file, which contains the x, y, and rotation for each component, 
 		along with pin 1 absolute location. 
 		positions are in inches, decimal *)
+		printf "Warning! Only looking at the top of the board! \n%!" ; 
 		let filetyp = [ {typename="x y rotation";extensions=[".xyr"];mactypes=[]} ] in
 		let filename = (getSaveFile ~defaultextension:".xyr" ~filetypes:filetyp ~title:"save XYR" ()) in
 		let oc = open_out filename in
 		fprintf oc "#PCB parts location file\n"; 
 		fprintf oc "#refdes	value	foot	x	y	r	p1x	p1y\n"; 
-		List.iter(fun m->
+		List.iter ( fun m->
 			m#update(); (* just in case .. *)
 			let x,y = m#getCenter false in
 			let r = (foi (m#getRot())) /. 10.0 in
@@ -988,7 +989,7 @@ let makemenu top togl filelist =
 				(m#getValue())
 				(m#getLibRef())
 				x y r p1x p1y ; 
-		) !gmodules ; 
+		) (List.filter (fun m -> m#getLayer() = 15) !gmodules ); 
 		close_out_noerr oc; 
 	in
 	
@@ -1956,6 +1957,7 @@ let makemenu top togl filelist =
 	addOption displaySub "z buffer" (fun b -> genabledepth := b ) !genabledepth; 
 	addOption displaySub "draw tracks" (fun b -> gdrawtracks := b) !gdrawtracks ; 
 	addOption displaySub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
+	addOption displaySub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption displaySub "draw module text" (fun b -> gdrawText := b) !gdrawText ; 
 	addOption displaySub "draw ratsnest" (fun b -> gdrawratsnest := b) !gdrawratsnest ; 
 	addOption displaySub "draw pad numbers" (fun b -> gshowPadNumbers := b) !gshowPadNumbers ; 
@@ -1972,6 +1974,7 @@ let makemenu top togl filelist =
 	Menu.add_command textsSub ~label:"Adjust minimum text sizes" ~command:minTextSizeAdjust ; 
 	Menu.add_command textsSub ~label:"Adjust text position from template" ~command:textPositionAdjust ; 
 	
+	addOption zonesSub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
 	Menu.add_command zonesSub ~label:"Refill all zones"
 		~command: (fun () -> List.iter (fun z -> z#fill !gtracks !gmodules) !gzones) ; 
 	Menu.add_command zonesSub ~label:"Empty all zones"

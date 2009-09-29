@@ -92,6 +92,7 @@ object (self)
 	method hasLayer lay = List.exists (fun p -> p#hasLayer lay) m_pads ; 
 		(* module has the layer if at least one pad has the layer *)
 		(* we don't worry about text here .. for now *)
+	method getLayer () = m_layer
 	
 	method getRef () = (List.find (fun t -> t#getType() = 0 ) m_texts)#getText()
 	method getValue () = (List.find (fun t -> t#getType() = 1 ) m_texts)#getText()

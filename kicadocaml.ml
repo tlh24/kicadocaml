@@ -427,13 +427,42 @@ let render togl  =
 		GlArray.draw_arrays `quads 0 4 ; 
 		Raw.free_static raw ; 
 	in
+	let drawCrosshairs (x, y) = 
+		let count = ref 0 in
+		let raw = Raw.create_static `float 24 in 
+		GlArray.vertex `three raw ; 
+		let vertex3 (x,y,z) = 
+			Raw.set_float raw ~pos:(!count*3 + 0) x ; 
+			Raw.set_float raw ~pos:(!count*3 + 1) y ; 
+			Raw.set_float raw ~pos:(!count*3 + 2) z ;
+			incr count ; 
+		in
+		let ss = s /. 1.9 in
+		let gz = 4.0 /. !gzoom in
+		vertex3 ( x -. ss , y +. gz, 0.5) ; 
+		vertex3 ( x +. ss , y +. gz, 0.5) ; 
+		vertex3 ( x +. ss , y -. gz , 0.5) ; 
+		vertex3 ( x -. ss , y -. gz , 0.5) ; 
+		vertex3 ( x -. gz , y +. ss, 0.5) ; 
+		vertex3 ( x +. gz , y +. ss, 0.5) ; 
+		vertex3 ( x +. gz , y -. ss , 0.5) ; 
+		vertex3 ( x -. gz , y -. ss , 0.5) ; 
+		GlArray.draw_arrays `quads 0 8 ; 
+		Raw.free_static raw ; 
+	in
 	let drawCursor (x,y) = 
 		drawRect (x -. s,y -. s,x +. s,y +. s) 
 	in
 	GlDraw.color ~alpha:1. (1. , 1., 1. ); 
 	drawCursor !gcurspos ; 
+	GlDraw.color ~alpha:0.5 (1. , 1., 1. ); 
+	drawCrosshairs !gcurspos ; 
 	GlDraw.color ~alpha:1. (0.4 , 1., 0.8 ); 
 	drawCursor !gsnapped ; 
+	GlDraw.color ~alpha:0.5 (0.4 , 1., 0.8 ); 
+	drawCrosshairs !gsnapped ; 
+	(* draw crosshairs too ... may be useful! *)
+	
 	
 	(* draw the selection box *)
 	if bbxIntersect !gselectRect screenbbx then (

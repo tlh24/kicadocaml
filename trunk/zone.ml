@@ -256,9 +256,10 @@ object (self)
 		) tracks ; 
 		
 		(* iterate over the modules *)
+		printf "Note: pads are not connected to zone; manual thermal releif required (for now)\n%!"; 
 		List.iter (fun m -> 
 			List.iter (fun p -> 
-				if p#hasLayer m_layer && p#getNet() != m_net then (
+				if p#hasLayer m_layer (*&& p#getNet() != m_net*) then (
 					let bbx = p#getBBX() in
 					let pp = bbxCenter bbx in (* may have rotation applied *)
 					let w,h = bbxWH bbx in
@@ -305,7 +306,7 @@ object (self)
 			(* do the same for the modules *)
 			List.iter (fun m -> 
 				List.iter (fun p -> 
-					if p#hasLayer m_layer && p#getNet() != m_net then (
+					if p#hasLayer m_layer (* && p#getNet() != m_net *) then (
 						let bbx = p#getBBX() in
 						let x,y = bbxCenter bbx in (* may have rotation applied *)
 						let w,h = bbxWH bbx in
@@ -335,7 +336,7 @@ object (self)
 								Pts2.distance d e < t
 							| _ -> false;
 						in
-						if bad then (
+						(* if bad then ( --debug code.
 							match p#getShape() with
 								| Pad_Circle -> 
 									printf "triangle %f,%f intersect circle @ %f,%f , %f \n%!"
@@ -347,7 +348,7 @@ object (self)
 									printf "triangle %f,%f intersect oval @ %f,%f , %f x %f\n%!"
 									(fst d) (snd d) x y sx sy; 
 								| _ -> (); 
-						) ;  
+						) ;  *)
 						good := !good && not bad ; 
 					) ; 
 				) (m#getPads()); 
@@ -362,10 +363,10 @@ object (self)
 		)else(
 			iof (floor 20.0 *. dx /. dy) , 20
 		)in
-		let sx,sy = dx /. (foi (nx+1)), dy /.(foi (ny+1)) in
-		for kx = 1 to nx do (
-			for ky = 1 to ny do (
-				pts := ((minx +. sx *. (foi kx)),(miny +. sy *. (foi ky))) :: !pts ; 
+		let sx,sy = dx /. (foi (nx-1)), dy /.(foi (ny-1)) in
+		for kx = 0 to nx do (
+			for ky = 0 to ny do (
+				pts := ((minx -. (sx /. 2.0) +. sx *. (foi kx)),(miny  -. (sy /. 2.0) +. sy *. (foi ky))) :: !pts ; 
 			) done ; 
 		) done ; 
 		m_tris <- Mesh.mesh !pts !segs filter ; 

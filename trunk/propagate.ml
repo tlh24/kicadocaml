@@ -9,7 +9,7 @@ open Mod
 open Track
 open Ratnest
 
-let propagateNetcodes modules tracks doall checkpads top rendercb ratcb () = 
+let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () = 
 	(* look at all the unnumbered (0) tracks & try to set their netcode 
 	based on connectivity. *)
 	(* if doall=true, then look at all the tracks. *)
@@ -171,10 +171,15 @@ let propagateNetcodes modules tracks doall checkpads top rendercb ratcb () =
 			let buttons = List.map (fun (e,p) -> 
 				incr cnt ; 
 				Button.create ~text:((soi !cnt) ^ ": " ^ e)
-					~command:(fun () -> gpan := (Pts2.scl p (-1.0)); rendercb (); )
+					~command:(fun () -> 
+						gpan := (Pts2.scl p (-1.0)); 
+						gcurspos := p; 
+						rendercb (); )
 					dlog) !err ; 
 			in
 			Tk.pack ~fill:`Both ~expand:true ~side:`Top buttons ; 
+			(* need to redo the netcodes so we can put down new tracks! *)
+			propagateNetcodes modules tracks doall false top rendercb ratcb () ; 
 		) else (
 			print_endline "all pads were found to be connected, no errors encountered!!"; 
 		); 

@@ -437,7 +437,7 @@ let render togl  =
 			Raw.set_float raw ~pos:(!count*3 + 2) z ;
 			incr count ; 
 		in
-		let ss = s /. 1.9 in
+		let ss = s /. 2.0 in
 		let gz = 4.0 /. !gzoom in
 		vertex3 ( x -. ss , y +. gz, 0.5) ; 
 		vertex3 ( x +. ss , y +. gz, 0.5) ; 

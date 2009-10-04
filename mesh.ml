@@ -94,6 +94,14 @@ let printtri t =
 		t.abn t.bcn t.can s; 
 	;;
 	
+let debugTris t d e = 
+	(* format for use with the matlab helper function, for display and examination *)
+	printf "debugTris(["; 
+	let printpoint p = printf "%f,%f;" (fst p) (snd p) in
+	List.iter printpoint [t.a;t.b;t.c;d;e]; 
+	printf "]);\n%!"
+	;;
+	
 let gtris = ref [| |] 
 let gannopts = ref [] 
 let gannosegs = ref [] 
@@ -127,9 +135,9 @@ let render togl =
 		renderTriangle (!gtris.(k))
 	)  done ; 
 	if !gselecthot then (
-		GlDraw.color ~alpha:0.5 (1.0,0.4, 1.0); 
+		GlDraw.color ~alpha:0.65 (1.0,0.45, 1.0); 
 	) else (
-		GlDraw.color ~alpha:0.5 (0.3,0.6, 1.0); 
+		GlDraw.color ~alpha:0.65 (0.35,0.65, 1.0); 
 	) ; 
 	if !gselected >= 0 && !gselected < Array.length !gtris && false then (
 		renderTriangle (!gtris).(!gselected); 
@@ -412,7 +420,7 @@ let mesh pts segs filter =
 			printf "edge (%f,%f) (%f,%f) at " (fst d) (snd d) (fst e) (snd e); 
 				printtri t ; *)
 			if not (distok t d) then (
-				found := true ; 
+				found := true ; (* a vertex!*)
 			) else (
 				(* start from center of triangle, project, move. *)
 				let f = scl (add (add t.a t.b) t.c) 0.33333333 in
@@ -437,6 +445,7 @@ let mesh pts segs filter =
 			let v = tt.(!n) in
 			gselected := !n ; 
 			(* if e is already in this triangle, then it is in the list of segments *)
+			(* (it is an edge of the triangle) *)
 			if not (distok v e) then ( 
 				found := true ; 
 				addpoint := false ; 
@@ -446,27 +455,38 @@ let mesh pts segs filter =
 					else if not (distt v.b d) then rotate !n 1 
 					else rotate !n 2 
 				in
-				(* printf "edge (%f,%f) (%f,%f) at " (fst d) (snd d) (fst e) (snd e); 
-				printtri u ; *)
+				(* debugTris u d e; *)
 				let ab = Pts2.norm (sub u.b u.a) in
 				let ac = Pts2.norm (sub u.c u.a) in
 				let ae = Pts2.norm (sub e u.a) in
 				let x = Pts2.cross ab ae in
+				let xd = Pts2.dot ab ae in
 				let y = Pts2.cross ac ae in
+				let yd = Pts2.dot ac ae in
 				if abs_float x < 0.00001 then (
-					(* segments ab and de are parallel - and we already 
-					know b != e so shorten segment to be *)
-					g := u.b ; 
-					found := true ; 
-					addpoint := false ; 
-					addseg := true; 
+					(* segments ab and de are parallel - check the dot product. *)
+					if xd > 0.0 then (
+						(* parallel. we already know b != e so shorten segment to be *)
+						g := u.b ; 
+						found := true ; 
+						addpoint := false ; 
+						addseg := true; 
+					) else (
+						(* antiparallel. this is not the right triangle - move to the one off segment ac *)
+						n := u.can ; 
+					); 
 				) else if abs_float y < 0.00001 then (
-					(* segments ac and de are parallel - and we already 
-					know c != e so shorten segment to ce *)
-					g := u.c ; 
-					found := true ; 
-					addpoint := false ; 
-					addseg := true; 
+					(* segments ac and de are parallel - check the dot product. *)
+					if yd > 0.0 then (
+						(* parallel. we already know c != e so shorten segment to ce *)
+						g := u.c ; 
+						found := true ; 
+						addpoint := false ; 
+						addseg := true;
+					) else (
+						(* antiparallel. move to the triangle off segment ab. *)
+						n := u.abn ; 
+					); 
 				) else ( 
 					if x > 0.0 then ( (* CCW angle *)
 						if y < 0.0 then ( (* CW angle *)
@@ -479,10 +499,11 @@ let mesh pts segs filter =
 								addseg := true ; 							
 								if abs_float x < abs_float y then g := u.b else g := u.c ;
 								(* printf "error in edgefind: segments should intersect but do not\n%!" ; 
-								printf "edge (%f,%f) (%f,%f) at " (fst d) (snd d) (fst e) (snd e); 
-								printtri u ; 
+								debugTris u d e; 
+								(!renderfunc) (); 
+								I've checked a few of these instances, and the code seems to do the right thing
+								(fingers crossed!*)
 								gselected := !n ; 
-								(!renderfunc) (); *)
 							) else (
 								found := true ; 
 								addpoint := true ; 
@@ -518,7 +539,7 @@ let mesh pts segs filter =
 	let (maxx,maxy) = 
 		List.fold_left (fun (mx,my) (x,y)  -> (max mx x),(max my y))
 		(List.hd pts) pts in
-	let (ex,ey) = Pts2.scl (Pts2.sub (maxx,maxy) (minx,miny)) 0.1 in
+	let (ex,ey) = Pts2.scl (Pts2.sub (maxx,maxy) (minx,miny)) 0.25 in
 	let ba = (minx -. ex, miny -. ey) in
 	let bb = (minx -. ex, maxy +. ey) in
 	let bc = (maxx +. ex, maxy +. ey) in
@@ -557,8 +578,8 @@ let mesh pts segs filter =
 		if List.length ss > 0 && w < 1000 then (
 			(* only optimize if we've eliminated at least 5 segments *)
 			let dopt2 = if chthr - (List.length ss) > 5 then true else false in
-			if dopt && dopt2 then( printf "optimizing\n%!"; opt () ; ); 
-			printf "eliminate %d segments\n%!" (List.length ss) ; 
+			if dopt && dopt2 then( (* printf "optimizing\n%!";*) opt () ; ); 
+			(* printf "eliminate %d segments\n%!" (List.length ss) ; *)
 			let morpts = ref [] in
 			let morsegs = ref [] in
 			List.iter (fun (a,b) -> 

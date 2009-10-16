@@ -101,6 +101,7 @@ object (self)
 			if m_type = Track_Track then m_u <- u ; 
 		method setHighlight b = m_highlight <- b ;
 		method setType t = m_type <- t ; 
+		method getLength () = Pts2.distance (self#getStart()) (self#getEnd())
 	
 		method setMoveStartConstraint f = (
 			m_moveStartConstraint <- f ; 
@@ -165,29 +166,23 @@ object (self)
 		method hit (p, onlyworknet, hithold, ja, netnum) = 
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* can hit on any layer if we are in track move mode *)
-			(* only hit on the owrking layer if we are adding tracks *)
+			(* only hit on the working layer if we are adding tracks *)
 			if not m_moving && (m_layer = !glayer || m_type = Track_Via ) 
 				&& m_visible && (not onlyworknet || netnum = m_net) then (
 				(* don't update the hit variable if we are moving*)
 				(* don't hit if onlyworknet (e.g. when adding or removing a track)
 				is true and we are not the workingnet. *)
 				m_washit <- m_hit ; 
+				m_hit <- self#touch p ; 
+				m_hit <- m_hit || (m_washit && hithold) ; 
 				let w2 = ((fois m_width) /. 2.) in
 				let st = self#getStart()  in
 				let en = self#getEnd() in
-				m_hit <- (
-					if m_type = Track_Via then (
-						(Pts2.distance st p ) < w2
-					)else if glayerEn.(m_layer) then (
-						Pts2.tracktouch st en p w2
-					) else (false ); 
-				); 
-				m_hit <- m_hit || (m_washit && hithold) ; 
 				if m_hit then (
 					(* need to update u, the position on the track that we were hit. *)
 					if m_type = Track_Track then (
 						let u = Pts2.closestuonline st en p true in
-						let tol = 0.5 *. (fois m_width) /. (Pts2.distance (self#getStart()) (self#getEnd())) in
+						let tol = 0.5 *. (fois m_width) /. (Pts2.distance st en) in
 						m_u <- if u < tol then 0.
 							else if u > 1. -. tol then 1. 
 							else u ; 
@@ -210,6 +205,20 @@ object (self)
 				if m_hit then true, m_net
 				else ja, netnum
 			) else ja,netnum
+			
+		method touch p = 
+			(* this is a softer version of hit - 
+			it only sees if the point is within the track area. 
+			it does not update anything, just returns a bool 
+			only works if track is visible.*)
+			let w2 = ((fois m_width) /. 2.) in
+			let st = self#getStart()  in
+			let en = self#getEnd() in
+			if m_type = Track_Via then (
+				(Pts2.distance st p ) < w2
+			)else if glayerEn.(m_layer) then (
+				Pts2.tracktouch st en p w2
+			) else false
 		
 		method updateDrcBBX () = (
 			let stx,sty = self#getStart () in

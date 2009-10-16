@@ -290,14 +290,14 @@ let abouttext =
 "written in Ocaml (yay) \n" ^
 "by Tim Hanson, sideskate@gmail.com \n" ^
 "for use with the Kicad suite of programs.\n" ^
-"   (not meant to work wholly by itself) \n" ^
-"Based on Kicad sources, " ^
-"Spaceman Spiff game by Robert Bridson, " ^
-"and stuff from the web ;) \n\n" ^
+"   (not meant to work wholly by itself -- no way to read netlists yet) \n\n" ^
 "Relevant hotkeys / commands: \n" ^ 
 " right mouse button --- pan \n" ^ 
 " scroll wheel --- zoom \n" ^
-" middle mouse button --- rotate module \n" ^
+" middle mouse button --- \n" ^
+"    * in move module & move text mode, rotate; \n" ^
+"    * in add or move track mode, select layer and update width\n"^
+"       (based on the track currently under the cursor).\n"^
 " .... \n" ^
 " a - add track \n" ^
 " Ctrl-T - select track width \n" ^ 
@@ -315,7 +315,7 @@ let abouttext =
 " F5 - select inner layer 1\n" ^
 " F6 - select inner layer 2\n" ^
 " F7 - select inner layer 3\n" ^
-" F8 - select inner layer 4\n"  ^
+" F8 - select inner layer 4 (but you should use the middle mouse button usually)\n"  ^
 " .... \n" ^
 " Shift - select multiple modules for moving \n" ^
 "         (somewhat incomplete feature) \n" ^
@@ -1135,19 +1135,19 @@ let makemenu top togl filelist =
 			render togl ; 
 		)
 	in
+	let raiseLayer lay = 
+		if List.exists ((=) lay) !glayerPresent then (
+			glayer := lay ; 
+			glayerZlist := List.filter (fun l -> not (l = lay)) !glayerZlist ; (* remove it *)
+			glayerZlist := (lay :: !glayerZlist); (* put layer at head *)
+			update_layer_z () ; 
+			updateLayers lay true; 
+		) else ( print_endline "layer not present in board"; ) ; 
+	in
 	let (layerframe,changelayercallback) = makeLayerFrame 
 		["Cop";"L1";"L2";"L3";"L4";"Cmp";"SS_Cop";"SS_Cmp";]
 		["Cop";"L1";"L2";"L3";"L4";"Cmp";"SS_Cop";"SS_Cmp";"Drawings"]
-		(fun s -> 
-			let lay = string_to_layer s in
-			if List.exists ((=) lay) !glayerPresent then (
-				glayer := lay ; 
-				glayerZlist := List.filter (fun l -> not (l = lay)) !glayerZlist ; 
-				glayerZlist := (lay :: !glayerZlist); (* put layer at head *)
-				update_layer_z () ; 
-				updateLayers lay true; 
-			) else ( print_endline "layer not present in board"; ) ; 
-		)
+		(fun s -> raiseLayer (string_to_layer s) )
 		(fun s b ->
 			let lay = string_to_layer s in
 			if List.exists ((=) lay) !glayerPresent then (
@@ -1788,12 +1788,12 @@ let makemenu top togl filelist =
 	in 
 	
 	(* cursor mode radiobuttons *)
-	let modelist = ["move module";"move text";"move track";"add track"] in
+	let modelist = ["move Module";"move teXt";"move Track";"Add track"] in
 	let mframe = Frame.create menubar in
 	let mvar = Textvariable.create ~on:mframe () in
 	Textvariable.set mvar (List.hd modelist);
 	let setMode s = 
-		match s with 
+		match (String.lowercase s) with 
 			| "move module" -> bindMouseMoveModule () ; 
 			| "move text" -> bindMouseMoveText () ; 
 			| "move track" -> bindMouseMoveTrack () ;  
@@ -1808,7 +1808,7 @@ let makemenu top togl filelist =
 			modelist in
 	let updateMode choice =
 		List.iter2 (fun c b -> 
-			if c = choice then (
+			if (String.lowercase c) = (String.lowercase choice) then (
 				Radiobutton.select b ; 
 				setMode choice ; 
 			) else ())
@@ -1975,10 +1975,18 @@ let makemenu top togl filelist =
 	Menu.add_cascade ~label:"Check ..."  ~menu:checkSub optionmenu; 
 	Menu.add_cascade ~label:"Misc ..."  ~menu:miscSub optionmenu; 
 	(*add options*)
-	let addOption menu label cmd ic = 
+	let addOption ?(bindkey="") menu label cmd ic = 
 		let v = Textvariable.create() in
 		Textvariable.set v (if ic then "On" else "Off") ; 
+		if bindkey <> "" then (
+			bind ~events:[`KeyPressDetail(bindkey)] 
+			~action:(fun _ ->
+				Textvariable.set v (if (Textvariable.get v)="Off" then "On" else "Off") ; 
+				cmd( (Textvariable.get v)="On" ) ; 
+			) top; 
+		) ;
 		Menu.add_checkbutton menu ~label ~indicatoron:true
+			~accelerator:bindkey
 			~variable:v
 			~offvalue:"Off" ~onvalue:"On"
 			~command:(fun () -> cmd( (Textvariable.get v)="On" )) ; 
@@ -1992,7 +2000,10 @@ let makemenu top togl filelist =
 	addOption displaySub "draw pad numbers" (fun b -> gshowPadNumbers := b) !gshowPadNumbers ; 
 	
 	Menu.add_command tracksSub ~label:"Tracks dialog (Ctrl-T)" ~command:tracksFun ; 
-	addOption tracksSub "135 degree routing" (fun b -> groute135 := b) !groute135 ; 
+	addOption tracksSub "135 degree routing" ~bindkey:"5" (fun b -> 
+			groute135 := b; 
+			printf "135 deg routing %s\n%!" (if b then "on" else "off") ;
+		) !groute135 ; 
 	addOption tracksSub "when dragging tracks mantain slope" (fun b -> gtrackKeepSlope := b) !gtrackKeepSlope ; 
 	addOption tracksSub "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
 	
@@ -2173,6 +2184,50 @@ let makemenu top togl filelist =
 		); 
 		render togl ;
 	in
+	let switchSelectTrack ev = 
+		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules *)
+		(* first see if nothing is selected .. *)
+		if not (List.exists (fun t -> t#getHit()) !gtracks) then (
+			(* then we want to switch layers to whichever would hit the smallest track *) 
+			let layer,_ = List.fold_left (fun (dlayer,darea) t -> 
+				if t#touch !gcurspos then (
+					let w = t#getWidth() /. 2.0 in
+					let l = t#getLength() in
+					let area = 2.0 *. 3.1415926 *. w *. w +. 2.0 *. l *. w in
+					if area < darea then (t#getLayer(),area) 
+					else (dlayer,darea) 
+				) else (dlayer,darea) 
+			) (!glayer,1e99) !gtracks in
+			if layer = !glayer then (
+				(* raise the oldest one then *)
+				let lay2 = List.find (fun lay -> List.exists ((=) lay) !glayerPresent 
+					&& lay <> (string_to_layer "Drawings")) (* don't edit drawings here.. *)
+					(List.rev !glayerZlist) in
+				changelayercallback (layer_to_string lay2); 
+			) else changelayercallback (layer_to_string layer);
+		); 
+		let width = List.fold_left (fun default track -> 
+			if track#getHit() && track#getType() = Track_Track then 
+				track#getWidth() else default
+		) !gtrackwidth !gtracks in
+		if width <> !gtrackwidth then (
+			gtrackwidth := width; 
+			printf "track width updated to %s\n%!" (tomm width) ;
+		); 
+		(* do the same for the vias *)
+		(* might be cool if you could copy any through-hole pad.. *)
+		let viadefault = (!gviapad, !gviadrill) in
+		let width,drill = List.fold_left (fun default track -> 
+			if track#getHit() && track#getType() = Track_Via then 
+				(track#getWidth(), track#getDrill()) else default
+		) viadefault !gtracks in 
+		if (width,drill) <> viadefault then (
+			gviapad := width; 
+			gviadrill := drill; 
+			printf "via pad updated to %s\n%!" (tomm width) ;
+			printf "via drill updated to %s\n%!" (tomm drill) ;
+		); 
+	in
 	let doToggleShow _ = 
 		if !gmode = Mode_MoveText then (
 			List.iter (fun m -> m#toggleTextShow()) !gmodules ; 
@@ -2189,7 +2244,11 @@ let makemenu top togl filelist =
 	bindMouseSelect () ; (* bind the shift keys to selection *)
 	(* the strings in the bindings are from X11's keysymdef.h ... *)
 	bind ~events:[`KeyPressDetail("r")] ~action:doRotate top ;
-	bind ~events:[`ButtonPressDetail(2)] ~fields:[`MouseX; `MouseY] ~action:doRotate top ; (* middle mouse button rotates *)
+	bind ~events:[`ButtonPressDetail(2)] ~fields:[`MouseX; `MouseY] 
+		~action:(fun ev -> 
+			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then 
+				switchSelectTrack ev
+			else doRotate ev) top ; (* middle mouse button rotates, or selectsswitches*)
 	bind ~events:[`KeyPressDetail("Page_Up")] ~action:(fun _-> changelayercallback "Cop";) top;  
 	bind ~events:[`KeyPressDetail("Page_Down")] ~action:(fun _ -> changelayercallback "Cmp";) top;  
 	bind ~events:[`KeyPressDetail("F5")] ~action:(fun _ -> changelayercallback "L1";) top;  
@@ -2199,6 +2258,8 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("m")] ~action:(fun _ -> updateMode "move module";) top;  
 	bind ~events:[`KeyPressDetail("t")] ~action:(fun _ -> updateMode "move track";) top; 
 	bind ~events:[`KeyPressDetail("a")] ~action:(fun _ -> updateMode "add track";) top; 
+	bind ~events:[`KeyPressDetail("x")] ~action:(fun _ -> updateMode "move text";) top; 
+	bind ~events:[`KeyPressDetail(" ")] ~fields:[`MouseX; `MouseY] ~action:switchSelectTrack top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"t")] ~action:tracksFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"v")] ~action:viasFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"s")] ~action:(fun _ -> saveall !gfname; ) top; 

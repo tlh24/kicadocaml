@@ -111,11 +111,17 @@ let _ =
 		let line, eoff = gitline ic in
 		let a = Array.of_list (Pcre.split ~pat:"," line) in
 		let cnt = try ios a.(pc_col) with _ -> 0 in
-		if cnt > 0 then (
+		let pn = try a.(pn_col) with _ -> "" in
+		let pnok = Pcre.pmatch ~pat:"-ND" pn in
+		if cnt > 0  && pnok then (
 			pl := ( a.(pn_col) , cnt ) :: !pl ; 
-		) ; 
+		) else (
+			printf "ignoring: pn:%s qty:%d \n\t(line:%s)\n%!" pn cnt line ; 
+		); 
 		eof := eoff ; 
 	) done ; 
+	printf "everything look ok? (y/n)\n%!"; 
+	if read_line () <> "y" then ( exit 0 ); 
 	(* echo the contents of the file *)
 	List.iter (fun (pn,pc) -> 
 		printf " %s , %d\n%!" pn pc ;  

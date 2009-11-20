@@ -46,7 +46,7 @@ let check page =
 	let accessid = try (Pcre.extract ~pat:"AccessID\">(\d+)<" page).(1) with _ -> "" in
 	if (webid^accessid) <> "" then (
 		printf "WebID: %s AccessID:%s\n%!" webid accessid ; 
-		printf "go to http://ordering.digikey.com/Ordering/OrderStatus.aspx?web_id=%s&access_id=%s&site=US to view/edit this order" 
+		printf "go to http://ordering.digikey.com/Ordering/OrderStatus.aspx?web_id=%s&access_id=%s&site=US to view/edit this order\n%!" 
 			webid accessid ; 
 	) ; 
 	Unix.sleep 1 ; 

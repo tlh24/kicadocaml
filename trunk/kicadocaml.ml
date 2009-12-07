@@ -308,6 +308,7 @@ let abouttext =
 " m - move module \n" ^
 " t - move track \n" ^
 " v - insert a via (in add tracks mode) \n" ^
+" v - edit module value (in move module mode)\n"^
 " Ctrl-V - select via size \n" ^
 " .... \n" ^
 " page up - select copper layer \n" ^
@@ -1239,7 +1240,7 @@ let makemenu top togl filelist =
 	in
 	(* declare the mouse bindings *) 
 	
-	let bindMouseAddTrack () = 
+	let bindMouseAddTrack () = (
 		gmode := Mode_AddTrack ;
 		bindVtoVia () ; 
 		let workingnet = ref 0 in
@@ -1398,9 +1399,9 @@ let makemenu top togl filelist =
 			Mouse.releaseMove top ; 
 			updatecurspos ev ; 
 		) ; 
-	in
+	)in
 	
-	let bindMouseMoveTrack () = 
+	let bindMouseMoveTrack () = (
 		gmode := Mode_MoveTrack ;
 		bindVtoVia () ; 
 		let workingnet = ref 0 in
@@ -1541,9 +1542,9 @@ let makemenu top togl filelist =
 			gratsnest#updateTracks !workingnet !gtracks ; 
 			updatecurspos ev ; 
 		) ; 
-	in
+	)in
 	
-	let bindMouseMoveText () = 
+	let bindMouseMoveText () = (
 		gmode := Mode_MoveText ; 
 		let modules = ref [] in
 		let startPos = ref (0. , 0.) in
@@ -1576,9 +1577,9 @@ let makemenu top togl filelist =
 		) ; 
 		(* unbind the v-key *)
 		bind ~events:[`KeyPressDetail("v")] ~action:(fun _ -> ()) top; 
-	in
-			
-	let bindMouseMoveModule () = 
+	)in	
+	
+	let bindMouseMoveModule () = (
 		gmode := Mode_MoveModule ;
 		let modules = ref [] in 
 		let safemove = ref (0. , 0.) in
@@ -1676,11 +1677,24 @@ let makemenu top togl filelist =
 			gratsnest#updateTracksAll !gtracks ; 
 			updatecurspos evinf ; 
 		) ; 
-		(* unbind the v-key *)
-		bind ~events:[`KeyPressDetail("v")] ~action:(fun _ -> ()) top; 
-	in
+		(* bind the v and e keys. *)
+		let modfind cb = (
+			let m = try Some
+				( List.find (fun t -> t#getHit ()) !gmodules )
+				with Not_found -> None
+			in
+			(match m with
+				| Some mm -> cb mm
+				| None -> ()
+			)
+		)in
+		bind ~events:[`KeyPressDetail("e")] ~action:
+			(fun _ -> modfind (fun m-> m#edit top)) top; 
+		bind ~events:[`KeyPressDetail("v")] ~action:
+			(fun _ -> modfind (fun m-> m#editValue top)) top;
+	)in
 	
-	let bindMouseSelect () = 
+	let bindMouseSelect () = (
 		(* method: let the user drag the cursor to make a transparent rectangle
 		when the mouse is released, select all modules & tracks that intersect 
 		the box, and keep them selected as long as 'shift' is held down. 
@@ -1785,8 +1799,7 @@ let makemenu top togl filelist =
 		
 		bind ~events:[`KeyReleaseDetail("Shift_R")] ~action:selectRelease top ; 
 		bind ~events:[`KeyReleaseDetail("Shift_L")] ~action:selectRelease top ; 
-	in 
-	
+	)in 
 	(* cursor mode radiobuttons *)
 	let modelist = ["move Module";"move teXt";"move Track";"Add track"] in
 	let mframe = Frame.create menubar in
@@ -2279,16 +2292,6 @@ let makemenu top togl filelist =
 				gtracks := List.filter (fun t -> not (t#getHit () ) ) !gtracks ; (*so easy :) *)
 				gratsnest#updateTracks nn !gtracks ; 
 				render togl ; 
-			)
-		) top ;
-	bind ~events:[`KeyPressDetail("e")] ~action:
-		(fun _ -> 
-			let m,found = try 
-				( List.find (fun t -> t#getHit ()) !gmodules ), true
-				with Not_found -> (List.hd !gmodules), false
-			in
-			if found then (
-				m#edit top ;  
 			)
 		) top ; 
 	bind ~events:[`KeyPressDetail("b")] ~fields:[`MouseX; `MouseY] ~action:

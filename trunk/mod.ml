@@ -83,12 +83,12 @@ object (self)
 		m_updateCallback () ; 
 		(* don't need to rotate or translate that rect *)
 	)
-	method updateLayers () = 
+	method updateLayers () = (
 		List.iter (fun p -> p#updateLayers () ) m_pads ; 
 		List.iter (fun p -> p#updateLayers () ) m_texts ; 
 		List.iter (fun p -> p#updateLayers () ) m_shapes ; 
 		m_g#updateLayer true m_layer ; 
-		
+	)
 	method hasLayer lay = List.exists (fun p -> p#hasLayer lay) m_pads ; 
 		(* module has the layer if at least one pad has the layer *)
 		(* we don't worry about text here .. for now *)
@@ -103,7 +103,7 @@ object (self)
 	
 	method clearHit () = m_hit <- false ; 
 	
-	method hit (p, hithold, onlyworknet, ja, netnum, hitsize,clearhit) = 
+	method hit (p, hithold, onlyworknet, ja, netnum, hitsize,clearhit) = (
 		(* if any of the pads are hit, then this module is hit *)
 		if not m_moving && m_visible then (
 			(* texts can be moved semi-independently from the module, 
@@ -139,7 +139,7 @@ object (self)
 			) else 
 				(ja, netnum, hitsize, clearhit2)
 		) else (ja, netnum, hitsize, clearhit)
-		
+	)
 	method getHit () = m_hit 
 	method setHit b = m_hit <- b ; 
 	method txthit () =  (
@@ -148,13 +148,14 @@ object (self)
 			with Not_found -> (List.hd m_texts), false
 		else  (List.hd m_texts), false
 	)
-	method toggleTextShow () = 
+	method toggleTextShow () = (
 		let txt,found = self#txthit() in
 		if found then (
 			let b = txt#getShow() in
 			txt#setShow (not b) ; 
 			txt# updateColor(); 
 		); 
+	)
 	method crossprobe () = (
 		let txt = self#getRef() in
 		let s = ("$PART: " ^ txt ^ "\n" ) in
@@ -203,10 +204,11 @@ object (self)
 		(*the shapes do not need to be rotated (apparently) *)
 	)
 	method getBBX () = m_g#getBBX () 
-	method getCenter movin = 
+	method getCenter movin = (
 		let (ox,oy,ohx,ohy) = m_g#getBBX () in
 		let (mx,my) = if movin then m_move else (0.0, 0.0) in
 		(ohx +. ox) /. 2. +. mx,  (ohy +. oy) /. 2. +. my
+	)
 	method rotate () = (
 		if m_washit then (
 			if !gmode = Mode_MoveText then (
@@ -280,11 +282,11 @@ object (self)
 	method pathHas pth = ( Pcre.pmatch ~pat:pth m_path )
 	method pathLast () = ( Pcre.extract ~pat:"\/([^\/]+)$" m_path ).(1)
 	method pathSheet () =  ( Pcre.extract ~pat:"\/([^\/]+)\/[^\/]+$" m_path ).(1)
-	method sheetNameHas sn = 
-		List.exists (fun p -> p#sheetNameHas sn) m_pads
-	method textHas sn = 
+	method sheetNameHas sn = List.exists (fun p -> p#sheetNameHas sn) m_pads
+	method textHas sn = (
 		List.exists (fun t -> 
 			Pcre.pmatch ~pat:sn (t#getText () ) ) m_texts
+	)
 	method getPos () = Pts2.add m_move (Pts2.fois m_x m_y)
 	method setPos p = (
 		m_x <- iofs(fst p) ; 
@@ -430,5 +432,17 @@ object (self)
 		(* right now we can only edit text .. *)
 		let (txt, found) = self#txthit () in
 		if found then txt#edit top ; 
+	)
+	method editValue top = (
+		(* change the module's value.. *)
+		if m_hit then (
+			(* text type 1 is value. *)
+			let t = try Some (List.find (fun txt -> txt#getType () = 1) m_texts)
+				with _ -> None in
+			(match t with 
+				| Some tt -> tt#edit top
+				| None -> ()
+			)
+		)
 	)
 end;;

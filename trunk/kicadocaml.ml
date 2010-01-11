@@ -367,7 +367,7 @@ let render togl  =
 		) ggrid ;
 		(* if the depth buffer is disabled we don't need to change the alpha level. *)
 	) ; 
-
+	!ginfodisp( "" ) ;
 	List.iter (fun m -> 
 		m#draw screenbbx
 		) !gmodules ; 

@@ -142,9 +142,9 @@ object (self)
 		) else (
 			m_g#draw ~hit:m_hit bbox ; 
 		);
-		if m_hit && (not m_washit) then (
-			!ginfodisp( "pad " ^ m_padname ^ " : netnum:" ^ (string_of_int m_netnum) ^ 
-			" netname:" ^ m_netname ) ;
+		if m_hit then (
+			!ginfodispappend( "pad:" ^ m_padname ^ " net:" ^ (string_of_int m_netnum) ^ 
+			" netname:" ^ m_netname ^ "\n") ;
 		) ; 
 		if !gshowPadNumbers then (
 			(* also should push it to the foreground, in case depth buffer is on. *)

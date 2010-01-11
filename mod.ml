@@ -245,20 +245,22 @@ object (self)
 				GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
 				List.iter (fun p -> p#move()) m_pads ; 
 			) ;  
-			m_g#draw ~hit:m_hit bbox;   
-			List.iter (fun p -> p#draw bbox ) m_pads ; 
-			List.iter (fun p -> p#draw bbox ) m_shapes ; 
-			if !gdrawText then (List.iter (fun p -> p#draw bbox m_hit) m_texts ); 
-			(* hiighlight the text if the module is selected *)
-			(* this makes it a bit easier to see. *)
-			if m_hit && (not m_washit) then (
-				let s =  ref ( "; module " ^ m_libRef ^ " : " ) in
+			m_g#draw ~hit:m_hit bbox;  
+			(* update the module text before the pad text, so that we can clear *)
+			if m_hit then (
+				let s =  ref m_libRef in
 				List.iter (fun t -> 
 					let x = t#getText () in
 					s := !s ^ " " ^ x ; 
 				) m_texts ; 
-				!ginfodispappend( !s ) ; 
+				s := !s ^ "\n" ; 
+				!ginfodisp( !s ) ; 
 			) ; 
+			List.iter (fun p -> p#draw bbox ) m_pads ; 
+			List.iter (fun p -> p#draw bbox ) m_shapes ; 
+			if !gdrawText then (List.iter (fun p -> p#draw bbox m_hit) m_texts ); 
+			(* highlight the text if the module is selected *)
+			(* this makes it a bit easier to see. *)
 			if m_moving then (
 				GlMat.pop () ; 
 			); 

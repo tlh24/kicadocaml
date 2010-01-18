@@ -97,6 +97,11 @@ object (self)
 	method getRef () = (List.find (fun t -> t#getType() = 0 ) m_texts)#getText()
 	method getValue () = (List.find (fun t -> t#getType() = 1 ) m_texts)#getText()
 	method getLibRef () = m_libRef  (* aka the footprint *)
+	method getFoot () = m_libRef
+	method getPath () = m_path
+	
+	method setRef rf = (List.find (fun t -> t#getType() = 0 ) m_texts)#setText rf
+	method setValue rf = (List.find (fun t -> t#getType() = 1 ) m_texts)#setText rf
 	
 	method setDeleteAttachedTracks b = m_deleteAttachedTracks <- b;
 	method getDeleteAttachedTracks () = m_deleteAttachedTracks ;
@@ -281,6 +286,7 @@ object (self)
 		else m_drcBBX
 	)
 	method getTimeStamp () = ( m_TimeStamp )
+	method setPath pth = ( m_path <- pth ; )
 	method pathHas pth = ( Pcre.pmatch ~pat:pth m_path )
 	method pathLast () = ( Pcre.extract ~pat:"\/([^\/]+)$" m_path ).(1)
 	method pathSheet () =  ( Pcre.extract ~pat:"\/([^\/]+)\/[^\/]+$" m_path ).(1)

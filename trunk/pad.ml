@@ -215,6 +215,8 @@ object (self)
 	)
 	method setRot r = m_rot <- r ; 
 	method getNet () = m_netnum 
+	method setNet n = m_netnum <- n ;
+	method setNetName nn = m_netname <- nn ; 
 	method getPadName () = m_padname 
 	method getShape () = m_shape 
 	method getPos () = Pts2.fois m_x m_y

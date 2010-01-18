@@ -121,6 +121,8 @@ object (self)
 	val mutable m_ref = "" (* the name of the schematic if it is sub to another *)
 	val mutable m_fileName = ""
 	
+	method getRef () = m_ref
+	
 	method openFile fname ts fref = (
 		(* clear out the previous hierarchy *)
 		m_components <- []; 
@@ -202,6 +204,18 @@ object (self)
 		)
 	)
 	
+	method findSubSch2 name = (
+		(* returns an schematic object if a match is found; 
+		otherwise, Not_found exception *)
+		if List.length m_subSch = 0 then raise Not_found ; 
+		List.fold_left (fun a b -> 
+			if b#getRef () = name then b 
+			else (
+				try b#findSubSch2 name with _ -> a
+			)
+		) (List.hd m_subSch) m_subSch
+	)
+	
 	method componentPositon (ts:string) = (
 		(* find the component position *)
 		let comp =
@@ -211,8 +225,8 @@ object (self)
 			with Not_found -> (Printf.printf "comonent not found!\n"; None)
 		in
 		(match comp with 
-			| Some c -> c#getPos () ;
-			| None -> (0.0, 0.0) ;
+			| Some c -> Some (c#getPos ()) ;
+			| None -> None ;
 		)
 	)
 end

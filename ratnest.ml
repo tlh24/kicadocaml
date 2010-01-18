@@ -67,11 +67,11 @@ method padPos (m: Mod.pcb_module) (p: Pad.pcb_pad) =
 
 method clearAll () =
 	m_rn <- [] ; 
-	m_rnsel <- []; 
+	m_rnsel <- [];  
 	Raw.free_static m_rawv ; 
-	m_rawv <- Raw.create `float 1 ;
+	m_rawv <- Raw.create_static `float 1 ;
 	Raw.free_static m_rawvsel ; 
-	m_rawvsel <- Raw.create `float 1 ;
+	m_rawvsel <- Raw.create_static `float 1 ;
 	m_updateNN <- SI.empty ;
 
 method make (mods : Mod.pcb_module list ) (tracks : Track.pcb_track list) = 

@@ -1,7 +1,7 @@
 PROFILE = FALSE
 
 OCAMLC = ocamlfind ocamlc -g -c -w x -w Z
-OPTIONS = -package pcre,lablGL,labltk,lablGL.togl,unix
+OPTIONS = -package camlp4,pcre,lablGL,labltk,lablGL.togl,unix
 LINKER = ocamlfind ocamlc -g
 
 ifeq ($(strip $(PROFILE)),TRUE)
@@ -12,7 +12,7 @@ endif
 
 OBJS = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
-	propagate.cmo schematic.cmo doarray.cmo mouse.cmo glwindow.cmo \
+	propagate.cmo schematic.cmo netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \
 	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo kicadocaml.cmo 
 #order matters here! 
 OPTOBJS = $(OBJS:.cmo=.cmx)
@@ -26,6 +26,12 @@ SRC = $(OBJS:.cmo=.ml)
 .ml.cmx:
 	$(OCAMOPT) $(OPTIONS) $<
 	
+netlist.cmo:netlist.ml
+	$(OCAMLC) -syntax camlp4o $(OPTIONS),camlp4 $<
+	
+netlist.cmx:netlist.ml
+	$(OCAMOPT) -syntax camlp4o $(OPTIONS),camlp4 $<
+	
 kicadocaml: $(OBJS)
 	$(LINKER) -linkpkg $(OPTIONS) $(OBJS) -o kicadocaml
 	
@@ -37,7 +43,7 @@ dump.odoc : $(SRC)
 	
 all: kicadocaml 				#bytecode
 
-opt:	kicadocaml.opt  	#native code
+opt: kicadocaml.opt  	#native code
 
 
 doc: dump.odoc # documenation (e.g. for cameleon)

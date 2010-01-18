@@ -290,7 +290,7 @@ let abouttext =
 "written in Ocaml (yay) \n" ^
 "by Tim Hanson, sideskate@gmail.com \n" ^
 "for use with the Kicad suite of programs.\n" ^
-"   (not meant to work wholly by itself -- no way to read netlists yet) \n\n" ^
+"   (not meant to work wholly by itself -- netlist/lib load incomplete) \n\n" ^
 "Relevant hotkeys / commands: \n" ^ 
 " right mouse button --- pan \n" ^ 
 " scroll wheel --- zoom \n" ^
@@ -1022,15 +1022,24 @@ let makemenu top togl filelist =
 		) (List.filter (fun m -> m#getLayer() = 15) !gmodules ); 
 		close_out_noerr oc; 
 	in
-	
-	(*add file menu entries *)
 	let filetyp = [ {typename="boards";extensions=[".brd"];mactypes=[]} ] in
+	(*add file menu entries *)
 	let openCommand () = 
 		let fname = Tk.getOpenFile ~defaultextension:".brd" 
 			~filetypes:filetyp ~title:"open board" () in
 		openFile top fname;
 	in
 	Menu.add_command filemenu ~label:"Open (Ctrl-O)" ~command:openCommand ; 
+	let openNetlistCommand () = 
+		let filetyp2 = [ {typename="netlist";extensions=[".net"];mactypes=[]} ] in
+		let fname = Tk.getOpenFile ~defaultextension:".net" 
+			~filetypes:filetyp2 ~title:"open netlist" () in
+		gmodules := Netlist.read_netlist fname gmodules;
+		(* redo the rat's nest. *)
+		propagateNetcodes gmodules gtracks true false top 
+			(fun () -> render togl) redoRatNest (); 
+	in
+	Menu.add_command filemenu ~label:"Load netlist" ~command:openNetlistCommand ; 
 	(* 
 	let filetypsch = [ {typename="schematics";extensions=[".sch"];mactypes=[]} ] in
 	Menu.add_command filemenu ~label:"Open schematic" ~command:
@@ -2088,18 +2097,31 @@ let makemenu top togl filelist =
 		let msg = Message.create ~text:"scaling:"  dlog in
 		let scaling = Entry.create ~width:10 dlog in
 		Entry.insert ~index:(`Num 0) ~text:"4000" scaling ; 
+		let msg2 = Message.create ~text:"sheet: (blank for root)"  dlog in
+		let sheet = Entry.create ~width:20 dlog in
+		Entry.insert ~index:(`Num 0) ~text:"" sheet ; 
 		let button = Button.create ~text:("move!")  dlog ~command:
 		( fun () -> 
+			(* see if we can find the sheet *)
+			let sht = try 
+				gschema#findSubSch2 (Entry.get sheet)
+				with _ -> gschema
+			in
 			List.iter (fun m -> 
 				let scl = fos (Entry.get scaling) in
 				let ts = m#getTimeStamp () in
-				let p = gschema#componentPositon ts in
-				m#setPos (Pts2.scl p (1.0 /. scl)); 
-				m#update (); 
+				let p = sht#componentPositon ts in
+				(match p with
+					| Some pp -> (
+						m#setPos (Pts2.scl pp (1.0 /. scl)); 
+						m#update (); )
+					| None -> ()
+				)
 			) !gmodules ; 
 			render togl ; 
 		) in
-		let all = [Tk.coe msg; Tk.coe scaling; Tk.coe button;] in
+		let all = [Tk.coe msg; Tk.coe scaling; Tk.coe msg2; 
+			Tk.coe sheet; Tk.coe button;] in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	) ; 
 	Menu.add_command miscSub ~label:"Enlarge tracks, mantain DRC"
@@ -2518,7 +2540,7 @@ let _ =
 			print_endline "cross-probing socket connected to eeschema" ; 
 		gcrossprobe := ( fun s -> 
 			if !gcrossProbeTX then (
-				ignore(Unix.send sock s 0 (String.length s) [] ; )
+				ignore(try Unix.send sock s 0 (String.length s) [] with _ -> 0; )
 			) ; 
 		) ; 
 		gclosesock := (fun () -> 

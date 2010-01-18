@@ -48,6 +48,10 @@ object (self)
 		(* if we are hidden, set Z to 0.001 *)
 		m_g#updateLayer (not m_show) m_layer ;
 	method getText () = m_text
+	method setText txt = (
+		m_text <- txt; 
+		(* update should be called after this so maketext is called. *)
+	)
 	method getType () = m_type
 	method getSize () = Pts2.fois m_sx m_sy
 	method setSize (x,y) = 

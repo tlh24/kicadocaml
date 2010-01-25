@@ -82,6 +82,11 @@ object (self)
 		m_moveCallback () ; 
 	)
 	method updateLayers () = m_g#updateLayers m_layers ; 
+	method copy () = (
+		m_g <- new grfx; 
+		m_gtext <- new grfx;
+		(* we can keep refs to the other instance variables. *)
+	)
 	method hit (p, onlyworknet, ja, netnum) = 
 		m_washit <- m_hit ; 
 		(*don't hit if we are not displayed *)

@@ -83,6 +83,24 @@ object (self)
 		m_updateCallback () ; 
 		(* don't need to rotate or translate that rect *)
 	)
+	method copy () = (
+		(* makes a copy of all sub-objects.
+		should be called after Oo.copy on this object 
+		otherwise we keep references to each sub-object...*)
+		let padsnew = List.map Oo.copy m_pads in
+		List.iter (fun p -> p#copy()) padsnew;  (* update will (have to) be called later. *)
+		m_pads <- padsnew; 
+		let textsnew = List.map Oo.copy m_texts in
+		List.iter (fun p -> p#copy()) textsnew;
+		m_texts <- textsnew; 
+		let shapesnew = List.map Oo.copy m_shapes in
+		List.iter (fun p -> p#copy()) shapesnew;
+		m_shapes <- shapesnew; 
+		let shapes3dnew = List.map Oo.copy m_shapes3d in
+		(* List.iter (fun p -> p#copy()) shapes3dnew; just a string. no need for deep copy *)
+		m_shapes3d <- shapes3dnew; 
+		m_g <- new grfx ; 
+	)
 	method updateLayers () = (
 		List.iter (fun p -> p#updateLayers () ) m_pads ; 
 		List.iter (fun p -> p#updateLayers () ) m_texts ; 

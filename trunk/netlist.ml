@@ -156,13 +156,13 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 		| [] -> ()
 	in
 	get_mods modlist ; 
-	Printf.printf "----------\n%!"; 
+	(* Printf.printf "----------\n%!"; 
 	List.iter (fun m -> 
 		match m with 
 			| Mod(path,foot,refdes,value,_,_) -> 
 				Printf.printf "mod %s %s %s %s\n%!" path foot refdes value; 
 			| _ -> ()
-	) (List.rev !mods);
+	) (List.rev !mods);*)
 	(* do the same for the nets. *)
 	let nets = ref [] in
 	let rec add_net hd = 
@@ -188,7 +188,7 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 	let netnumht = Hashtbl.create (List.length !nets) in
 	List.iter (fun n -> 
 		let netnum,netname = n in
-		Printf.printf "net %d %s\n%!" netnum netname; 
+		(* Printf.printf "net %d %s\n%!" netnum netname; *)
 		Hashtbl.add netnumht netname netnum ; 
 	) (List.rev !nets);
 	(* uh, now we have to check the netlist vs. the board *)
@@ -215,6 +215,9 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 							Printf.printf "Adding module %s foot %s ref %s val %s\n%!"
 								path foot refdes value; 
 							let newmod = Oo.copy srcmod in
+							(* note - this is NOT a DEEP copy. *)
+							(* have to copy all the sub-objects individually *)
+							newmod#copy (); 
 							(* reset the position, copy the value, refdes, then pin nets. *)
 							newmod#setPath path; 
 							newmod#setRef refdes; 
@@ -255,9 +258,9 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 		let f = mm#getFoot () in
 		let r = mm#getRef () in
 		let v = mm#getValue () in
-		Printf.printf
+		(*Printf.printf
 			"looking at, %s foot %s ref %s val %s \n%!"
-			p f r v ; 
+			p f r v ; *)
 		let m = try Some (List.find (fun mx -> 
 			match mx with 
 				| Mod(path,foot,refdes,value,_,_) ->
@@ -283,8 +286,8 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 								with _ -> None in
 								(match netnum with 
 								| Some pnn -> 
-									Printf.printf "updating pin %s netname %s num %d\n%!"
-										pname pnetname pnn;
+									(*Printf.printf "updating pin %s netname %s num %d\n%!"
+										pname pnetname pnn;*)
 									mpin#setNetName pnetname; 
 									mpin#setNet pnn; 
 								| _ -> ()

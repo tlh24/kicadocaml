@@ -567,7 +567,7 @@ let openFile top fname =
 		printf "It seems that this board was previously saved in PCBnew...\n%!"; 
 		propagateNetcodes gmodules gtracks true false top (fun () -> ()) (fun () -> ()) (); 
 	); 
-	
+	gratsnest#clearAll (); 
 	gratsnest#make !gmodules !gtracks; 
 	(* figure out the (approximate) center of the board *)
 	let center = bbxCenter (List.fold_left 
@@ -1034,10 +1034,19 @@ let makemenu top togl filelist =
 		let filetyp2 = [ {typename="netlist";extensions=[".net"];mactypes=[]} ] in
 		let fname = Tk.getOpenFile ~defaultextension:".net" 
 			~filetypes:filetyp2 ~title:"open netlist" () in
+		let count0603 mods = 
+			List.fold_left (fun k m -> 
+				if m#getLibRef () = "0603" then k+1 else k) 0 mods 
+		in
+		let orig = count0603 !gmodules in
 		gmodules := Netlist.read_netlist fname gmodules;
+		let neu = count0603 !gmodules in
+		printf "** original: %d new: %d\n%!" orig neu ; 
 		(* redo the rat's nest. *)
 		propagateNetcodes gmodules gtracks true false top 
-			(fun () -> render togl) redoRatNest (); 
+			(fun () -> render togl) 
+			(fun () -> gratsnest#clearAll (); gratsnest#make !gmodules !gtracks) 
+			(); 
 	in
 	Menu.add_command filemenu ~label:"Load netlist" ~command:openNetlistCommand ; 
 	(* 

@@ -47,6 +47,9 @@ object (self)
 	method updateLayers () = 
 		(* if we are hidden, set Z to 0.001 *)
 		m_g#updateLayer (not m_show) m_layer ;
+	method copy () = (
+		m_g <- new grfx; 
+	)
 	method getText () = m_text
 	method setText txt = (
 		m_text <- txt; 

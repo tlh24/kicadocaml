@@ -43,6 +43,9 @@ object
 		m_g#rotateTranslate rot x y ; 
 	)
 	method updateLayers () = m_g#updateLayer false m_layer ; 
+	method copy () = (
+		m_g <- new grfx ; 
+	)
 	method draw bbox = (
 		m_g#draw ~hit:false bbox
 	)

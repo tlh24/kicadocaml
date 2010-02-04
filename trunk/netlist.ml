@@ -68,7 +68,7 @@ let make_lexer () =
 	and ident (strm__ : _ Stream.t) =
 		match Stream.peek strm__ with
 		Some ('A'..'Z' | 'a'..'z' | '_' | '\192'..'\255' | 
-			'/' | '0'..'9' | '-' | '.' | ':'  as c) -> (* tlh: added '/' ! - *)
+			'/' | '0'..'9' | '-' | '.' | ':' | '+'  as c) -> (* tlh: added '/' ! - *)
 			Stream.junk strm__; let s = strm__ in store c; ident s
 		| _ -> Some (Id (get_string ()))
 	and ident2 (strm__ : _ Stream.t) =
@@ -90,7 +90,7 @@ let make_lexer () =
 		| _ -> raise Stream.Failure
 	and path (strm__ : _ Stream.t) = 
 		match Stream.peek strm__ with
-		Some ('A'..'Z' | 'a'..'z' | '_' | '-' | '0'..'9' | '/' as c) -> 
+		Some ('A'..'Z' | 'a'..'z' | '_' | '-' | '+' |'0'..'9' | '/' as c) -> 
 			Stream.junk strm__; let s = strm__ in store c; path s
 		| _ -> get_string ()
 	in

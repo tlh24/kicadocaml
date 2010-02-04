@@ -9,13 +9,15 @@ OCAMOPT = ocamlfind ocamlopt -p -g -c -w x -w Z
 else 
 OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 3
 endif
-
-OBJS = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
+OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
-	propagate.cmo schematic.cmo netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \
+	propagate.cmo schematic.cmo
+OBJS2 = netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \
 	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo kicadocaml.cmo 
+OBJS = $(OBJS1) $(OBJS2)
 #order matters here! 
 OPTOBJS = $(OBJS:.cmo=.cmx)
+OPTOBJS1 = $(OBJS1:.cmo=.cmx)
 SRC = $(OBJS:.cmo=.ml)
 
 .SUFFIXES: .ml .mli .cmo .cmi .cmx .c .o
@@ -26,10 +28,10 @@ SRC = $(OBJS:.cmo=.ml)
 .ml.cmx:
 	$(OCAMOPT) $(OPTIONS) $<
 	
-netlist.cmo:netlist.ml
+netlist.cmo:netlist.ml $(OBJS1)
 	$(OCAMLC) -syntax camlp4o $(OPTIONS),camlp4 $<
 	
-netlist.cmx:netlist.ml
+netlist.cmx:netlist.ml $(OPTOBJS1)
 	$(OCAMOPT) -syntax camlp4o $(OPTIONS),camlp4 $<
 	
 kicadocaml: $(OBJS)

@@ -180,11 +180,15 @@ object (self)
 		); 
 	)
 	method crossprobe () = (
-		let txt = self#getRef() in
-		let s = ("$PART: " ^ txt ^ "\n" ) in
-		!gcrossprobe s ; 
+		if self#getHit () then (
+			if not (List.exists (fun p -> p#crossprobe ()) m_pads) then (
+				let txt = self#getRef() in
+				let s = ("$PART: " ^ txt ^ "\n" ) in
+				!gcrossprobe s ; 
+			)
+		)
 	)
-	method setMoving b = (
+	method setMoving b = ( (* b is bool for moving or not *)
 		let (txt, found) = self#txthit () in
 		if b then (
 			(* need to see if any of our texts are hit -- if so, 
@@ -193,7 +197,7 @@ object (self)
 				txt#setMoving b ; 
 			) else (
 				(*if we are starting a new move *)
-				self#crossprobe () ; 
+				ignore( self#crossprobe () ); 
 				m_move <- (0. , 0.); 
 			)
 		) else (

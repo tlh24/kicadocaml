@@ -320,6 +320,7 @@ let abouttext =
 " .... \n" ^
 " Shift - select multiple modules for moving \n" ^
 "         (somewhat incomplete feature) \n" ^
+" Enter - cross probe transmit to eeschema\n" ^
 " Ctrl-F - find \n" ^
 " F3 - find next \n"
 
@@ -2404,6 +2405,11 @@ let makemenu top togl filelist =
 				); 
 			); 
 		) top; 
+	bind ~events:[`KeyPressDetail("KP_Enter")] ~fields:[`MouseX; `MouseY] ~action:
+	(fun ev -> (* cross-probe *)
+		updatecurspos ev ; 
+		List.iter (fun m-> m#crossprobe ())!gmodules; 
+	) top; 
 	let doZoom ev zm = 
 		updatecurspos ev ; 
 		let l = Pts2.add !gpan !gcurspos in

@@ -87,7 +87,7 @@ object (self)
 		m_gtext <- new grfx;
 		(* we can keep refs to the other instance variables. *)
 	)
-	method hit (p, onlyworknet, ja, netnum) = 
+	method hit (p, onlyworknet, ja, netnum) = (
 		m_washit <- m_hit ; 
 		(*don't hit if we are not displayed *)
 		let (en,active) = List.fold_left (fun (b,c) lay -> 
@@ -95,20 +95,20 @@ object (self)
 		) (false,false) m_layers in
 		(* don't update the hit variable if mouse button 1 is down *)
 		m_hit <- (m_g#hit p) && en && (not onlyworknet || netnum = m_netnum); 
-		if m_hit && (not m_washit) then (
-			(*then this is a new 'hit' - do cross probing. *)
-			(* only do cross=probing on the pins ; 
-			cross-probing on the modules is too annoying *)
-			let s = ("$PART: " ^ m_part ^ "\n" ^ "$PAD: " ^ m_padname ^ "\n" ) in
-			!gcrossprobe s ; 
-		); 
 		if m_hit && active then (
 			(* print_endline "snapped to pad!" ; *)
 			gsnapped := bbxCenter ( m_g#getBBX() ) ;
 		) ;
 		if m_hit then true, m_netnum
 		else ja, netnum
-		
+	)
+	method crossprobe () = (
+		if m_hit then (
+			let s = ("$PART: " ^ m_part ^ "\n" ^ "$PAD: " ^ m_padname ^ "\n" ) in
+			!gcrossprobe s ; 
+			true
+		) else false
+	)
 	method pointInPad p = (
 		(* need to rotate the point into our coordinate system *)
 		(* it is assumed that it is already translated into our coord sys *)

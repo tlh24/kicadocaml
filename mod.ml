@@ -224,13 +224,20 @@ object (self)
 			m_move <- m ;
 		)
 	)
+	method moveSum m = (
+		m_move <- Pts2.add m_move m; 
+	)
 	method getRot () = m_rot
 	method setRot r = (
 		m_rot <- r ; 
 		List.iter (fun p -> p#setRot r) m_pads; 
 		(*the shapes do not need to be rotated (apparently) *)
 	)
-	method getBBX () = m_g#getBBX () 
+	method getBBX movin = (
+		let (ox,oy,ohx,ohy) = m_g#getBBX () in
+		let (mx,my) = if movin then m_move else (0.0, 0.0) in
+		ox +. mx, oy +. my, ohx +. mx, ohy +. my
+	)
 	method getCenter movin = (
 		let (ox,oy,ohx,ohy) = m_g#getBBX () in
 		let (mx,my) = if movin then m_move else (0.0, 0.0) in

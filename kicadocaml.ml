@@ -572,8 +572,8 @@ let openFile top fname =
 	gratsnest#make !gmodules !gtracks; 
 	(* figure out the (approximate) center of the board *)
 	let center = bbxCenter (List.fold_left 
-		(fun b m -> bbxMerge b (m#getBBX())) 
-		((List.hd !gmodules)#getBBX()) !gmodules) in
+		(fun b m -> bbxMerge b (m#getBBX false )) 
+		((List.hd !gmodules)#getBBX false) !gmodules) in
 	gpan := Pts2.scl center (-1.0) ; 
 	(* make a set of all the track widths in this board *)
 	let trackWidth = ref (SI.empty) in
@@ -1734,7 +1734,7 @@ let makemenu top togl filelist =
 						!gcursordisp "size" ((fmax sx px) -. (fmin sx px))  ((fmax sy py) -. (fmin sy py)); 
 						(* iterate through the modules & update selected *)
 						List.iter (fun m-> 
-							if bbxIntersect (m#getBBX ()) !gselectRect && m#getVisible() then 
+							if bbxIntersect (m#getBBX false) !gselectRect && m#getVisible() then 
 								m#setHit true 
 							else m#setHit false
 						) !gmodules ; 
@@ -2134,6 +2134,12 @@ let makemenu top togl filelist =
 			Tk.coe sheet; Tk.coe button;] in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	) ; 
+	Menu.add_command miscSub ~label:"Move modules via simulated annealing"
+		~command: ( fun () -> 
+			gratsnest#clearAll (); 
+			Anneal.doAnneal !gmodules (fun () -> render togl); 
+			redoRatNest (); 
+		) ; 
 	Menu.add_command miscSub ~label:"Enlarge tracks, mantain DRC"
 		~command: ( fun () -> 
 		let dlog = Toplevel.create top in
@@ -2584,7 +2590,7 @@ let _ =
 						List.iter (fun (m:Mod.pcb_module) -> 
 							let txt = m#getRef() in
 							if( String.compare txt part ) = 0 then (
-								let (x,y,x2,y2) = m#getBBX () in
+								let (x,y,x2,y2) = m#getBBX false in
 								let w,h = x2 -. x , y2 -. y in
 								let pp = Pts2.add (x,y) (w /. 2. , h /. 2.) in
 								gpan := Pts2.scl pp (-1.); 

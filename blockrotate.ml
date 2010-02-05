@@ -14,7 +14,7 @@ let rotate mods tracks =
 	
 	(* next figure out the collective center *)
 	let bbx0 = if List.length mods > List.length tracks then (
-		(List.hd mods)#getBBX();  
+		(List.hd mods)#getBBX false;  
 	) else (
 		(List.hd tracks)#getDrcBBX(); 
 	) in
@@ -22,7 +22,7 @@ let rotate mods tracks =
 		(fun bbx t -> bbxMerge (t#getDrcBBX()) bbx) 
 		bbx0 tracks in 
 	let bbx2 = List.fold_left 
-		(fun bbx m -> bbxMerge (m#getBBX()) bbx) 
+		(fun bbx m -> bbxMerge (m#getBBX false) bbx) 
 		bbx1 mods in 
 	let center = bbxCenter bbx2 in
 	printf "blockrotate: center @ %f %f\n%!" (fst center) (snd center); 

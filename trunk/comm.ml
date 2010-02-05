@@ -9,6 +9,7 @@ let iofs x = (round( x *. 10000.))
 let sof = string_of_float
 let soi = string_of_int
 let fabs = abs_float
+let fsign f = if f > 0.0 then 1.0 else if f < 0.0 then -1.0 else 0.0 
 let mod2 a b =  (*this modulus maps to the positive numbers, unlike regular mod, which preserves sign *)
 	if a >= 0 then (a mod b) (* it implements, in effect, a continuous sawtooth function *)
 	else (

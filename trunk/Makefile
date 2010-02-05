@@ -13,7 +13,7 @@ OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
 	propagate.cmo schematic.cmo
 OBJS2 = netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \
-	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo kicadocaml.cmo 
+	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo anneal.cmo kicadocaml.cmo 
 OBJS = $(OBJS1) $(OBJS2)
 #order matters here! 
 OPTOBJS = $(OBJS:.cmo=.cmx)

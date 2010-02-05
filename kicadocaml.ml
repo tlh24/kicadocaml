@@ -2137,8 +2137,36 @@ let makemenu top togl filelist =
 	Menu.add_command miscSub ~label:"Move modules via simulated annealing"
 		~command: ( fun () -> 
 			gratsnest#clearAll (); 
-			Anneal.doAnneal !gmodules (fun () -> render togl); 
-			redoRatNest (); 
+			let dlog = Toplevel.create top in
+			Wm.title_set dlog "Simulated annealing" ; 
+			let frame = Frame.create dlog in
+			let msg = Message.create ~text:"number of passes:"  frame in
+			let passes = Entry.create ~width:10 frame in
+			Entry.insert ~index:(`Num 0) ~text:"10" passes ; 
+			let msg2 = Message.create ~text:"temperature:"  frame in
+			let temperature = Entry.create ~width:10 frame in
+			Entry.insert ~index:(`Num 0) ~text:"0.01" temperature ; 
+			let button = Button.create ~text:("go") ~command: 
+				(fun () -> 
+					let pass = ios (Entry.get passes) in
+					let temp = fos (Entry.get temperature) in
+					gratsnest#clearAll (); 
+					render togl; 
+					(* remove the update callbacks *)
+					List.iter (fun m -> 
+						m#setUpdateCallback (fun _ -> ()) ; 
+						List.iter (fun p -> 
+							p#setMoveCallback (fun _ -> ()) ;
+							p#setSelCallback (fun _ -> ()) ;
+						) (m#getPads()); 
+					) !gmodules; 
+					Anneal.doAnneal !gmodules (fun () -> render togl) temp pass; 
+					redoRatNest (); 
+				) frame in
+			Tk.pack ~side:`Left ~fill:`Both ~expand:true 
+				[Tk.coe msg; Tk.coe passes; Tk.coe msg2; Tk.coe temperature; Tk.coe button] ; 
+			(* let all = frame :: buttons in*)
+			Tk.pack ~fill:`Both ~expand:true [frame]; 
 		) ; 
 	Menu.add_command miscSub ~label:"Enlarge tracks, mantain DRC"
 		~command: ( fun () -> 
@@ -2661,7 +2689,10 @@ let _ =
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace...  *)
-	(* openFile top "/home/tlh24/svn/neurorecord/microstim/microstim.brd"; *)
+	(*openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; 
+	gratsnest#clearAll (); 
+	Anneal.doAnneal !gmodules (fun () -> render togl); 
+	redoRatNest (); *)
 	(* let schema = new schematic in 
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 

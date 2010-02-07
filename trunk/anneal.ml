@@ -14,11 +14,14 @@ class a_pad = object (self)
 	val mutable mx = 0.0 (* offset from center of module *)
 	val mutable my = 0.0
 	val mutable m_net = 0
+	val mutable m_name = ""
 	
 	method setParent m = m_parent <- m (* parent's transform, actually. *)
 	method setPos (kx,ky) = mx <- kx; my <- ky; 
 	method setNet n = m_net <- n;
 	method getNet () = m_net;
+	method setName n = m_name <- n; 
+	method getName () = m_name
 	method setConn (conn : a_pad list) = m_conn <- conn; 
 	method getPos () = m_parent#transform (mx,my) ; 
 	method cost () = (* calculate e.g. for deciding on a rotation *)
@@ -43,6 +46,7 @@ end and a_mod = object
 	val mutable mw = 0.0 (* width/2 *)
 	val mutable mh = 0.0 (* height/2 *)
 	val mutable m_pads : 'a_pad list = []
+	val mutable m_name = ""
 	
 	method setMod m = m_mod <- m
 	method getMod () = m_mod
@@ -54,6 +58,8 @@ end and a_mod = object
 	method setWH (w,h) = mw <- w; mh <- h; 
 	method getWH () = mw,mh
 	method setOffset o = m_offset <- o; 
+	method setName n = m_name <- n; 
+	method getName () = m_name
 	method move (kx,ky) = mx <- mx +. kx; my <- my +. ky; 
 	method transform k = (* transform pad coordinates to global *)
 		Pts2.add (rotate2 ~angle:(deg2rad mr) k ) (mx,my)
@@ -78,6 +84,7 @@ let doAnneal mods render temp passes =
 		m#update () ;
 		am#setPos (m#getCenter false); 
 		am#setRot (foi (m#getRot ())/.10.0); 
+		am#setName (m#getRef()); 
 		m#setRot 0; 
 		m#setPos (0.0, 0.0); 
 		m#update () ; (* to get a proper bbx, will change back later *)
@@ -90,6 +97,7 @@ let doAnneal mods render temp passes =
 			let ap = new a_pad in
 			ap#setParent am; 
 			ap#setPos (Pts2.sub (p#getPos ()) offset);
+			ap#setName (p#getPadName()); 
 			let net = p#getNet () in
 			ap#setNet net;
 			if net > !maxnet then maxnet := net ; 
@@ -138,7 +146,8 @@ let doAnneal mods render temp passes =
 				Pts2.add s (p#suggest())
 			) (0.0,0.0) (m#getPads()) in
 			let len = List.length (m#getPads()) in
-			let mv = Pts2.scl sug (1.0/.((foi len) *. (8.0 +. (Random.float 5.0)))) in
+			let mv = Pts2.scl sug (1.0/.((foi len) *. (2.0 +. (Random.float 1.0)))) in
+			printf "move: %f %f (%f long)\n%!" (fs mv) (snd mv) (Pts2.length mv);
 			m#move mv; 
 		) amods ; 
 		

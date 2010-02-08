@@ -2145,11 +2145,15 @@ let makemenu top togl filelist =
 			Entry.insert ~index:(`Num 0) ~text:"10" passes ; 
 			let msg2 = Message.create ~text:"temperature:"  frame in
 			let temperature = Entry.create ~width:10 frame in
-			Entry.insert ~index:(`Num 0) ~text:"0.01" temperature ; 
+			Entry.insert ~index:(`Num 0) ~text:"0.01" temperature ;
+			let msg3 = Message.create ~text:"lock any modules with > pins:"  frame in
+			let nlocke = Entry.create ~width:10 frame in
+			Entry.insert ~index:(`Num 0) ~text:"22" nlocke ; 
 			let button = Button.create ~text:("go") ~command: 
 				(fun () -> 
 					let pass = ios (Entry.get passes) in
 					let temp = fos (Entry.get temperature) in
+					let nlock = ios (Entry.get nlocke) in
 					gratsnest#clearAll (); 
 					render togl; 
 					(* remove the update callbacks *)
@@ -2160,11 +2164,12 @@ let makemenu top togl filelist =
 							p#setSelCallback (fun _ -> ()) ;
 						) (m#getPads()); 
 					) !gmodules; 
-					Anneal.doAnneal !gmodules (fun () -> render togl) temp pass; 
+					Anneal.doAnneal !gmodules (fun () -> render togl) temp pass nlock; 
 					redoRatNest (); 
 				) frame in
 			Tk.pack ~side:`Left ~fill:`Both ~expand:true 
-				[Tk.coe msg; Tk.coe passes; Tk.coe msg2; Tk.coe temperature; Tk.coe button] ; 
+				[Tk.coe msg; Tk.coe passes; Tk.coe msg2; Tk.coe temperature; 
+				Tk.coe msg3; Tk.coe nlocke; Tk.coe button] ; 
 			(* let all = frame :: buttons in*)
 			Tk.pack ~fill:`Both ~expand:true [frame]; 
 		) ; 

@@ -39,12 +39,27 @@ class a_pad = object (self)
 		let len = List.length m_conn in
 		let scl = if len > 0 then 1.0 /. (foi len) else 0.0 in 
 		Pts2.scl v scl
+	method suggest_closest () = (* again, vectoral suggested move, but only the closest ala MST*)
+		let mypos = self#getPos () in
+		let q = List.fold_left (fun s p -> 
+			let d = Pts2.sub (p#getPos ()) mypos in
+			if Pts2.length2 d < Pts2.length2 s then d else s
+		) (1e10,1e10) m_conn in
+		if Pts2.length2 q > 1e10 then (0.0,0.0) else q
+	method draw () = 
+		(* returns a list of lines (float*float*float*float) *)
+		let mypos = self#getPos () in
+		List.map (fun con -> 
+			(mypos , con#getPos())
+		) m_conn
+
 end and a_mod = object
 	val mutable m_mod = new pcb_module
 	val mutable m_offset = 0.0,0.0 (* subtract this when setting m_mod's position *)
 	val mutable mx = 0.0
 	val mutable my = 0.0
 	val mutable mr = 0.0
+	
 	val mutable mw = 0.0 (* width/2 *)
 	val mutable mh = 0.0 (* height/2 *)
 	val mutable m_pads : 'a_pad list = []
@@ -69,15 +84,19 @@ end and a_mod = object
 	method transform k = (* transform pad coordinates to global *)
 		Pts2.add (rotate2 ~angle:(deg2rad mr) k ) (mx,my)
 	method getBBX () = 
-		let w,h = if cos(deg2rad mr) > 0.707 then mw,mh else mh,mw in
+		let w,h = if fabs(cos(deg2rad mr)) > 0.707 then mw,mh else mh,mw in
 		mx -. w, my -. h, mx +. w, my +. h
 	method update () = (* send the new loc to the parent *)
 		m_mod#setRot (iof mr * 10); 
 		m_mod#setPos (Pts2.sub (mx,my) (rotate2 ~angle:(deg2rad mr) m_offset )); 
 		m_mod#setMoving false; 
+	method draw pl = 
+		List.fold_left (fun lst p -> 
+			List.rev_append ( p#draw()) lst
+		) pl m_pads
 end
 
-let doAnneal mods render temp passes nlock = 
+let doAnneal mods render stemp etemp passes nlock = 
 	let k = ref 0 in
 	List.iter (fun m -> m#setMoving true) mods; 
 
@@ -126,7 +145,7 @@ let doAnneal mods render temp passes nlock =
 			(* don't self-reference! *)
 			if(n >= 0 && n <= !maxnet) then (
 				let lst = nets.(n) in
-				if List.length lst < 12 then ( (* ignore the larger nets *)
+				if List.length lst < 120 then ( (* ignore the larger nets *)
 					p#setConn (List.filter (fun pp -> pp <> p) lst); 
 				)
 			)
@@ -135,19 +154,59 @@ let doAnneal mods render temp passes nlock =
 	let renderAll () = 
 		List.iter (fun m -> 
 			m#update (); 
-		) amods; 
-		render (); 
+		) amods;
+		render (fun _ -> false); 
+	in
+	let renderLines () = 
+		let cb () = 
+			let lines = List.fold_left (fun lst m -> 
+				m#draw lst) [] amods in
+			let len = List.length lines in
+			let rawv = Raw.create_static `float (4 * len) in
+			let i = ref 0 in
+			List.iter (fun ((sx,sy),(ex,ey)) ->
+				Raw.set_float rawv ~pos:(4* !i + 0) sx ; 
+				Raw.set_float rawv ~pos:(4* !i + 1) sy ; 
+				Raw.set_float rawv ~pos:(4* !i + 2) ex ; 
+				Raw.set_float rawv ~pos:(4* !i + 3) ey ; 
+				incr i ; 
+			) lines ; 
+			GlDraw.color ~alpha:0.2 (1. , 1. , 1. ); 
+			GlMat.push() ; 
+			GlMat.translate ~x:(0.) ~y:(0.) ~z:(0.99) (); 
+			GlArray.vertex `two rawv; 
+			GlArray.draw_arrays `lines 0 (len * 2) ; 
+			GlMat.pop() ; 
+			Raw.free_static rawv;
+			true
+		in
+		render cb ;
 	in
 	(* now make a list of modules that can be moved. *)
 	let amods2 = List.filter (fun m -> List.length (m#getPads ()) < nlock) amods in
 	List.iter (fun m -> m#setLock true) amods;
 	List.iter (fun m -> m#setLock false) amods2; 
 	while !k < passes do (
+		let temp = etemp +. (stemp -. etemp) *. ((foi (passes - !k))/.(foi passes)) in
+		Printf.printf "pass %d temperature %f\n%!" !k temp; 
 		(* inject som noise *)
 		List.iter (fun m -> 
-			m#move (((Random.float temp) -. temp/.2.),((Random.float temp) -. temp/.2.)); 
+			(* use box-muller transform to make them gaussian *)
+			(* http://www.taygeta.com/random/gaussian.html *)
+			let x1 = ref 0.0 in
+			let x2 = ref 0.0 in
+			let w = ref 2.0 in
+			while !w >= 1.0 do (
+				x1 := 2.0 *. (Random.float 1.0) -. 1.0;
+				x2 := 2.0 *. (Random.float 1.0) -. 1.0; 
+				w := !x1 *. !x1 +. !x2 *. !x2 ; 
+			) done; 
+			w := sqrt( (-2.0 *. log(!w)) /. !w); 
+			let y1 = !x1 *. !w *. temp in
+			let y2 = !x2 *. !w *. temp in
+			m#move (y1,y2);
 		) amods2; 
-		(* renderAll (); *)
+		renderLines ();
 
 		(* move them towards other conneted elements *)
 		List.iter (fun m -> 
@@ -155,12 +214,13 @@ let doAnneal mods render temp passes nlock =
 				Pts2.add s (p#suggest())
 			) (0.0,0.0) (m#getPads()) in
 			let len = List.length (m#getPads()) in
-			let mv = Pts2.scl sug (1.0/.((foi len) *. (2.0 +. (Random.float 1.0)))) in
+			let mv = Pts2.scl sug (1.0/.((foi len) *. (1.2 +. (Random.float 1.0)))) in
  			(* printf "move: %f %f (%f long)\n%!" (fst mv) (snd mv) (Pts2.length mv); *) 
 			m#move mv; 
 			(* m#update (); 
 			render (); *)
-		) amods2 ; 
+		) amods2 ;
+		renderLines (); 
 		
 		(* rotate if that will help *)
 		List.iter (fun m -> 
@@ -176,22 +236,26 @@ let doAnneal mods render temp passes nlock =
 			(*printf "best %f\n%!" (fst best); *)
 			m#setRot (fst best); 
 		) amods2 ; 
-		(* renderAll (); *)
+		renderLines (); 
 		
 		(* now see where they are hitting, and move them accordingly *)
 		let hitAll () = 
 			let mvcnt = ref 1 in
-			let passes = ref 0 in
-			while !mvcnt > 0 && !passes < 20 do (
+			let onemore = ref true in
+			let hitpass = ref (if !k = passes-1 then (-50) else 18) in
+			while !mvcnt > 0 && !hitpass < 20 do (
 				mvcnt := 0;
 				List.iter (fun m1 -> 
 					List.iter (fun m2 -> 
 						if m1 <> m2 then (
 							let bbx1 = m1#getBBX () in
 							let bbx2 = m2#getBBX () in
-							(* let printbbx (x,y,xx,yy) = printf "(%f,%f %f,%f)\n%!" x y xx yy in
-							printbbx bbx1; 
-							printbbx bbx2; *)
+							(*printf "-------\n"; 
+							let printbbx (x,y,xx,yy) r = 
+								printf "(%f,%f %f,%f) siz %f %f r %f\n%!" 
+								x y xx yy (xx-.x) (yy-.y) r in
+							printbbx bbx1 (m1#getRot()); 
+							printbbx bbx2 (m2#getRot()); *)
 							if bbxIntersect bbx1 bbx2 then (
 								(* move the modlues accordingly *)
 								let w1,h1 = bbxWH bbx1 in
@@ -202,18 +266,18 @@ let doAnneal mods render temp passes nlock =
 								let calcmov d w = if fabs d < w then ((0.5*.w -. (fabs d)) *. (fsign d)) else 0.0 in
 								let mx,my = (calcmov dx (w1 +. w2)),(calcmov dy (h1 +. h2)) in
 								(* note, you only need one of these moves - rectanguar objects*)
-								let move = if (fabs mx) < (fabs my) then mx, (0. *.my) else (0. *. mx), my in
-								(* printf "move %f,%f\n%!" (fst move) (snd move) ; *)
+								let move = if (fabs mx) < (fabs my) && mx <> 0.0 then mx, (0. *.my) else (0. *. mx), my in
+(* 								printf "move %f,%f\n%!" (fst move) (snd move) ; *)
 								if not (m1#getLock ()) then (
 									if not (m2#getLock ()) then (
-										m1#move (Pts2.scl move (-0.75)); (* tweak this ? *)
-										m2#move (Pts2.scl move 0.75); 
+										m1#move (Pts2.scl move (-0.6)); (* tweak this ? *)
+										m2#move (Pts2.scl move 0.6); 
 									) else ( (* m2 locked *)
-										m1#move (Pts2.scl move (-1.5)); 
+										m1#move (Pts2.scl move (-1.2)); 
 									)
 								) else (
 									if not (m2#getLock ()) then (
-										m2#move (Pts2.scl move 1.5); 
+										m2#move (Pts2.scl move 1.2); 
 									)
 								);
 								incr mvcnt;
@@ -222,12 +286,18 @@ let doAnneal mods render temp passes nlock =
 						)
 					) amods; 
 				) amods; 
-				incr passes; 
+				incr hitpass; 
+				renderLines();
+				(* make sure we have one good pass at the end. *)
+				if !mvcnt <> 0 then onemore := true; 
+				if !mvcnt = 0 && !onemore then (
+					onemore := false; 
+					incr mvcnt; 
+				);
 			) done; 
 		in
-		hitAll(); 
-		renderAll(); 
-		
+		if temp < 0.1 then hitAll(); (* doesn't make sense to do the 'hit' when 
+			normal movement is greater than displacement movement *)
 		incr k; 
-		Printf.printf "pass %d\n%!" !k; 
 	) done; 
+	renderAll ()

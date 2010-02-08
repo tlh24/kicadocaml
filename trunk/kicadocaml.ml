@@ -15,6 +15,8 @@ open Drc
 open Schematic
 open Doarray
 
+let nulfun _ = false ;;
+
 module FDSet =
   Set.Make(struct type t = Unix.file_descr let compare = compare end)
   
@@ -337,7 +339,7 @@ let maketop =
 	Wm.title_set top "Kicad Ocaml";
 	top
 
-let render togl  =
+let render togl cb =
 	Togl.make_current togl ; 
 	let w, h = !gwindowsize in
 	let ar = (foi w)/.(foi h) in 
@@ -369,108 +371,110 @@ let render togl  =
 		(* if the depth buffer is disabled we don't need to change the alpha level. *)
 	) ; 
 	!ginfodisp( "" ) ;
-	List.iter (fun m -> 
-		m#draw screenbbx
-		) !gmodules ; 
-	(* draw the tracks back to front so that the alpha-blending makes sense *)
-	(* this requires slightly more iteration but.. eh well, it is the correct way to do it*)
-	let layerZlist = List.filter (fun a -> glayerEn.(a)) (List.rev !glayerZlist) in
-	let lastLayer = try List.hd (List.rev layerZlist) with _ -> 0 in
-	List.iter ( fun lay -> 
-		let lastiter = (lay = lastLayer) in
-		GlMat.push () ; 
-		GlMat.translate ~x:0. ~y:0. ~z:glayerZ.(lay) () ; 
-		if !gdrawtracks then (
-			List.iter (fun m -> 
-				if m#isVia() then (
-					if lastiter then m#draw screenbbx; 
-				) else if m#getLayer() = lay then (
-					m#draw screenbbx 
-				); 
-			) !gtracks ; 
-		); 
-		(* do the same on the zones. *)
-		if !gdrawzones then (
-			List.iter (fun zon -> 
-				if zon#getLayer() = lay then (
-					zon#draw () ; 
-				); 
-			) !gzones ;
-		) ; 
-		(* and for the drawsegments *)
-		List.iter (fun seg -> 
-			if seg#getLayer() = lay then (
-				seg#draw screenbbx; 
+	let more = cb () in
+	if not more then (
+		List.iter (fun m -> 
+			m#draw screenbbx
+			) !gmodules ; 
+		(* draw the tracks back to front so that the alpha-blending makes sense *)
+		(* this requires slightly more iteration but.. eh well, it is the correct way to do it*)
+		let layerZlist = List.filter (fun a -> glayerEn.(a)) (List.rev !glayerZlist) in
+		let lastLayer = try List.hd (List.rev layerZlist) with _ -> 0 in
+		List.iter ( fun lay -> 
+			let lastiter = (lay = lastLayer) in
+			GlMat.push () ; 
+			GlMat.translate ~x:0. ~y:0. ~z:glayerZ.(lay) () ; 
+			if !gdrawtracks then (
+				List.iter (fun m -> 
+					if m#isVia() then (
+						if lastiter then m#draw screenbbx; 
+					) else if m#getLayer() = lay then (
+						m#draw screenbbx 
+					); 
+				) !gtracks ; 
 			); 
-		) !gdrawsegments ;
-		GlMat.pop () ; 
-	) layerZlist ; 
-	
-	if !gdrawratsnest then gratsnest#draw ();
-	
-	(* it is useful to see where the cursor is .. *)
-	let h = foi(snd !gwindowsize) in
-	let s = (2. /. h) /. !gzoom in
-	
-	let drawRect (xl,yl,xh,yh) = 
-		let count = ref 0 in
-		let raw = Raw.create_static `float 12 in
-		GlArray.vertex `three raw ; 
-		let vertex3 (x,y,z) = 
-			Raw.set_float raw ~pos:(!count*3 + 0) x ; 
-			Raw.set_float raw ~pos:(!count*3 + 1) y ; 
-			Raw.set_float raw ~pos:(!count*3 + 2) z ;
-			incr count ; 
+			(* do the same on the zones. *)
+			if !gdrawzones then (
+				List.iter (fun zon -> 
+					if zon#getLayer() = lay then (
+						zon#draw () ; 
+					); 
+				) !gzones ;
+			) ; 
+			(* and for the drawsegments *)
+			List.iter (fun seg -> 
+				if seg#getLayer() = lay then (
+					seg#draw screenbbx; 
+				); 
+			) !gdrawsegments ;
+			GlMat.pop () ; 
+		) layerZlist ; 
+		
+		if !gdrawratsnest then gratsnest#draw ();
+		(* it is useful to see where the cursor is .. *)
+		let h = foi(snd !gwindowsize) in
+		let s = (2. /. h) /. !gzoom in
+		
+		let drawRect (xl,yl,xh,yh) = 
+			let count = ref 0 in
+			let raw = Raw.create_static `float 12 in
+			GlArray.vertex `three raw ; 
+			let vertex3 (x,y,z) = 
+				Raw.set_float raw ~pos:(!count*3 + 0) x ; 
+				Raw.set_float raw ~pos:(!count*3 + 1) y ; 
+				Raw.set_float raw ~pos:(!count*3 + 2) z ;
+				incr count ; 
+			in
+			vertex3 ( xl , yl, 0.5) ; 
+			vertex3 ( xl , yh, 0.5) ; 
+			vertex3 ( xh , yh, 0.5) ; 
+			vertex3 ( xh , yl, 0.5) ; 
+			GlArray.draw_arrays `quads 0 4 ; 
+			Raw.free_static raw ; 
 		in
-		vertex3 ( xl , yl, 0.5) ; 
-		vertex3 ( xl , yh, 0.5) ; 
-		vertex3 ( xh , yh, 0.5) ; 
-		vertex3 ( xh , yl, 0.5) ; 
-		GlArray.draw_arrays `quads 0 4 ; 
-		Raw.free_static raw ; 
-	in
-	let drawCrosshairs (x, y) = 
-		let count = ref 0 in
-		let raw = Raw.create_static `float 24 in 
-		GlArray.vertex `three raw ; 
-		let vertex3 (x,y,z) = 
-			Raw.set_float raw ~pos:(!count*3 + 0) x ; 
-			Raw.set_float raw ~pos:(!count*3 + 1) y ; 
-			Raw.set_float raw ~pos:(!count*3 + 2) z ;
-			incr count ; 
+		let drawCrosshairs (x, y) = 
+			let count = ref 0 in
+			let raw = Raw.create_static `float 24 in 
+			GlArray.vertex `three raw ; 
+			let vertex3 (x,y,z) = 
+				Raw.set_float raw ~pos:(!count*3 + 0) x ; 
+				Raw.set_float raw ~pos:(!count*3 + 1) y ; 
+				Raw.set_float raw ~pos:(!count*3 + 2) z ;
+				incr count ; 
+			in
+			let ss = s /. 2.0 in
+			let gz = 4.0 /. !gzoom in
+			vertex3 ( x -. ss , y +. gz, 0.5) ; 
+			vertex3 ( x +. ss , y +. gz, 0.5) ; 
+			vertex3 ( x +. ss , y -. gz , 0.5) ; 
+			vertex3 ( x -. ss , y -. gz , 0.5) ; 
+			vertex3 ( x -. gz , y +. ss, 0.5) ; 
+			vertex3 ( x +. gz , y +. ss, 0.5) ; 
+			vertex3 ( x +. gz , y -. ss , 0.5) ; 
+			vertex3 ( x -. gz , y -. ss , 0.5) ; 
+			GlArray.draw_arrays `quads 0 8 ; 
+			Raw.free_static raw ; 
 		in
-		let ss = s /. 2.0 in
-		let gz = 4.0 /. !gzoom in
-		vertex3 ( x -. ss , y +. gz, 0.5) ; 
-		vertex3 ( x +. ss , y +. gz, 0.5) ; 
-		vertex3 ( x +. ss , y -. gz , 0.5) ; 
-		vertex3 ( x -. ss , y -. gz , 0.5) ; 
-		vertex3 ( x -. gz , y +. ss, 0.5) ; 
-		vertex3 ( x +. gz , y +. ss, 0.5) ; 
-		vertex3 ( x +. gz , y -. ss , 0.5) ; 
-		vertex3 ( x -. gz , y -. ss , 0.5) ; 
-		GlArray.draw_arrays `quads 0 8 ; 
-		Raw.free_static raw ; 
-	in
-	let drawCursor (x,y) = 
-		drawRect (x -. s,y -. s,x +. s,y +. s) 
-	in
-	GlDraw.color ~alpha:1. (1. , 1., 1. ); 
-	drawCursor !gcurspos ; 
-	GlDraw.color ~alpha:0.5 (1. , 1., 1. ); 
-	drawCrosshairs !gcurspos ; 
-	GlDraw.color ~alpha:1. (0.4 , 1., 0.8 ); 
-	drawCursor !gsnapped ; 
-	GlDraw.color ~alpha:0.5 (0.4 , 1., 0.8 ); 
-	drawCrosshairs !gsnapped ; 
-	(* draw crosshairs too ... may be useful! *)
-	
-	
-	(* draw the selection box *)
-	if bbxIntersect !gselectRect screenbbx then (
-		GlDraw.color ~alpha:0.2 (0.8 , 0.4, 1.0 ); 
-		drawRect !gselectRect ;
-	) ; 
+		let drawCursor (x,y) = 
+			drawRect (x -. s,y -. s,x +. s,y +. s) 
+		in
+		GlDraw.color ~alpha:1. (1. , 1., 1. ); 
+		drawCursor !gcurspos ; 
+		GlDraw.color ~alpha:0.5 (1. , 1., 1. ); 
+		drawCrosshairs !gcurspos ; 
+		GlDraw.color ~alpha:1. (0.4 , 1., 0.8 ); 
+		drawCursor !gsnapped ; 
+		GlDraw.color ~alpha:0.5 (0.4 , 1., 0.8 ); 
+		drawCrosshairs !gsnapped ; 
+		(* draw crosshairs too ... may be useful! *)
+		
+		
+		(* draw the selection box *)
+		if bbxIntersect !gselectRect screenbbx then (
+			GlDraw.color ~alpha:0.2 (0.8 , 0.4, 1.0 ); 
+			drawRect !gselectRect ;
+		) ; 
+	);
 	(*
 	let pp = if !gbutton1pressed then 
 		Pts2.add !gcurspos !gdrag 
@@ -657,7 +661,7 @@ let makemenu top togl filelist =
 		let arrayCmd () = 
 			doArray (Entry.get sheets) (Entry.get template) 
 				(fos(Entry.get xentry)) (fos(Entry.get yentry)) 
-				gmodules gtracks (fun () -> render togl) redoRatNest top
+				gmodules gtracks (fun () -> render togl nulfun) redoRatNest top
 		in
 		let but = Button.create ~text:"Array!" ~command:arrayCmd dlog in
 		Tk.pack ~side:`Top ~fill:`Y ~expand:true ~padx:3 ~pady:3 
@@ -689,7 +693,7 @@ let makemenu top togl filelist =
 					)
 				); 
 			) !gtracks; 
-			render togl; (*show the user the results!*)
+			render togl nulfun; (*show the user the results!*)
 		)dlog in
 		Tk.pack  ~fill:`X ~side:`Left 
 			[Tk.coe msg; Tk.coe min; Tk.coe msg2; Tk.coe max; Tk.coe msg3; Tk.coe drill; Tk.coe button]; 
@@ -743,7 +747,7 @@ let makemenu top togl filelist =
 							t#setWidth (etxt#getWidth ()) ; 
 							(* everything but the actual content :-) *)
 							t#update2 () ; 
-							render togl ; 
+							render togl nulfun ; 
 						) txts ; 
 					) others ; 
 				) (emod#getTexts ()) ; 
@@ -810,7 +814,7 @@ let makemenu top togl filelist =
 				) ;
 			) !gmodules ; 
 			printf "Updated %d texts\n%!" !cnt ; 
-			render togl ; 
+			render togl nulfun; 
 		) frame2 in
 		Tk.pack ~side:`Left~fill:`X [button] ; 
 		let all = frame1 :: frame2 :: showframe :: frames in
@@ -854,7 +858,7 @@ let makemenu top togl filelist =
 					t#setWidth (max tk thickness) ;
 					t#update2 (); 
 					incr cnt; 
-					render togl ; (* interactive! *)
+					render togl nulfun; (* interactive! *)
 				) (m#getTexts()) ;
 			) !gmodules ; 
 			printf "Updated %d texts\n%!" !cnt ; 
@@ -921,7 +925,7 @@ let makemenu top togl filelist =
 				) !gmodules ;
 				gratsnest#clearAll (); 
 				redoRatNest (); 
-				render togl; (*show the user the results!*)
+				render togl nulfun; (*show the user the results!*)
 			) dlog  in
 		let msg2 = Message.create ~text:"Show all parts on same sheet as (including sub-sheets)" ~width:130 dlog in
 		let exp2 = Entry.create ~width:10 dlog in
@@ -951,7 +955,7 @@ let makemenu top togl filelist =
 				) !gtracks ; 
 				gratsnest#clearAll (); 
 				redoRatNest (); 
-				render togl; (*show the user the results!*)
+				render togl nulfun; (*show the user the results!*)
 			) dlog  in
 		let button3 = Button.create ~text:"Show All!"
 			~command:(fun () -> 
@@ -959,7 +963,7 @@ let makemenu top togl filelist =
 				List.iter (fun m -> m#setVisible true) !gtracks ;
 				gratsnest#clearAll (); 
 				redoRatNest (); 
-				render togl; (*show the user the results!*)
+				render togl nulfun; (*show the user the results!*)
 			) dlog in
 		Tk.pack ~fill:`Y ~side:`Left 
 			[Tk.coe msg; Tk.coe exp; Tk.coe button1;  
@@ -1045,7 +1049,7 @@ let makemenu top togl filelist =
 		printf "** original: %d new: %d\n%!" orig neu ; 
 		(* redo the rat's nest. *)
 		propagateNetcodes gmodules gtracks true false top 
-			(fun () -> render togl) 
+			(fun () -> render togl nulfun) 
 			(fun () -> gratsnest#clearAll (); gratsnest#make !gmodules !gtracks) 
 			(); 
 	in
@@ -1152,7 +1156,7 @@ let makemenu top togl filelist =
 				m#setHit false; 
 				if m#isVia() then m#updateColor () ; 
 			) !gtracks ;
-			render togl ; 
+			render togl nulfun; 
 		)
 	in
 	let raiseLayer lay = 
@@ -1215,7 +1219,7 @@ let makemenu top togl filelist =
 	let updatecurspos ev = 
 		gcurspos :=  calcCursPos ev !gpan true; 
 		!gcursordisp "cursor" (fst !gcurspos) (snd !gcurspos) ; 
-		render togl ;
+		render togl nulfun;
 	in
 	let bindVtoVia () = 
 		bind ~events:[`KeyPressDetail("v")] ~fields:[`MouseX; `MouseY] ~action:(fun ev -> 
@@ -1253,7 +1257,7 @@ let makemenu top togl filelist =
 					gtracks := (via :: !gtracks); 
 					gratsnest#updateTracks !gcurnet !gtracks ; 
 				) ; 
-				render togl ;  
+				render togl nulfun;  
 			) else print_endline "via would not be attached to a net!" ; 
 		) top; 
 	in
@@ -1307,7 +1311,7 @@ let makemenu top togl filelist =
 					track#setMoving false ; 
 					track2#setMoving false ; ) ; 
 				track#update (); 
-				render togl ; 
+				render togl nulfun; 
 				let lastgood = ref (!gsnapped) in
 				let lastgoodmp = ref (!gsnapped) in
 				let start = !gsnapped in
@@ -1401,7 +1405,7 @@ let makemenu top togl filelist =
 					track2#setEnd !lastgood ; 
 					if !groute135 then track2#update () ; 
 					gcurnet := !workingnet;
-					render togl ; 
+					render togl nulfun; 
 				)
 			); 
 		) 
@@ -1543,7 +1547,7 @@ let makemenu top togl filelist =
 				(* update the tracks moved by the pushdrc *)
 				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
 				gcurnet := !workingnet;
-				render togl ;
+				render togl nulfun;
 				print_endline "---" ; 
 			) ; 
 		)
@@ -1582,7 +1586,7 @@ let makemenu top togl filelist =
 					gdrag :=  Pts2.sub prescurspos !startPos ; 
 					!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 					List.iter (fun m -> m#move !gdrag ) !modules ; 
-					render togl ;
+					render togl nulfun;
 				) ; 
 			) ; 
 		) 
@@ -1682,7 +1686,7 @@ let makemenu top togl filelist =
 				); 
 				(*need to update the graphics for the tracks (not needed for modules) *)
 				List.iter (fun t-> t#update (); ) !tracks ; 
-				render togl ; 
+				render togl nulfun; 
 			) ;
 		)
 		~onRelease: 
@@ -1744,7 +1748,7 @@ let makemenu top togl filelist =
 								t#setHit true
 							else t#setHit false
 						) !gtracks ; 
-						render togl ; 
+						render togl nulfun; 
 					)
 				)
 			)
@@ -1786,7 +1790,7 @@ let makemenu top togl filelist =
 						List.iter (fun m -> m#move !gdrag ) modules ; 
 						List.iter (fun t -> t#move !gdrag ) tracks ; 
 						List.iter (fun t-> t#update (); ) tracks ; 
-						render togl ; 
+						render togl nulfun; 
 					); 
 				) 
 				~onRelease: 
@@ -2055,16 +2059,16 @@ let makemenu top togl filelist =
 		~command: (fun () -> Mesh.makewindow top ) ; 
 	
 	Menu.add_command gridsSub ~label:"Grids ... " 
-		~command:(fun _ -> Grid.dialog top (fun () -> render togl) );
+		~command:(fun _ -> Grid.dialog top (fun () -> render togl nulfun) );
 	addOption gridsSub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption gridsSub "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
 	
 	Menu.add_command ratsnestSub ~label:"Propagate netcodes to unconn. (nn=0) tracks" 
 		~command:(propagateNetcodes gmodules gtracks false false top 
-			(fun () -> render togl) redoRatNest ); 
+			(fun () -> render togl nulfun) redoRatNest ); 
 	Menu.add_command ratsnestSub ~label:"Propagate netcodes to all tracks" 
 		~command:(propagateNetcodes gmodules gtracks true false top 
-			(fun () -> render togl) redoRatNest ); 
+			(fun () -> render togl nulfun) redoRatNest ); 
 	(*the following option no longer works *)
 	addOption ratsnestSub "show all nets when selected" (fun b -> gdragShowAllNets := b ) !gdragShowAllNets; 
 	addOption ratsnestSub "show 4 smallest nets when selected" (fun b -> gdragShow5Smallest := b ) !gdragShow5Smallest; 
@@ -2075,7 +2079,7 @@ let makemenu top togl filelist =
 		Menu.add_command alignSub ~label ~command:
 		(fun () -> 
 			cmd (List.filter (fun m-> m#getHit ()) !gmodules); 
-			render togl ; 
+			render togl nulfun; 
 		); 
 	in
 	addAlignCmd "Align X (vertical)" Align.alignX ; 
@@ -2087,9 +2091,9 @@ let makemenu top togl filelist =
 		~command:padSolderMaskAdjust ; 
 	Menu.add_command checkSub ~label:"Check pad connectivity" 
 		~command:(propagateNetcodes gmodules gtracks true true top 
-			(fun () -> render togl) redoRatNest );  
+			(fun () -> render togl nulfun) redoRatNest );  
 	Menu.add_command checkSub ~label:"Check DRC (track/pad copper spacing)"
-		~command:(testdrcAll gtracks gmodules top (fun () -> render togl)); 
+		~command:(testdrcAll gtracks gmodules top (fun () -> render togl nulfun)); 
 
 	addOption miscSub "cross probe transmit" (fun b -> gcrossProbeTX := b) !gcrossProbeTX ; 
 	addOption miscSub "cross probe recieve" (fun b -> gcrossProbeRX := b) !gcrossProbeRX ; 
@@ -2128,7 +2132,7 @@ let makemenu top togl filelist =
 					| None -> ()
 				)
 			) !gmodules ; 
-			render togl ; 
+			render togl nulfun; 
 		) in
 		let all = [Tk.coe msg; Tk.coe scaling; Tk.coe msg2; 
 			Tk.coe sheet; Tk.coe button;] in
@@ -2143,19 +2147,23 @@ let makemenu top togl filelist =
 			let msg = Message.create ~text:"number of passes:"  frame in
 			let passes = Entry.create ~width:10 frame in
 			Entry.insert ~index:(`Num 0) ~text:"10" passes ; 
-			let msg2 = Message.create ~text:"temperature:"  frame in
-			let temperature = Entry.create ~width:10 frame in
-			Entry.insert ~index:(`Num 0) ~text:"0.01" temperature ;
-			let msg3 = Message.create ~text:"lock any modules with > pins:"  frame in
+			let msg2 = Message.create ~text:"start temp:"  frame in
+			let stemp = Entry.create ~width:10 frame in
+			Entry.insert ~index:(`Num 0) ~text:"1" stemp ;
+			let msg3 = Message.create ~text:"end temp:"  frame in
+			let etemp = Entry.create ~width:10 frame in
+			Entry.insert ~index:(`Num 0) ~text:"0.0" etemp ;
+			let msg4 = Message.create ~text:"lock any modules with > pins:"  frame in
 			let nlocke = Entry.create ~width:10 frame in
 			Entry.insert ~index:(`Num 0) ~text:"22" nlocke ; 
 			let button = Button.create ~text:("go") ~command: 
 				(fun () -> 
 					let pass = ios (Entry.get passes) in
-					let temp = fos (Entry.get temperature) in
+					let starttemp = fos (Entry.get stemp) in
+					let endtemp = fos (Entry.get etemp) in
 					let nlock = ios (Entry.get nlocke) in
 					gratsnest#clearAll (); 
-					render togl; 
+					render togl nulfun; 
 					(* remove the update callbacks *)
 					List.iter (fun m -> 
 						m#setUpdateCallback (fun _ -> ()) ; 
@@ -2164,14 +2172,29 @@ let makemenu top togl filelist =
 							p#setSelCallback (fun _ -> ()) ;
 						) (m#getPads()); 
 					) !gmodules; 
-					Anneal.doAnneal !gmodules (fun () -> render togl) temp pass nlock; 
+					let oldz = !genabledepth in
+					genabledepth := false; 
+					Anneal.doAnneal !gmodules (render togl) 
+						starttemp endtemp pass nlock; 
 					redoRatNest (); 
+					genabledepth := oldz ;
 				) frame in
 			Tk.pack ~side:`Left ~fill:`Both ~expand:true 
-				[Tk.coe msg; Tk.coe passes; Tk.coe msg2; Tk.coe temperature; 
-				Tk.coe msg3; Tk.coe nlocke; Tk.coe button] ; 
-			(* let all = frame :: buttons in*)
-			Tk.pack ~fill:`Both ~expand:true [frame]; 
+				[Tk.coe msg; Tk.coe passes; Tk.coe msg2; Tk.coe stemp; 
+				Tk.coe msg3; Tk.coe etemp; Tk.coe msg4; Tk.coe nlocke; 
+				Tk.coe button] ; 
+			let frame2 = Frame.create dlog in
+			let msg5 = Message.create ~text:(
+				"This tries to place components next to"^
+				"other components that are connected to them.\n"^
+				"It is not very accurate, and is not intended "^
+				"to replace your intelligence :-)\n"^
+				"However, it is good for moving things to reasonable "^
+				"starting points, especially if you use \"Filter modules by sheet\"\n "^
+				"to hide most of the modules (algorithm ignores hidden modules).\n"^
+				"It also has no preset biases, and can give ideas for your layout.")frame2 in
+			Tk.pack  [Tk.coe msg5] ; 
+			Tk.pack ~fill:`Both ~expand:true [frame2;frame]; 
 		) ; 
 	Menu.add_command miscSub ~label:"Enlarge tracks, mantain DRC"
 		~command: ( fun () -> 
@@ -2184,7 +2207,7 @@ let makemenu top togl filelist =
 		( fun () -> 
 			enlargeDrc !gtracks !gmodules 
 				(fos (Entry.get size) ) 0.001
-				(fun () -> render togl); 
+				(fun () -> render togl nulfun); 
 		) in
 		let all = [Tk.coe msg; Tk.coe size; Tk.coe button;] in
 		Tk.pack ~fill:`Both ~expand:true all; 
@@ -2242,13 +2265,13 @@ let makemenu top togl filelist =
 			(fun evinf ->
 				let prescurs = calcCursPos evinf !goldpan false in
 				gpan := Pts2.add (Pts2.sub prescurs !goldcurspos) !goldpan ; 
-				render togl
+				render togl nulfun
 			); 
 		) top ;
 	bind ~events:[`ButtonReleaseDetail(3)]  ~fields:[`MouseX; `MouseY] ~action:
 		(fun _ -> 
 			Mouse.releaseMove top ; 
-			render togl ;
+			render togl nulfun;
 		) top ; 
 	
 	let doRotate ev =
@@ -2266,7 +2289,7 @@ let makemenu top togl filelist =
 		) else (
 			List.iter (fun m -> m#rotate()) !gmodules ; 
 		); 
-		render togl ;
+		render togl nulfun;
 	in
 	let switchSelectTrack ev = 
 		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules *)
@@ -2315,12 +2338,12 @@ let makemenu top togl filelist =
 	let doToggleShow _ = 
 		if !gmode = Mode_MoveText then (
 			List.iter (fun m -> m#toggleTextShow()) !gmodules ; 
-			render togl ;
+			render togl nulfun;
 		)
 	in
 	let center_found (x,y) = 
 		gpan := -1.0 *. x , -1.0 *. y ; 
-		render togl ;
+		render togl nulfun;
 	in
 	(* bindings! *)
 	bindMouseMoveModule () ; (*default is to move modules *)
@@ -2362,7 +2385,7 @@ let makemenu top togl filelist =
 				let nn = track#getNet () in
 				gtracks := List.filter (fun t -> not (t#getHit () ) ) !gtracks ; (*so easy :) *)
 				gratsnest#updateTracks nn !gtracks ; 
-				render togl ; 
+				render togl nulfun; 
 			)
 		) top ; 
 	bind ~events:[`KeyPressDetail("b")] ~fields:[`MouseX; `MouseY] ~action:
@@ -2386,7 +2409,7 @@ let makemenu top togl filelist =
 				track#update () ; 
 				track2#update () ; 
 				gratsnest#updateTracks (track#getNet()) !gtracks ; 
-				render togl ; 
+				render togl nulfun; 
 				updateMode "move track"; (*you always want to move track after breaking it *)
 			); 
 		) top; 
@@ -2439,7 +2462,7 @@ let makemenu top togl filelist =
 							gtracks := List.filter (fun t-> t != track2) !gtracks; 
 							track#update(); 
 						);
-						render togl; 
+						render togl nulfun; 
 					); 
 				); 
 			); 
@@ -2455,7 +2478,7 @@ let makemenu top togl filelist =
 		let s = 1. /. zm -. 1. in
 		gpan := Pts2.add (Pts2.scl l s) !gpan; 
 		gzoom := !gzoom *. zm ; 
-		render togl
+		render togl nulfun
 	in
 	bind ~events:[`ButtonPressDetail(5)] 
 		~fields:[`MouseX; `MouseY] ~action:(fun ev -> doZoom ev (1. /. 1.2) ) top; 
@@ -2482,7 +2505,7 @@ let reshape togl =
 	GlMat.mode `modelview ; 
 	GlFunc.blend_func ~src:`src_alpha ~dst:`one_minus_src_alpha;
 	GlArray.enable `vertex;
-	render togl ; 
+	render togl nulfun; 
 	;;
 
 let _ = 
@@ -2565,7 +2588,7 @@ let _ =
 	let top = maketop in
 	let togl = Togl.create ~width:1024 ~height:700 
 		~rgba:true ~double:true ~depth:true top in
-	Togl.display_func togl ~cb:(fun () -> render togl );
+	Togl.display_func togl ~cb:(fun () -> render togl nulfun);
 	Togl.reshape_func togl ~cb:(fun () -> reshape togl );
 	pack ~fill:`Both ~expand:true [togl];
 	makemenu top togl !gfilelist;
@@ -2629,7 +2652,7 @@ let _ =
 								gpan := Pts2.scl pp (-1.); 
 								gcurspos := pp ; 
 								print_endline "found module! " ; 
-								render togl ;
+								render togl nulfun;
 							) ; 
 						) !gmodules ; 
 					) ; 
@@ -2696,7 +2719,7 @@ let _ =
 	(* this for testing (so we can get a backtrace...  *)
 	(*openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; 
 	gratsnest#clearAll (); 
-	Anneal.doAnneal !gmodules (fun () -> render togl); 
+	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
 	redoRatNest (); *)
 	(* let schema = new schematic in 
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 

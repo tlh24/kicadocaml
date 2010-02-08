@@ -23,7 +23,6 @@ method setZ a = m_z <- a
 method updateRaw () = 
 	(* update the raw list *)
 	if(numverts > 3) then (
-		if (Raw.length rawv) != (3* numverts) then (* then should reallocate *)
 		Raw.free_static rawv ; 
 		rawv <- Raw.create_static `float (3 * numverts) ; 
 		let i = ref 0 in

@@ -30,13 +30,15 @@ class a_pad = object (self)
 			s +. (Pts2.distance mypos (p#getPos ()))
 		) 0.0 m_conn
 	method suggest () = (* vectoral suggested move *)
+		(* printf "------\n%!"; *)
 		let mypos = self#getPos () in
 		let v = List.fold_left (fun s p -> 
-			Pts2.add s (Pts2.sub (p#getPos ()) mypos)
+			let d = Pts2.sub (p#getPos ()) mypos in
+			Pts2.add s d
 		) (0.0,0.0) m_conn in
-		(* printf "suggest: list length %d\n%!" (List.length m_conn);
-		printf " sum: %f,%f\n%!" (fst v) (snd v); *)
-		Pts2.scl v (foi (List.length m_conn))
+		let len = List.length m_conn in
+		let scl = if len > 0 then 1.0 /. (foi len) else 0.0 in 
+		Pts2.scl v scl
 end and a_mod = object
 	val mutable m_mod = new pcb_module
 	val mutable m_offset = 0.0,0.0 (* subtract this when setting m_mod's position *)
@@ -47,6 +49,7 @@ end and a_mod = object
 	val mutable mh = 0.0 (* height/2 *)
 	val mutable m_pads : 'a_pad list = []
 	val mutable m_name = ""
+	val mutable m_lock = false; 
 	
 	method setMod m = m_mod <- m
 	method getMod () = m_mod
@@ -60,6 +63,8 @@ end and a_mod = object
 	method setOffset o = m_offset <- o; 
 	method setName n = m_name <- n; 
 	method getName () = m_name
+	method setLock n = m_lock <- n; 
+	method getLock () = m_lock
 	method move (kx,ky) = mx <- mx +. kx; my <- my +. ky; 
 	method transform k = (* transform pad coordinates to global *)
 		Pts2.add (rotate2 ~angle:(deg2rad mr) k ) (mx,my)
@@ -72,7 +77,7 @@ end and a_mod = object
 		m_mod#setMoving false; 
 end
 
-let doAnneal mods render temp passes = 
+let doAnneal mods render temp passes nlock = 
 	let k = ref 0 in
 	List.iter (fun m -> m#setMoving true) mods; 
 
@@ -133,11 +138,15 @@ let doAnneal mods render temp passes =
 		) amods; 
 		render (); 
 	in
+	(* now make a list of modules that can be moved. *)
+	let amods2 = List.filter (fun m -> List.length (m#getPads ()) < nlock) amods in
+	List.iter (fun m -> m#setLock true) amods;
+	List.iter (fun m -> m#setLock false) amods2; 
 	while !k < passes do (
 		(* inject som noise *)
 		List.iter (fun m -> 
 			m#move (((Random.float temp) -. temp/.2.),((Random.float temp) -. temp/.2.)); 
-		) amods; 
+		) amods2; 
 		(* renderAll (); *)
 
 		(* move them towards other conneted elements *)
@@ -147,9 +156,11 @@ let doAnneal mods render temp passes =
 			) (0.0,0.0) (m#getPads()) in
 			let len = List.length (m#getPads()) in
 			let mv = Pts2.scl sug (1.0/.((foi len) *. (2.0 +. (Random.float 1.0)))) in
-			printf "move: %f %f (%f long)\n%!" (fs mv) (snd mv) (Pts2.length mv);
+ 			(* printf "move: %f %f (%f long)\n%!" (fst mv) (snd mv) (Pts2.length mv); *) 
 			m#move mv; 
-		) amods ; 
+			(* m#update (); 
+			render (); *)
+		) amods2 ; 
 		
 		(* rotate if that will help *)
 		List.iter (fun m -> 
@@ -164,7 +175,7 @@ let doAnneal mods render temp passes =
 			let best = List.hd sort in
 			(*printf "best %f\n%!" (fst best); *)
 			m#setRot (fst best); 
-		) amods ; 
+		) amods2 ; 
 		(* renderAll (); *)
 		
 		(* now see where they are hitting, and move them accordingly *)
@@ -193,8 +204,18 @@ let doAnneal mods render temp passes =
 								(* note, you only need one of these moves - rectanguar objects*)
 								let move = if (fabs mx) < (fabs my) then mx, (0. *.my) else (0. *. mx), my in
 								(* printf "move %f,%f\n%!" (fst move) (snd move) ; *)
-								m1#move (Pts2.scl move (-0.75)); (* tweak this ? *)
-								m2#move (Pts2.scl move 0.75); 
+								if not (m1#getLock ()) then (
+									if not (m2#getLock ()) then (
+										m1#move (Pts2.scl move (-0.75)); (* tweak this ? *)
+										m2#move (Pts2.scl move 0.75); 
+									) else ( (* m2 locked *)
+										m1#move (Pts2.scl move (-1.5)); 
+									)
+								) else (
+									if not (m2#getLock ()) then (
+										m2#move (Pts2.scl move 1.5); 
+									)
+								);
 								incr mvcnt;
 								(* clearly, this will have to run for a while ... *)
 							)

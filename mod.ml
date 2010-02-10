@@ -227,6 +227,14 @@ object (self)
 	method moveSum m = (
 		m_move <- Pts2.add m_move m; 
 	)
+	method flip () = (
+		(* flip about the X axis *)
+		m_layer <- flip_layer m_layer ;  
+		List.iter (fun p -> p#flip ()) m_pads; 
+		List.iter (fun t -> t#flip ()) m_texts; 
+		List.iter (fun s -> s#flip ()) m_shapes; 
+		self#update ()
+	)
 	method getRot () = m_rot
 	method setRot r = (
 		m_rot <- r ; 

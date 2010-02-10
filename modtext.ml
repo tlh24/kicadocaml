@@ -116,6 +116,12 @@ object (self)
 		m_moving <- b ; (*important!*)
 	)
 	method move m = m_move <- m ;
+	method flip () = (
+		m_x <- m_x * (-1) ; 
+		m_layer <- flip_layer m_layer ; 
+		m_mirror <- not m_mirror ; 
+		(* callee must request an update *)
+	)
 	method rotate () = (
 		m_rot <- (m_rot + 900); 
 		if m_rot > 3600 then m_rot <- m_rot - 3600 ;

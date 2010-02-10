@@ -10,7 +10,8 @@ object (self)
 	val mutable m_padname = ""
 	val mutable m_shape : 'pcb_pad_shape = Pad_Circle
 	val mutable m_x = 0
-	val mutable m_y = 0
+	val mutable m_y = 
+0
 	val mutable m_sx = 0
 	val mutable m_sy = 0
 	val mutable m_dsx = 0 (*delta size, not sure what it's for*)
@@ -239,6 +240,14 @@ object (self)
 	method move () = 
 		m_moveCallback () ; 
 		m_selCallback () ; 
+	method flip () = (
+		(* flip about the X-axis, ala pcbnew *)
+		(* update the layers, too. *)
+		m_y <- m_y * (-1); 
+		m_drillOffY <- m_drillOffY * (-1); 
+		m_layers <- List.map flip_layer m_layers ; 
+		(* the callee is responsible for calling update w/ appropriate params *)
+	)
 	method read ic = (
 		let parse pattern = 
 			let line = input_line2 ic in

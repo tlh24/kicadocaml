@@ -605,10 +605,12 @@ let openFile top fname =
 	linenum := 0 ; 
 	let schfil = selectSch top fname in
 	if testfile schfil then (
-		gschema#openFile schfil "00000000" "root" ; 
+		printf "reading schematic ... %!"; 
+		gschema#openFile schfil "00000000" "root" (ref []); 
 		gschema#collapseAr ""; 
+		printf " done.\n%!"; 
 	) ;
-	(* gschema#print "" ; *)
+	(* gschema#print "" ;*)
 	;;
 
 let makemenu top togl filelist = 

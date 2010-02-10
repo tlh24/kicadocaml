@@ -2193,7 +2193,7 @@ let makemenu top togl filelist =
 				"starting points, especially if you use \"Filter modules by sheet\"\n "^
 				"to hide most of the modules (algorithm ignores hidden modules).\n"^
 				"It also has no preset biases, and can give ideas for your layout.")frame2 in
-			Tk.pack  [Tk.coe msg5] ; 
+			Tk.pack ~fill:`Both [Tk.coe msg5] ; 
 			Tk.pack ~fill:`Both ~expand:true [frame2;frame]; 
 		) ; 
 	Menu.add_command miscSub ~label:"Enlarge tracks, mantain DRC"
@@ -2366,7 +2366,7 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("t")] ~action:(fun _ -> updateMode "move track";) top; 
 	bind ~events:[`KeyPressDetail("a")] ~action:(fun _ -> updateMode "add track";) top; 
 	bind ~events:[`KeyPressDetail("x")] ~action:(fun _ -> updateMode "move text";) top; 
-	bind ~events:[`KeyPressDetail(" ")] ~fields:[`MouseX; `MouseY] ~action:switchSelectTrack top; 
+	(*bind ~events:[`KeyPressDetail(" ")] ~fields:[`MouseX; `MouseY] ~action:switchSelectTrack top; this is bad, control toggles it too.*)
 	bind ~events:[`Modified([`Control], `KeyPressDetail"t")] ~action:tracksFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"v")] ~action:viasFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"s")] ~action:(fun _ -> saveall !gfname; ) top; 
@@ -2718,6 +2718,7 @@ let _ =
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace...  *)
 	(*openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; 
+	gmodules := Netlist.read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
 	gratsnest#clearAll (); 
 	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
 	redoRatNest (); *)

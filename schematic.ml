@@ -122,8 +122,27 @@ object (self)
 	val mutable m_fileName = ""
 	
 	method getRef () = m_ref
+	method setRef r = m_ref <- r
+	method setTs t = m_ts <- t
+	method getFileName () = m_fileName
 	
-	method openFile fname ts fref = (
+	method copy () = (
+		(* this sholud be called after Oo.copy creates this object. *)
+		let compnew = List.map Oo.copy m_components in
+		m_components <- compnew ; 
+		(* components contain no references, 
+		so no need for calling the new objects copy method*)
+		let sheetsnew = List.map Oo.copy m_sheets in
+		m_sheets <- sheetsnew; 
+		(* ditto above *)
+		let subschnew = List.map Oo.copy m_subSch in
+		List.iter (fun ss -> ss#copy()) subschnew; 
+		m_subSch <- subschnew ; 
+		(* this one requires recursive copy *)
+		(* better hope there are no loops in the hierarchy! *)
+	)
+	
+	method openFile fname ts fref schematic_list = (
 		(* clear out the previous hierarchy *)
 		m_components <- []; 
 		m_sheets <- []; 
@@ -136,13 +155,13 @@ object (self)
 		m_fileName <- fname ; 
 		m_ts <- ts ; 
 		m_ref <- fref ;  
-		self#read ic ; 
+		self#read ic schematic_list; 
 		close_in_noerr ic; 
 	)
 	
-	method read ic = (
+	method read ic schematic_list = (
 		let line = ref (input_line2 ic) in
-		while not (Pcre.pmatch ~pat:"\$EndSCHEMA" !line ) do (
+		while not (Pcre.pmatch ~pat:"\$EndSCHEMA" !line) do (
 			(match !line with 
 				| "$Sheet" -> (
 					(* printf "new sheet line %d file %s\n%!" !linenum !gfilereadname; *)
@@ -160,14 +179,39 @@ object (self)
 			) ; 
 			line := input_line2 ic ; 
 		) done ; 
-		(* before loading the sub-sheets, need to extract the directory from the file name. *)
+		(* before loading the sub-sheets, 
+		need to extract the file-system directory from the file name. *)
 		let lastslash = String.rindex m_fileName '/' in
 		let dir = String.sub m_fileName 0 (lastslash+1) in
 		(* now we need to iterate over the sheets and make them into schematics. *)
 		List.iter (fun ss -> 
-			let subs = new schematic in 
-			subs#openFile (dir ^ (ss#getFname())) (ss#getTs()) (ss#getRef()) ; 
-			m_subSch <- subs :: m_subSch ; 
+			(* check to see if this has already been read in. 
+			this saves time for highly hierarchal projects*)
+			let fname = dir ^ (ss#getFname ()) in
+			let extant = try Some (List.find 
+				(fun s -> s#getFileName () = fname) 
+				!schematic_list ) 
+				with _ -> None in
+			let schem = (match extant with 
+				| Some schem1 -> (
+					(* printf "copy found of schematic %s\n%!" fname; *)
+					let schem2 = Oo.copy schem1 in
+					(* we must also copy the references - components, sheets, subsheets *)
+					(* components must be copied since they have different path/refdes *)
+					schem2#copy (); 
+					schem2#setRef (ss#getRef ());
+					schem2#setTs (ss#getTs ()); 
+					schem2
+				)
+				| None -> (
+					let schem2 = new schematic in 
+					schem2#openFile fname (ss#getTs()) (ss#getRef()) schematic_list;
+					schematic_list := schem2 :: !schematic_list; 
+					(* keep a running list of files we've read in *)
+					schem2
+				)
+			) in
+			m_subSch <- schem :: m_subSch ; 
 		) m_sheets ; 
 	)
 	
@@ -185,6 +229,7 @@ object (self)
 	
 	method collapseAr path = (
 		let fp = self#getFp path in
+		(*printf "path %s file %s\n%!" fp m_fileName;*)
 		List.iter (fun c -> c#collapseAr fp) m_components ; 
 		List.iter (fun s -> s#collapseAr fp) m_subSch ; 
 	)

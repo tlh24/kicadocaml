@@ -128,7 +128,33 @@ let layer_to_color layer =
 		| 21 -> (0.65, 1.0, 0.9 ) ; (* cyanish, silkscreen component *)
 		| 24 -> (0.65, 0.65, 0.65 ) ; (* drawings *)
 		| _ -> (0. , 0. , 0. )  (*black *)
+		(* other relevant layers -
+		16 -> Adhes_cop, bottom		0x00010000
+		17 -> Adhes_cmp, top		0x00020000
+		18 -> Soldp_cop, bot		0x00040000
+		19 -> Soldp_cmp, top		0x00080000
+		20 -> SilkS_cop, bot		0x00100000
+		21 -> SilkS_cmp, top		0x00200000
+		22 -> Mask_cop, bot			0x00400000
+		23 -> Mask_cmp, top			0x00800000
+		24 -> Drawings				0x01000000
+		25 -> Comments				0x02000000
+		*)
 		;;
+		
+let flip_layer layer = 
+	match layer with
+		| 0 -> 15 (* bottom to top *)
+		| 15 -> 0 (* top to bottom *)
+		| 18 -> 19 (* bottom solder paste to top *)
+		| 19 -> 18 (* vice versa *)
+		| 20 -> 21 (* bottom silkscreen to top *)
+		| 21 -> 20
+		| 22 -> 23 (* bottom solder mask to top *)
+		| 23 -> 22 
+		| a -> a (* do not flip the internal layers *)
+		;;
+		
 let clamp a b c = 
 	if a < b then b 
 	else (

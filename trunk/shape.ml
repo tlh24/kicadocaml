@@ -46,6 +46,12 @@ object
 	method copy () = (
 		m_g <- new grfx ; 
 	)
+	method flip () = (
+		m_sty <- m_sty * (-1) ;
+		m_eny <- m_eny * (-1) ; 
+		m_layer <- flip_layer m_layer ; 
+		(* callee must call update *)
+	)
 	method draw bbox = (
 		m_g#draw ~hit:false bbox
 	)

@@ -2420,54 +2420,66 @@ let makemenu top togl filelist =
 		commiting changes *)
 		(fun ev -> 
 			ignore(  calcCursPos ev !gpan true ); 
-			let track, found = try 
-				(List.find (fun t -> t#getHit() ) !gtracks),true
-				with Not_found -> (List.hd !gtracks), false
-			in
-			if found then (
-				track#setHit false; 
-				let track2, found2 = try 
+			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then (
+				let track, found = try 
 					(List.find (fun t -> t#getHit() ) !gtracks),true
 					with Not_found -> (List.hd !gtracks), false
 				in
-				if found2 then (
-					(* need to determine the common point *)
-					(* make it the end of track & start of track2 *)
-					let st1 = track#getStart() in
-					let en1 = track#getEnd() in
-					let st2 = track2#getStart() in
-					let en2 = track2#getEnd() in
-					let w = ((track#getWidth()) +. (track2#getWidth())) *. 0.5 in
-					let st, _, en, touch = 
-						if Pts2.distance st1 st2 < w then (
-							(* the starts are touching *)
-							en1, st1, en2, true
-						) else if Pts2.distance st1 en2 < w then (
-							en1, st1, st2, true
-						) else if Pts2.distance en1 st2 < w then (
-							st1, en1, en2, true
-						) else if Pts2.distance en1 en2 < w then (
-							st1, en1, st2, true
-						) else (0. , 0.),(0. , 0.),(0. , 0.),false
+				if found then (
+					track#setHit false; 
+					let track2, found2 = try 
+						(List.find (fun t -> t#getHit() ) !gtracks),true
+						with Not_found -> (List.hd !gtracks), false
 					in
-					if touch then (
-						(*try it! (only move the first one)*)
-						track#setStart st; 
-						track#setEnd en; 
-						if testdrc2 track !gtracks !gmodules then (
-							(* it didn't work, revert *)
-							track#setStart st1; 
-							track#setEnd en1; 
-						)else (
-							(* it did work! *)
-							(* remove the other track *)
-							gtracks := List.filter (fun t-> t != track2) !gtracks; 
-							track#update(); 
-						);
-						render togl nulfun; 
+					if found2 then (
+						(* need to determine the common point *)
+						(* make it the end of track & start of track2 *)
+						let st1 = track#getStart() in
+						let en1 = track#getEnd() in
+						let st2 = track2#getStart() in
+						let en2 = track2#getEnd() in
+						let w = ((track#getWidth()) +. (track2#getWidth())) *. 0.5 in
+						let st, _, en, touch = 
+							if Pts2.distance st1 st2 < w then (
+								(* the starts are touching *)
+								en1, st1, en2, true
+							) else if Pts2.distance st1 en2 < w then (
+								en1, st1, st2, true
+							) else if Pts2.distance en1 st2 < w then (
+								st1, en1, en2, true
+							) else if Pts2.distance en1 en2 < w then (
+								st1, en1, st2, true
+							) else (0. , 0.),(0. , 0.),(0. , 0.),false
+						in
+						if touch then (
+							(*try it! (only move the first one)*)
+							track#setStart st; 
+							track#setEnd en; 
+							if testdrc2 track !gtracks !gmodules then (
+								(* it didn't work, revert *)
+								track#setStart st1; 
+								track#setEnd en1; 
+							)else (
+								(* it did work! *)
+								(* remove the other track *)
+								gtracks := List.filter (fun t-> t != track2) !gtracks; 
+								track#update(); 
+							);
+							render togl nulfun; 
+						); 
 					); 
 				); 
-			); 
+			) else (
+				(* flip a module *)
+				let m = try Some (List.find (fun m->m#getHit()) !gmodules)
+					with _ -> None in
+				match m with 
+					| Some mm -> (
+						mm#flip (); 
+						render togl nulfun; 
+					)
+					| None -> ()
+			)
 		) top; 
 	bind ~events:[`KeyPressDetail("KP_Enter")] ~fields:[`MouseX; `MouseY] ~action:
 	(fun ev -> (* cross-probe *)

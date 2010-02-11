@@ -10,8 +10,7 @@ object (self)
 	val mutable m_padname = ""
 	val mutable m_shape : 'pcb_pad_shape = Pad_Circle
 	val mutable m_x = 0
-	val mutable m_y = 
-0
+	val mutable m_y = 0
 	val mutable m_sx = 0
 	val mutable m_sy = 0
 	val mutable m_dsx = 0 (*delta size, not sure what it's for*)
@@ -88,15 +87,15 @@ object (self)
 		m_gtext <- new grfx;
 		(* we can keep refs to the other instance variables. *)
 	)
-	method hit (p, onlyworknet, ja, netnum) = (
+	method hit p onlyworknet ja netnum = (
 		m_washit <- m_hit ; 
-		(*don't hit if we are not displayed *)
+		(*don't hit if we are not displayed, or if we are not on this layer. *)
 		let (en,active) = List.fold_left (fun (b,c) lay -> 
 			( (b || glayerEn.(lay)),(c || !glayer = lay) )
 		) (false,false) m_layers in
 		(* don't update the hit variable if mouse button 1 is down *)
-		m_hit <- (m_g#hit p) && en && (not onlyworknet || netnum = m_netnum); 
-		if m_hit && active then (
+		m_hit <- (m_g#hit p) && en && active && (not onlyworknet || netnum = m_netnum); 
+		if m_hit then (
 			(* print_endline "snapped to pad!" ; *)
 			gsnapped := bbxCenter ( m_g#getBBX() ) ;
 		) ;

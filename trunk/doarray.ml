@@ -124,6 +124,8 @@ let doArray sheets template ax ay
 				) (p#getTexts()); 
 				m#setPos (x, y) ;
 				m#setRot (p#getRot () ) ; 
+				(* flip it if it needs to be on the other side of the board *)
+				if p#getLayer () <> m#getLayer () then m#flip (); 
 				m#update() ;
 			); 
 		) tm; 

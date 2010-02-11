@@ -305,7 +305,8 @@ let abouttext =
 " Ctrl-T - select track width \n" ^ 
 " b - break track under cursor \n" ^
 " e - edit (only text edit mplemented srry)\n" ^
-" f - fuse (join) tracks - two tracks must be highlighted \n" ^
+" f - In track editing/adding mode:\n\tfuse (join) tracks - two tracks must be highlighted \n" ^
+"     In module moving mode:\n\tflip a module from the top to the bottom of the board, and vice-versa\n"^
 " h - hide / unhide selected text in move text mode\n" ^
 " m - move module \n" ^
 " t - move track \n" ^
@@ -323,6 +324,8 @@ let abouttext =
 " Shift - select multiple modules for moving \n" ^
 "         (somewhat incomplete feature) \n" ^
 " Enter - cross probe transmit to eeschema\n" ^
+" Backspace - remove highlighted track\n" ^
+" Delete - remove highlighted track & all connected tracks\n" ^
 " Ctrl-F - find \n" ^
 " F3 - find next \n"
 
@@ -1202,8 +1205,8 @@ let makemenu top togl filelist =
 			(* set the hit flags& get a netnum *)
 			let (nn, _, _ ) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
 				let (_,netnum1, hitsize1, clearhit1) = 
-					m#hit (out, !ghithold, onlyworknet,
-						false, netnum, hitsize,clearhit) in
+					m#hit out !ghithold onlyworknet
+						false netnum hitsize clearhit in
 				(netnum1, hitsize1, clearhit1)
 			) (worknet, 1e24, (fun() -> ()) ) !gmodules 
 			in
@@ -2386,6 +2389,49 @@ let makemenu top togl filelist =
 			if found then (
 				let nn = track#getNet () in
 				gtracks := List.filter (fun t -> not (t#getHit () ) ) !gtracks ; (*so easy :) *)
+				gratsnest#updateTracks nn !gtracks ; 
+				render togl nulfun; 
+			)
+		) top ; 
+	bind ~events:[`KeyPressDetail("Delete")] ~action:
+		(fun _ -> (* remove any tracks that were hit, AND ones that they connect to*)
+			let track,found = try 
+				( List.find (fun t -> t#getHit ()) !gtracks ), true
+				with Not_found -> (List.hd !gtracks), false
+			in
+			let rec trackdelete tracks = 
+				let tracks2 = ref [] in
+				List.iter (fun t1 -> 
+					let st = t1#getStart () in
+					let en = t1#getEnd () in
+					let layer = t1#getLayer() in
+					let tvia = t1#getType() = Track_Via in
+					let bbx = t1#getDrcBBX () in
+					let w = t1#getWidth() *. 0.5 in
+					List.iter (fun t2 -> 
+						if bbxIntersect bbx (t2#getDrcBBX()) then (
+							if t1 != t2 then (
+								if t2#getLayer() = layer || t2#getType() = Track_Via || tvia then (
+									let w2 = t2#getWidth() *. 0.5 in
+									let dd = (w +. w2) *. (w +. w2) in
+									if Pts2.distance2 st (t2#getStart()) < dd ||
+										Pts2.distance2 st (t2#getEnd()) < dd ||
+										Pts2.distance2 en (t2#getStart()) < dd ||
+										Pts2.distance2 en (t2#getEnd()) < dd  then (
+										gtracks := List.filter (fun t -> t <> t2) !gtracks ;
+										tracks2 := (t2 :: !tracks2); 
+									); 
+								); 
+							); 
+						); 
+					) !gtracks ; 
+				) tracks ; 
+				if(List.length !tracks2) > 0 then trackdelete !tracks2
+			in
+			
+			if found then (
+				let nn = track#getNet () in
+				trackdelete [track]; 
 				gratsnest#updateTracks nn !gtracks ; 
 				render togl nulfun; 
 			)

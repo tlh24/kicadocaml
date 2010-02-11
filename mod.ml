@@ -126,7 +126,7 @@ object (self)
 	
 	method clearHit () = m_hit <- false ; 
 	
-	method hit (p, hithold, onlyworknet, ja, netnum, hitsize,clearhit) = (
+	method hit p hithold onlyworknet ja netnum hitsize clearhit = (
 		(* if any of the pads are hit, then this module is hit *)
 		if not m_moving && m_visible then (
 			(* texts can be moved semi-independently from the module, 
@@ -143,11 +143,12 @@ object (self)
 			let (hitpad, nn) = 
 				if selfsize < hitsize2 then (
 					List.fold_left (fun (j,nn) pad ->
-						pad#hit (p,onlyworknet,j,nn)
+						pad#hit p onlyworknet j nn
 					) (ja, netnum) m_pads
 				) else ( (false, netnum) )
 			in
-			let hitself = m_g#hit p && selfsize < hitsize2 && !gmode != Mode_MoveText in
+			let hitself = m_g#hit p && selfsize < hitsize2 
+				&& !gmode != Mode_MoveText && !glayer = m_layer in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
 			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 

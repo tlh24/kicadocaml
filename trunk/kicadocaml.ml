@@ -1203,19 +1203,16 @@ let makemenu top togl filelist =
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
 			(* set the hit flags& get a netnum *)
-			let (nn, _, _ ) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
-				let (_,netnum1, hitsize1, clearhit1) = 
-					m#hit out !ghithold onlyworknet
-						false netnum hitsize clearhit in
-				(netnum1, hitsize1, clearhit1)
+			let (nn,_,_) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
+				m#hit out !ghithold onlyworknet netnum hitsize clearhit
 			) (worknet, 1e24, (fun() -> ()) ) !gmodules 
 			in
-			let (_, netn) = 
+			let netn = 
 				if !gdrawtracks then (
-					List.fold_left (fun (ja1, netn1) track -> 
-						track#hit (out, onlyworknet, !ghithold, ja1, netn1) 
-					) (false, nn) !gtracks 
-				) else (false,nn)
+					List.fold_left (fun netn1 track -> 
+						track#hit (out, onlyworknet, !ghithold, netn1) 
+					) nn !gtracks 
+				) else nn
 			in
 			gcurnet := netn ; 
 		); 
@@ -2301,7 +2298,7 @@ let makemenu top togl filelist =
 		(* first see if nothing is selected .. *)
 		if not (List.exists (fun t -> t#getHit()) !gtracks) then (
 			(* then we want to switch layers to whichever would hit the smallest track *) 
-			let layer,_ = List.fold_left (fun (dlayer,darea) t -> 
+			let layer,area = List.fold_left (fun (dlayer,darea) t -> 
 				if t#touch !gcurspos then (
 					let w = t#getWidth() /. 2.0 in
 					let l = t#getLength() in
@@ -2309,14 +2306,27 @@ let makemenu top togl filelist =
 					if area < darea then (t#getLayer(),area) 
 					else (dlayer,darea) 
 				) else (dlayer,darea) 
-			) (!glayer,1e99) !gtracks in
-			if layer = !glayer then (
+			) (!glayer,1e24) !gtracks in
+			(* try looking for the pads too (if it's smaller)*)
+			let layer2,area2 = List.fold_left (fun d m-> 
+				List.fold_left (fun (lay,siz) p -> 
+					let bbx = p#getBBX() in
+					if bbxInside bbx !gcurspos then (
+						printf "inside pad\n%!"; 
+						let psiz = bbxSize bbx in
+						if  psiz < siz then (p#getLayer(),psiz)
+						else (lay,siz)
+					) else (lay,siz)
+				) d (m#getPads ())
+			) (layer,area) !gmodules in
+			printf "layer2 %d\n%!" layer2; 
+			if area2 > 1e20 then (
 				(* raise the oldest one then *)
 				let lay2 = List.find (fun lay -> List.exists ((=) lay) !glayerPresent 
 					&& lay <> (string_to_layer "Drawings")) (* don't edit drawings here.. *)
 					(List.rev !glayerZlist) in
 				changelayercallback (layer_to_string lay2); 
-			) else changelayercallback (layer_to_string layer);
+			) else changelayercallback (layer_to_string layer2);
 		); 
 		let width = List.fold_left (fun default track -> 
 			if track#getHit() && track#getType() = Track_Track then 
@@ -2431,6 +2441,7 @@ let makemenu top togl filelist =
 			
 			if found then (
 				let nn = track#getNet () in
+				gtracks := List.filter (fun t -> t <> track) !gtracks ;
 				trackdelete [track]; 
 				gratsnest#updateTracks nn !gtracks ; 
 				render togl nulfun; 

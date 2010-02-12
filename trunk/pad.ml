@@ -87,20 +87,24 @@ object (self)
 		m_gtext <- new grfx;
 		(* we can keep refs to the other instance variables. *)
 	)
-	method hit p onlyworknet ja netnum = (
+	method clearHit () = m_hit <- false ; 
+	method hit p onlyworknet ja netnum hitsize clearhit = (
 		m_washit <- m_hit ; 
-		(*don't hit if we are not displayed, or if we are not on this layer. *)
-		let (en,active) = List.fold_left (fun (b,c) lay -> 
-			( (b || glayerEn.(lay)),(c || !glayer = lay) )
-		) (false,false) m_layers in
-		(* don't update the hit variable if mouse button 1 is down *)
-		m_hit <- (m_g#hit p) && en && active && (not onlyworknet || netnum = m_netnum); 
-		if m_hit then (
-			(* print_endline "snapped to pad!" ; *)
-			gsnapped := bbxCenter ( m_g#getBBX() ) ;
-		) ;
-		if m_hit then true, m_netnum
-		else ja, netnum
+		let selfsize = m_g#getBBXSize () in
+		if selfsize < hitsize then (
+			(*don't hit if we are not displayed, or if we are not on this layer. *)
+			let (en,active) = List.fold_left (fun (b,c) lay -> 
+				( (b || glayerEn.(lay)),(c || !glayer = lay || !glayer < 0) )
+			) (false,false) m_layers in
+			(* don't update the hit variable if mouse button 1 is down *)
+			m_hit <- (m_g#hit p) && en && active && (not onlyworknet || netnum = m_netnum); 
+			if m_hit then (
+				(* print_endline "snapped to pad!" ; *)
+				clearhit (); (*clear the previous hit record, we are smaller *)
+				gsnapped := bbxCenter ( m_g#getBBX() ) ;
+				true, m_netnum, selfsize, self#clearHit
+			)else ja, netnum, hitsize, clearhit
+		) else ja, netnum, hitsize, clearhit
 	)
 	method crossprobe () = (
 		if m_hit then (
@@ -128,6 +132,9 @@ object (self)
 	)
 	method hasLayer lay = List.exists ((=) lay) m_layers ; 
 	method addLayer lay = m_layers <- lay :: m_layers; 
+	method getLayer () = ( (* just returns the first copper layer - not useful for through-hole*)
+		List.find (fun l -> l>=0 && l<=15) m_layers
+	)
 	method draw bbox = (
 		if !gcurnet = m_netnum && !gcurnet != 0 then (
 			m_g#setAlpha 0.78 ;

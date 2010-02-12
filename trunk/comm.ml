@@ -231,8 +231,10 @@ let bbxIntersect (xl1,yl1,xh1,yh1) (xl2,yl2,xh2,yh2) =
 	
 let bbxCenter (xl,yl,xh,yh) = ( ((xl +. xh) /. 2.), ((yl +. yh) /. 2.) )
 	;;
-let bbxWH (xl,yl,xh,yh) = (xh -. xl) , (yh -. yl) ;;
-	
+let bbxWH (xl,yl,xh,yh) = (xh -. xl) , (yh -. yl) 
+	;;
+let bbxSize (minx, miny, maxx, maxy) = (maxx -. minx) *. (maxy -. miny )
+	;;
 let bbxTranslate (xl1,yl1,xh1,yh1) (mx,my) = 
 	(xl1 +. mx, yl1 +. my, xh1 +. mx, yh1 +. my)
 	;;

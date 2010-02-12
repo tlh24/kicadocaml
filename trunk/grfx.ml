@@ -82,9 +82,7 @@ method updateBBX () =
 	
 method getBBX () = bbx
 
-method getBBXSize () = 
-	let (minx, miny, maxx, maxy) = bbx in
-	(maxx -. minx) *. (maxy -. miny )
+method getBBXSize () = bbxSize bbx
 	
 method makeRect x y w h = 
 	let fx, fy, fw, fh = (convert_units x y w h) in

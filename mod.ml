@@ -126,8 +126,10 @@ object (self)
 	
 	method clearHit () = m_hit <- false ; 
 	
-	method hit p hithold onlyworknet ja netnum hitsize clearhit = (
+	method hit p hithold onlyworknet netnum hitsize clearhit = (
 		(* if any of the pads are hit, then this module is hit *)
+		(* pads can only be hit if you are on the right layer *)
+		(* modules can be hit from any layer fi you are in mod-move mode*)
 		if not m_moving && m_visible then (
 			(* texts can be moved semi-independently from the module, 
 			hence need to check these independently. *)
@@ -140,29 +142,23 @@ object (self)
 			in
 			(* now check everything that moves with the module the body & the pads *)
 			let selfsize = m_g#getBBXSize () in
-			let (hitpad, nn) = 
-				if selfsize < hitsize2 then (
-					List.fold_left (fun (j,nn) pad ->
-						pad#hit p onlyworknet j nn
-					) (ja, netnum) m_pads
-				) else ( (false, netnum) )
+			let (hitpad, netnum3, hitsize3, clearhit3) = 
+				List.fold_left (fun (hit,nn,siz,clrhit) pad ->
+					pad#hit p onlyworknet hit nn siz clrhit
+				) (false, netnum, hitsize2, clearhit2) m_pads
 			in
-			let hitself = m_g#hit p && selfsize < hitsize2 
-				&& !gmode != Mode_MoveText && !glayer = m_layer in
+			let hitself = m_g#hit p && selfsize < hitsize3 
+				&& !gmode != Mode_MoveText && 
+				(!glayer = m_layer || !gmode = Mode_MoveModule) in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
 			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 
-			(*if m_hit && not m_washit then (
-				let q = ref "" in
-				List.iter (fun t -> q := !q ^ " " ^ (t#getText())) m_texts ; 
-				!ginfodisp( "module " ^ m_name ^ " " ^ !q ) ; 
-			); *)
 			if hitself then (
-				clearhit2 () ; (*clear the previous hit record, we are smaller *)
-				(m_hit, nn, selfsize, self#clearHit)
+				clearhit3 () ; (*clear the previous hit record, we are smaller *)
+				(netnum3, selfsize, self#clearHit)
 			) else 
-				(ja, netnum, hitsize, clearhit2)
-		) else (ja, netnum, hitsize, clearhit)
+				(netnum3, hitsize3, clearhit3)
+		) else (netnum, hitsize, clearhit)
 	)
 	method getHit () = m_hit 
 	method setHit b = m_hit <- b ; 

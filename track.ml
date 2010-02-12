@@ -163,7 +163,7 @@ object (self)
 		)
 		method getHit () = m_hit ; 
 		method setHit h = m_hit <- h ; 
-		method hit (p, onlyworknet, hithold, ja, netnum) = 
+		method hit (p, onlyworknet, hithold, netnum) = 
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* can hit on any layer if we are in track move mode *)
 			(* only hit on the working layer if we are adding tracks *)
@@ -202,9 +202,9 @@ object (self)
 								gsnapped := en ; ); 
 						| Track_Via -> gsnapped := st ;
 				) ; 
-				if m_hit then true, m_net
-				else ja, netnum
-			) else ja,netnum
+				if m_hit then m_net
+				else netnum
+			) else netnum
 			
 		method touch p = 
 			(* this is a softer version of hit - 

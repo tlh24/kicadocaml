@@ -79,7 +79,7 @@ let layer_to_z layer =
 	ignore (List.find (fun l -> 
 		incr count ; 
 		l = layer ) !glayerZlist ); 
-	1. -. ((foi !count) /. 32.)
+	1. -. ((foi !count) /. 40.)
 	;;
 let update_layer_z () = 
 	for i = 0 to 31 do

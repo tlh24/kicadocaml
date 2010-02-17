@@ -435,32 +435,60 @@ let render togl cb =
 			GlArray.draw_arrays `quads 0 4 ; 
 			Raw.free_static raw ; 
 		in
+		let vertex3 raw c (x,y,z) = 
+			Raw.set_float raw ~pos:(!c*3 + 0) x ; 
+			Raw.set_float raw ~pos:(!c*3 + 1) y ; 
+			Raw.set_float raw ~pos:(!c*3 + 2) z ;
+			incr c ; 
+		in
 		let drawCrosshairs (x, y) = 
-			let count = ref 0 in
+			let c = ref 0 in
 			let raw = Raw.create_static `float 24 in 
 			GlArray.vertex `three raw ; 
-			let vertex3 (x,y,z) = 
-				Raw.set_float raw ~pos:(!count*3 + 0) x ; 
-				Raw.set_float raw ~pos:(!count*3 + 1) y ; 
-				Raw.set_float raw ~pos:(!count*3 + 2) z ;
-				incr count ; 
-			in
-			let ss = s /. 2.0 in
+			let ss = s /. 1.0 in
 			let gz = 4.0 /. !gzoom in
-			vertex3 ( x -. ss , y +. gz, 0.5) ; 
-			vertex3 ( x +. ss , y +. gz, 0.5) ; 
-			vertex3 ( x +. ss , y -. gz , 0.5) ; 
-			vertex3 ( x -. ss , y -. gz , 0.5) ; 
-			vertex3 ( x -. gz , y +. ss, 0.5) ; 
-			vertex3 ( x +. gz , y +. ss, 0.5) ; 
-			vertex3 ( x +. gz , y -. ss , 0.5) ; 
-			vertex3 ( x -. gz , y -. ss , 0.5) ; 
+			let z = 1. in
+			vertex3 raw c ( x       , y +. gz, z) ; 
+			vertex3 raw c ( x +. ss , y +. gz, z) ; 
+			vertex3 raw c ( x +. ss , y -. gz , z) ; 
+			vertex3 raw c ( x       , y -. gz , z) ; 
+			vertex3 raw c ( x -. gz , y +. ss, z) ; 
+			vertex3 raw c ( x +. gz , y +. ss, z) ; 
+			vertex3 raw c ( x +. gz , y      , z) ; 
+			vertex3 raw c ( x -. gz , y      , z) ; 
 			GlArray.draw_arrays `quads 0 8 ; 
+			Raw.free_static raw ; 
+		in
+		let drawRing (x,y) radius1 radius2 = 
+			let c = ref 0 in
+			let n = 10 in
+			let raw = Raw.create_static `float (n*2*4*3) in 
+			GlArray.vertex `three raw ; 
+			let (fid, fod) = radius1 /. !gzoom, radius2 /. !gzoom in
+			let t = ref 0. in
+			let dt = pi /. (foi n) in
+			let pnt d a = 
+				vertex3 raw c ((x -. d *. cos(a)), (y +. d *. sin(a)), 0.99) in
+			for i = 1 to 2*n do (
+				pnt fid !t;  
+				pnt fid (!t +. dt);  
+				pnt fod (!t +. dt);  
+				pnt fod !t;
+				t := !t +. dt ; 
+			) done ;
+			GlArray.draw_arrays `quads 0 (n*2*4) ; 
 			Raw.free_static raw ; 
 		in
 		let drawCursor (x,y) = 
 			drawRect (x -. s,y -. s,x +. s,y +. s) 
 		in
+		GlDraw.color ~alpha:0.16 (match !gmode with
+			| Mode_AddTrack -> (1.,0.80,0.22) (* orange *)
+			| Mode_MoveTrack -> (1.,0., 0.2) (* red *)
+			| Mode_MoveModule -> (0.55,0.16,1.) (* purple-blue *)
+			| Mode_MoveText -> (0.22,0.77,1.) (* aqua *)
+		); 
+		drawRing !gcurspos 0.17 0.2; 
 		GlDraw.color ~alpha:1. (1. , 1., 1. ); 
 		drawCursor !gcurspos ; 
 		GlDraw.color ~alpha:0.5 (1. , 1., 1. ); 
@@ -1030,6 +1058,37 @@ let makemenu top togl filelist =
 				(m#getLibRef())
 				x y r p1x p1y ; 
 		) (List.filter (fun m -> m#getLayer() = 15) !gmodules ); 
+		(* also we should add in through-hole pads for alignment -- 
+		this because the surface mount pads will be covered in paste when actually pnp.. *)
+		let fidnum = ref 0 in
+		List.iter (fun m -> 
+			List.iter (fun p -> 
+				if p#getShape () = Pad_Circle then (
+					let x,y = p#getCenter () in
+					if p#hasLayer (string_to_layer "Cop") && 
+					   p#hasLayer (string_to_layer "Cmp") then (
+						let p1x,p1y = (p#getSx()),(p#getSy()) in
+						fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
+							("F"^(soi !fidnum))
+							"TH-Fiducial"
+							"F"
+							x y 0.0 p1x p1y ; 
+						incr fidnum; 
+					) else (
+						(* otherwise, see if it has a drill hole..*)
+						let size = p#getDrill () in
+						if size > 0.0 then (
+							fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
+								("F"^(soi !fidnum))
+								"Drill-Fidcl"
+								"F"
+								x y 0.0 size size ; 
+							incr fidnum; 
+						)
+					)
+				) 
+			) (m#getPads ())
+		) (List.filter (fun m -> m#getLayer() = 15) !gmodules );
 		close_out_noerr oc; 
 	in
 	let filetyp = [ {typename="boards";extensions=[".brd"];mactypes=[]} ] in
@@ -1838,19 +1897,21 @@ let makemenu top togl filelist =
 			| "add track" -> bindMouseAddTrack () ;
 			| _ -> () ; 
 	in
-	let mlist = List.map (fun choice ->
+	let clist = ["#6d48ff";"#48c7ff";"#e55c6a";"#e2873d"] in
+	let mlist = List.map2 (fun choice color ->
 		Radiobutton.create ~indicatoron:true ~text:choice ~value:choice
-				~background:(`Color "#ffffff")
+				~background:(`Color color)
 				~variable:mvar 
 				~command:(fun () -> setMode choice) mframe)
-			modelist in
+			modelist clist in
 	let updateMode choice =
 		List.iter2 (fun c b -> 
 			if (String.lowercase c) = (String.lowercase choice) then (
 				Radiobutton.select b ; 
 				setMode choice ; 
 			) else ())
-		  modelist mlist
+		  modelist mlist ; 
+		render togl nulfun;
 	in
 	Tk.pack ~side:`Left ~fill:`X mlist;
 	
@@ -2328,6 +2389,8 @@ let makemenu top togl filelist =
 				changelayercallback (layer_to_string lay2); 
 			) else changelayercallback (layer_to_string layer2);
 		); 
+		(* now that we've changed layers, update the hit / track size / via size accordingly *)
+		gcurspos := calcCursPos ev !gpan true; 
 		let width = List.fold_left (fun default track -> 
 			if track#getHit() && track#getType() = Track_Track then 
 				track#getWidth() else default

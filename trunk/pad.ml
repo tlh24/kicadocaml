@@ -44,7 +44,6 @@ object (self)
 		); 
 		m_g#empty(); 
 		m_gtext#empty(); 
-		(* m_gtext#setColor (0.4, 0.85, 0.25) ;  (* has no layer so set color manually *) *)
 		m_gtext#setColor (0.0, 0.0, 0.0) ;  (* has no layer so set color manually *)
 		(
 		match m_shape with
@@ -159,9 +158,10 @@ object (self)
 			" netname:" ^ m_netname ^ "\n") ;
 		) ; 
 		if !gshowPadNumbers then (
+			let z = m_g#getZ () in
 			(* also should push it to the foreground, in case depth buffer is on. *)
 			GlMat.push() ; 
-			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:(0.99) (); 
+			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:(z +. 1.0/.80.0) (); 
 			m_gtext#draw ~hit:m_hit bbox ; 
 			GlMat.pop(); 
 		); 

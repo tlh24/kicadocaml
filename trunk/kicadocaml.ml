@@ -438,7 +438,7 @@ let render togl cb =
 			) done ;
 			GlArray.draw_arrays `quads 0 (n*2*4) ; 
 			Raw.free_static raw ; 
-		in
+		in *)
 		let drawRect (xl,yl,xh,yh) = 
 			let count = ref 0 in
 			let raw = Raw.create_static `float 12 in
@@ -456,7 +456,7 @@ let render togl cb =
 			GlArray.draw_arrays `quads 0 4 ; 
 			Raw.free_static raw ; 
 		in
-		let drawCursor (x,y) = 
+		(* let drawCursor (x,y) = 
 			drawRect (x -. s,y -. s,x +. s,y +. s) 
 		in *)
 		GlDraw.color ~alpha:0.7 (match !gmode with
@@ -1240,16 +1240,16 @@ let makemenu top togl filelist =
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
 			(* set the hit flags& get a netnum *)
-			let (nn,_,_,_) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
+			let (nn,_,hitz2,_) = List.fold_left (fun (netnum,hitsize,hitz,clearhit) m -> 
 				m#hit out !ghithold onlyworknet netnum hitsize hitz clearhit
 			) (worknet, 1e24, -2e2, (fun() -> ()) ) !gmodules 
 			in
-			let netn = 
+			let netn,_ = 
 				if !gdrawtracks then (
-					List.fold_left (fun netn1 track -> 
-						track#hit (out, onlyworknet, !ghithold, netn1) 
-					) (nn,-2e2) !gtracks 
-				) else nn
+					List.fold_left (fun (netn1,hitz) track -> 
+						track#hit (out, onlyworknet, hitz, !ghithold, netn1)
+					) (nn,hitz2) !gtracks 
+				) else nn,hitz2
 			in
 			gcurnet := netn ; 
 		); 

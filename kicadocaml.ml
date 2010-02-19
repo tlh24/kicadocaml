@@ -1240,16 +1240,17 @@ let makemenu top togl filelist =
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
 			(* set the hit flags& get a netnum *)
-			let (nn,_,hitz2,_) = List.fold_left (fun (netnum,hitsize,hitz,clearhit) m -> 
+			let (nn,hitsize2,hitz2,hitclear2) = List.fold_left (fun (netnum,hitsize,hitz,clearhit) m -> 
 				m#hit out !ghithold onlyworknet netnum hitsize hitz clearhit
 			) (worknet, 1e24, -2e2, (fun() -> ()) ) !gmodules 
 			in
-			let netn,_ = 
+			(* printf "after mod: hitsize %f hitz %f\n%!" hitsize2 hitz2;*)
+			let netn,_,_,_ = 
 				if !gdrawtracks then (
-					List.fold_left (fun (netn1,hitz) track -> 
-						track#hit (out, onlyworknet, hitz, !ghithold, netn1)
-					) (nn,hitz2) !gtracks 
-				) else nn,hitz2
+					List.fold_left (fun (netn1,hitsize,hitz,hitclear) track -> 
+						track#hit (out, onlyworknet, hitsize, hitz, hitclear, !ghithold, netn1)
+					) (nn,hitsize2,hitz2,[hitclear2]) !gtracks 
+				) else nn,hitsize2,hitz2,[]
 			in
 			gcurnet := netn ; 
 		); 
@@ -2334,7 +2335,25 @@ let makemenu top togl filelist =
 	let switchSelectTrack ev = 
 		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules *)
 		(* first see if nothing is selected .. *)
-		if not (List.exists (fun t -> t#getHit()) !gtracks) then (
+		let lay = try (List.find (fun t -> t#getHit()) !gtracks)#getLayer ()
+			with _ -> ( 
+				(* look at the modules *)
+				let ll,_ = List.fold_left (fun d m-> 
+					List.fold_left (fun (lay,siz) p -> 
+						let bbx = p#getBBX() in
+						if bbxInside bbx !gcurspos then (
+							printf "inside pad\n%!"; 
+							let psiz = bbxSize bbx in
+							if  psiz < siz then (p#getLayer(),psiz)
+							else (lay,siz)
+						) else (lay,siz)
+					) d (m#getPads ())
+				) (!glayer,1e24) !gmodules in
+				ll
+			) in
+		changelayercallback (layer_to_string lay); 
+		(* 
+		if (List.exists (fun t -> t#getHit()) !gtracks) then (
 			(* then we want to switch layers to whichever would hit the smallest track *) 
 			let layer,area = List.fold_left (fun (dlayer,darea) t -> 
 				if t#touch !gcurspos then (
@@ -2365,7 +2384,7 @@ let makemenu top togl filelist =
 					(List.rev !glayerZlist) in
 				changelayercallback (layer_to_string lay2); 
 			) else changelayercallback (layer_to_string layer2);
-		); 
+		); *)
 		(* now that we've changed layers, update the hit / track size / via size accordingly *)
 		gcurspos := calcCursPos ev !gpan true; 
 		let width = List.fold_left (fun default track -> 

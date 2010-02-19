@@ -85,8 +85,7 @@ method getBBX () = bbx
 method getBBXSize () = bbxSize bbx
 	
 method makeRect x y w h = 
-	let fx, fy, fw, fh = (convert_units x y w h) in
-	self#makeRectFloat fx fy fw fh; 
+	self#makeRectFloat x y (w/.2.0) (h/.2.0); 
 
 method makeRectFloat fx fy fw fh = 
 	verts <- [ (fx -. fw , fy -. fh ) ; (fx -. fw , fy +. fh ) ; (fx +. fw , fy +. fh ) ; (fx +. fw , fy -. fh ) ] ;
@@ -95,17 +94,17 @@ method makeRectFloat fx fy fw fh =
 	
 method makeCircle x y w h = 
 	(* for convienence, will make this drawable with quads not triangles. *)
-	let (fx, fy, fw, fh) = convert_units x y w h in
+	let fw,fh = w/.2.0, h/.2.0 in
 	let n = 10 in
 	let t = ref (pi /. foi((n+1) * 2)) in
 	let dt = pi /. foi(n+1) in
 	let cos_ t = cos(t) *. fw in
 	let sin_ t = sin(t) *. fh in
 	for i = 1 to n do (
-		verts <- ( (fx -. cos_(!t), fy -. sin_(!t)) :: verts) ; 
-		verts <- ( (fx -. cos_(!t+.dt), fy -. sin_(!t+.dt)) :: verts) ; 
-		verts <- ( (fx -. cos_(!t+.dt), fy +. sin_(!t+.dt)) :: verts) ; 
-		verts <- ( (fx -. cos_(!t), fy +. sin_(!t)) :: verts) ; 
+		verts <- ( (x -. cos_(!t), y -. sin_(!t)) :: verts) ; 
+		verts <- ( (x -. cos_(!t+.dt), y -. sin_(!t+.dt)) :: verts) ; 
+		verts <- ( (x -. cos_(!t+.dt), y +. sin_(!t+.dt)) :: verts) ; 
+		verts <- ( (x -. cos_(!t), y +. sin_(!t)) :: verts) ; 
 		t := !t +. dt ; 
 	) done; 
 	self#updateBBX (); 
@@ -114,7 +113,7 @@ method makeCircle x y w h =
 
 method makeRing (fx,fy) id od = 
 	(* again, make drawable with quads. *)
-	let (fid, fod) = (fois id)*. 0.5, (fois od)*. 0.5 in
+	let (fid, fod) = id *. 0.5, od *. 0.5 in
 	let n = 10 in
 	let t = ref 0. in
 	let dt = pi /. (foi n) in
@@ -269,7 +268,7 @@ method makeText ?(mirror=false) x y rot ox oy orot sx sy width text = (
 
 method rotateTranslate orient x y = 
 	let a = (foi orient) /. 572.9577951 in
-	let translate (xa, ya) = (xa +. (fois x), ya +. (fois y))  in
+	let translate (xa, ya) = (xa +.  x, ya +. y)  in
 	(* translate after rotating the pad verticies *)
 	verts <- List.rev_map (rotate2 ~angle:a) verts ;
 	verts <- List.rev_map translate verts ; 

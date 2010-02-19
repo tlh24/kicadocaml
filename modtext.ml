@@ -5,15 +5,15 @@ open Grfx
 class pcb_modtext = 
 object (self)
 	val mutable m_type = 0
-	val mutable m_x = 0 (* our location relative to the parent module *)
-	val mutable m_y = 0
-	val mutable m_sx = 0
-	val mutable m_sy = 0
+	val mutable m_x = 0. (* our location relative to the parent module *)
+	val mutable m_y = 0.
+	val mutable m_sx = 0.
+	val mutable m_sy = 0.
 	val mutable m_rot = 0
-	val mutable m_ox = 0 (*module offset (location)*)
-	val mutable m_oy = 0 (*module offset*)
+	val mutable m_ox = 0. (*module offset (location)*)
+	val mutable m_oy = 0. (*module offset*)
 	val mutable m_orot = 0 (*owning module rotation*)
-	val mutable m_width = 0 (* what I call thickness elsewhere *)
+	val mutable m_width = 0. (* what I call thickness elsewhere *)
 	val mutable m_mirror = false
 	val mutable m_show = true
 	val mutable m_layer = 0
@@ -38,8 +38,8 @@ object (self)
 		m_oy <- oy; 
 		m_g#makeText ~mirror:m_mirror 
 			m_x m_y m_rot m_ox m_oy m_orot 
-			(fois m_sx) (fois m_sy) 
-			((fois m_width) *. 0.5) m_text ; 
+			m_sx m_sy
+			(m_width *. 0.5) m_text ; 
 		self#updateColor(); 
 	)
 	method update2 () = 
@@ -56,16 +56,16 @@ object (self)
 		(* update should be called after this so maketext is called. *)
 	)
 	method getType () = m_type
-	method getSize () = Pts2.fois m_sx m_sy
+	method getSize () = m_sx,m_sy
 	method setSize (x,y) = 
-		m_sx <- iofs x; 
-		m_sy <- iofs y; 
-	method getPos () = Pts2.fois m_x m_y
+		m_sx <- x; 
+		m_sy <- y; 
+	method getPos () = m_x, m_y
 	method setPos (x,y) = 
-		m_x <- iofs x; 
-		m_y <- iofs y; 
-	method getWidth () = fois m_width ; 
-	method setWidth w = m_width <- iofs w ; 
+		m_x <- x; 
+		m_y <- y; 
+	method getWidth () = m_width ; 
+	method setWidth w = m_width <- w ; 
 	method getShow () = m_show; 
 	method setShow b = m_show <- b; 
 	method getRot () = m_rot; 
@@ -82,7 +82,7 @@ object (self)
 					clearhit () ; (*clear the previous hit record, we are smaller *)
 					let hid = if not m_show then "hidden," else "" in
 					let s = Printf.sprintf "text,%s sx:%4.4f sy:%4.4f w:%4.4f \n%s" 
-						hid (fois m_sx) (fois m_sy) (fois m_width) m_text  in
+						hid m_sx m_sy m_width m_text  in
 					!ginfodisp s; 
 					(* make a custom function that clears both us & our parent module 
 					if we happen to be overruled (have the hit variable cleared *)
@@ -108,9 +108,9 @@ object (self)
 			m_move <- (0. , 0.); 
 		) else (
 			let a = (foi m_orot) /. -572.9577951 in
-			let (x, y) = Pts2.iofs( rotate2 ~angle:a m_move) in
-			m_x <- m_x + x ; 
-			m_y <- m_y + y ;
+			let (x, y) = rotate2 ~angle:a m_move in
+			m_x <- m_x +. x ; 
+			m_y <- m_y +. y ;
 			m_move <- (0. , 0.); 
 			self#update m_orot m_ox m_oy ; 
 		);
@@ -118,7 +118,7 @@ object (self)
 	)
 	method move m = m_move <- m ;
 	method flip () = (
-		m_x <- m_x * (-1) ; 
+		m_x <- m_x *. (-1.) ; 
 		m_layer <- flip_layer m_layer ; 
 		m_mirror <- not m_mirror ; 
 		(* callee must request an update *)
@@ -134,12 +134,12 @@ object (self)
 		let parse_line1 = 
 			let sp =  Pcre.extract ~pat:"T(\d) ([\d-]+) ([\d-]+) (\d+) (\d+) (\d+) (\d+) (\w+) (\w+) (\d+)[^\"]+\"([^\"]+)\"" line in
 			m_type <- ios sp.(1) ; 
-			m_x <- ios sp.(2) ;
-			m_y <- ios sp.(3) ;
-			m_sx <- ios sp.(4) ;
-			m_sy <- ios sp.(5) ;
+			m_x <- fois(ios sp.(2)) ;
+			m_y <- fois(ios sp.(3)) ;
+			m_sx <- fois(ios sp.(4)) ;
+			m_sy <- fois(ios sp.(5)) ;
 			m_rot <- (ios sp.(6)) - orot ; (* this is the way pcbnew saves the board files *)
-			m_width <- ios sp.(7) ;
+			m_width <- fois(ios sp.(7)) ;
 			m_mirror <- (
 				match sp.(8) with
 					| "M" -> true
@@ -158,7 +158,8 @@ object (self)
 	)
 	method save oc = (
 		fprintf oc "T%d %d %d %d %d %d %d %s %s %d %s\"%s\"\n" 
-			m_type m_x m_y m_sx m_sy (m_rot+m_orot) m_width
+			m_type (iofs m_x) (iofs m_y) (iofs m_sx) (iofs m_sy)
+			(m_rot+m_orot) (iofs m_width)
 			(if m_mirror then "M" else "N" )
 			(if m_show then "V" else "I")
 			m_layer m_textMirror m_text
@@ -194,9 +195,9 @@ object (self)
 			(frm, (fun() -> Entry.get entry) )
 		in
 		let textframe, txtcb = makeEntry fs m_text "value" in
-		let xframe, xcb = makeEntry fs (sof (fois m_sx)) "x_size" in
-		let yframe, ycb = makeEntry fs (sof (fois m_sy)) "y_size" in
-		let wframe, wcb = makeEntry fs (sof (fois m_width)) "line_width" in
+		let xframe, xcb = makeEntry fs (sof m_sx) "x_size" in
+		let yframe, ycb = makeEntry fs (sof m_sy) "y_size" in
+		let wframe, wcb = makeEntry fs (sof m_width) "line_width" in
 		
 		(* apply button *)
 		let applyframe = Frame.create fs in
@@ -205,9 +206,9 @@ object (self)
 		let apply = Button.create applyframe ~text:"Apply" 
 			~command:(fun () -> 
 				m_text <- txtcb () ; 
-				m_sx <- iofs (fos (xcb ()) ); 
-				m_sy <- iofs (fos (ycb ()) ); 
-				m_width <- iofs (fos (wcb())) ; 
+				m_sx <- (fos (xcb ()) ); 
+				m_sy <- (fos (ycb ()) ); 
+				m_width <- (fos (wcb())) ; 
 				self#update m_orot m_ox m_oy  ; 
 				Tk.destroy fs ; 
 			) in

@@ -11,8 +11,8 @@ object (self)
 		val mutable m_sty = 0. (* roundoff issues when drc auomatically moves them *)
 		val mutable m_enx = 0.
 		val mutable m_eny = 0.
-		val mutable m_width = 0
-		val mutable m_drill = 0
+		val mutable m_width = 0.
+		val mutable m_drill = 0.
 		val mutable m_layer = 0
 		val mutable m_type = Track_Track
 		val mutable m_net = 0
@@ -92,10 +92,10 @@ object (self)
 		method getLayer () = m_layer ; 
 		method getType () = m_type ;
 		method isVia() = m_type = Track_Via ;
-		method getWidth () = (fois m_width)
-		method setWidth w = m_width <- (iofs w); 
-		method getDrill () = (fois m_drill)
-		method setDrill d = m_drill <- iofs d ;
+		method getWidth () = m_width
+		method setWidth w = m_width <- w; 
+		method getDrill () = m_drill
+		method setDrill d = m_drill <- d ;
 		method getU () = m_u 
 		method setU u = 
 			if m_type = Track_Track then m_u <- u ; 
@@ -126,7 +126,7 @@ object (self)
 			(
 				match m_type with 
 					| Track_Track -> 
-						m_g#makeTrack (self#getStart()) (self#getEnd()) (self#getWidth()) ; 
+						m_g#makeTrack (self#getStart()) (self#getEnd()) m_width ; 
 					| Track_Via -> 
 						m_g#makeRing (self#getStart()) m_drill m_width; 
 			);
@@ -146,8 +146,8 @@ object (self)
 						| Track_Track -> "track, width: "
 						| Track_Via -> "via, diameter: "
 					in
-					let mm = sprintf "%4.4f" ((fois m_width) *. 25.4) in
-					!ginfodisp ( s ^ (sof (fois m_width)) ^ " mm: " ^ mm ^
+					let mm = sprintf "%4.4f" ( m_width *. 25.4) in
+					!ginfodisp ( s ^ (sof m_width) ^ " mm: " ^ mm ^
 						"\nnet:" ^ (soi m_net) ^ " netname:" ^ (!glookupnet m_net) )
 				); 
 				if !gcurnet = m_net && !gcurnet != 0 then (
@@ -161,39 +161,62 @@ object (self)
 				);
 			); 
 		)
+		method getSize () = (
+			let w2 = m_width /. 2. in
+			match m_type with
+			| Track_Track -> 
+				(Pts2.distance (m_stx,m_sty) (m_enx,m_eny)) *. m_width +.
+				w2 *. w2 *. 3.1415926
+			| Track_Via -> w2 *. w2 *. 3.1415926
+		)
 		method getHit () = m_hit ; 
 		method setHit h = m_hit <- h ; 
-		method hit (p, onlyworknet, hitz, hithold, netnum) = 
+		method hitclear () = m_hit <- false
+		method hit (p, onlyworknet, hitsize, hitz, hitclear, hithold, netnum) = 
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* can hit on any layer if we are in track move mode *)
 			(* only hit on the working layer if we are adding tracks *)
-			let mz = m_g#getZ () in
-			if not m_moving && mz >= hitz 
-				&& m_visible && (not onlyworknet || netnum = m_net) then (
+			(* hitclear is a list as we can hit more than one track at a time *)
+			let mz = match m_type with
+				| Track_Track -> glayerZ.(m_layer)
+				| _ -> (
+					let max = ref 0. in
+					for i = 0 to 15 do (
+						if glayerZ.(i) > !max then max := glayerZ.(i)
+					) done; 
+					!max
+				)
+			in
+			let w2 = m_width /. 2. in
+			let ms = self#getSize () in (* area or size of track *)
+			(* z-sorting: want to be able to hit small items in the background *)
+			(* don't want to allow hitting tracks on more than one layer - 
+			if we do, must clear the previous *)
+			if not m_moving && ( mz >= hitz) &&
+				m_visible && (not onlyworknet || netnum = m_net) then (
 				(* don't update the hit variable if we are moving*)
 				(* don't hit if onlyworknet (e.g. when adding or removing a track)
 				is true and we are not the workingnet. *)
 				m_washit <- m_hit ; 
 				m_hit <- self#touch p ; 
 				m_hit <- m_hit || (m_washit && hithold) ; 
-				let w2 = ((fois m_width) /. 2.) in
+				
 				let st = self#getStart()  in
 				let en = self#getEnd() in
+
 				if m_hit then (
 					(* need to update u, the position on the track that we were hit. *)
 					if m_type = Track_Track then (
 						let u = Pts2.closestuonline st en p true in
-						let tol = 0.5 *. (fois m_width) /. (Pts2.distance st en) in
+						let tol = w2 /. (Pts2.distance st en) in
 						m_u <- if u < tol then 0.
 							else if u > 1. -. tol then 1. 
 							else u ; 
 						(* note we snap it to the endpoints. *)
-					)
+					); 
 					(* if it is a via, then m_u is always 0. *)
-				); 
-				if m_hit && (!glayer = m_layer || m_type = Track_Via) then (
-					(* print_endline "snapped to track!" ; *)
-					match m_type with 
+					(* manage the snaps *)
+					(match m_type with 
 						| Track_Track -> (
 							gsnapped := Pts2.closestpointonline st en p true ; 
 							(* snap to the end caps *)
@@ -202,17 +225,26 @@ object (self)
 							if Pts2.distance !gsnapped en < w2 then
 								gsnapped := en ; ); 
 						| Track_Via -> gsnapped := st ;
-				) ; 
-				if m_hit then m_net, mz
-				else netnum, hitz
-			) else netnum, hitz
+					); 
+					(* manage the return data *)
+					if mz <> hitz then (
+						(* clear all the old hit *)
+						(* printf "clearing all old hit in track#hit z=%f\n%!" mz;*)
+						List.iter (fun f -> f ()) hitclear; 
+						m_net, ms, mz, [self#hitclear]
+					)else(
+						m_net, ms, mz, (self#hitclear :: hitclear)
+					)
+				)
+				else netnum, hitsize, hitz, hitclear
+			) else netnum, hitsize, hitz, hitclear
 			
 		method touch p = 
 			(* this is a softer version of hit - 
 			it only sees if the point is within the track area. 
 			it does not update anything, just returns a bool 
 			only works if track is visible.*)
-			let w2 = ((fois m_width) /. 2.) in
+			let w2 = m_width /. 2. in
 			let st = self#getStart()  in
 			let en = self#getEnd() in
 			if m_type = Track_Via then (
@@ -304,8 +336,8 @@ object (self)
 			m_sty <- fois (ios sp.(3)) ; 
 			m_enx <- fois (ios sp.(4)) ; 
 			m_eny <- fois (ios sp.(5)) ; 
-			m_width <- ios sp.(6) ; 
-			m_drill <- ios sp.(7) ; 
+			m_width <- fois (ios sp.(6)) ; 
+			m_drill <- fois (ios sp.(7)) ; 
 			let line2 = input_line2 ic in (*the De ... line*)
 			let sp = Pcre.extract ~pat:"De (\d+) (\d+) (\d+) \d+ (\w+)" line2 in
 			m_layer <- ios sp.(1) ; 
@@ -319,7 +351,7 @@ object (self)
 		method save oc = (
 			fprintf oc "Po %d %d %d %d %d %d %d\n"
 				m_shape (iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) 
-				m_width m_drill ;
+				(iofs m_width) (iofs m_drill);
 			(* pcbnew expects vias to be on layer 15 (component) *)
 			let layer = if m_type = Track_Via then 15 else m_layer in
 			fprintf oc "De %d %d %d 0 %s\n" layer 

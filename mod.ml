@@ -27,8 +27,8 @@ end
 
 class pcb_module =
 object (self)
-	val mutable m_x = 0
-	val mutable m_y = 0
+	val mutable m_x = 0.
+	val mutable m_y = 0.
 	val mutable m_rot = 0
 	val mutable m_layer = 0
 	val mutable m_LastEditTime = ""
@@ -141,21 +141,22 @@ object (self)
 				) else (false, hitsize, hitz, clearhit)
 			in
 			(* now check everything that moves with the module - the body & the pads *)
-			let selfsize = m_g#getBBXSize () in
 			let (hitpad, netnum3, hitsize3, hitz3, clearhit3) = 
 				List.fold_left (fun (hit,nn,siz,z,clrhit) pad ->
 					pad#hit p onlyworknet hit nn siz z clrhit
 				) (false, netnum, hitsize2, hitz2, clearhit2) m_pads
 			in
+			let ms = m_g#getBBXSize () in
 			let mz = glayerZ.(m_layer) in
-			let hitself = m_g#hit p && selfsize < hitsize3 
-				&& mz >= hitz3 && !gmode != Mode_MoveText in
+			let hitself = m_g#hit p && 
+				( ms < hitsize ) &&
+				!gmode != Mode_MoveText in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
 			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 
 			if hitself then (
 				clearhit3 () ; (*clear the previous hit record, we are smaller *)
-				(netnum3, selfsize, mz, self#clearHit)
+				(netnum3, ms, mz, self#clearHit)
 			) else 
 				(netnum3, hitsize3, hitz3, clearhit3)
 		) else (netnum, hitsize, hitz, clearhit)
@@ -202,9 +203,9 @@ object (self)
 			if found then (
 				txt#setMoving b ; 
 			) else (
-				let (x, y) = Pts2.iofs m_move in
-				m_x <- m_x + x ; 
-				m_y <- m_y + y ;
+				let (x, y) = m_move in
+				m_x <- m_x +. x ; 
+				m_y <- m_y +. y ;
 				m_move <- (0. , 0.); 
 				self#update () ; 
 			)
@@ -258,15 +259,15 @@ object (self)
 			); 
 			if !gmode = Mode_MoveModule then (
 				let getOffset () = 
-					Pts2.sub (self#getCenter false ) (Pts2.foist (m_x,m_y))
+					Pts2.sub (self#getCenter false ) (m_x,m_y)
 				in
 				let (ofx, ofy) = getOffset () in
 				self#setRot (m_rot + 900) ; 
 				if m_rot > 3600 then m_rot <- m_rot - 3600 ;
 				(* rotation by +90 deg is pretty simple -- *)
 				let (px,py) = Pts2.sub (ofx,ofy) ((1.) *. ofy, (-1.) *. ofx) in
-				m_x <- m_x + (iofs px) ; 
-				m_y <- m_y + (iofs py) ; 
+				m_x <- m_x +. px ; 
+				m_y <- m_y +. py ; 
 				let oldmove = m_move in
 				self#update ();
 				m_move <- oldmove ; (* the move is actually applied when you release the mouse.*)
@@ -329,10 +330,10 @@ object (self)
 		List.exists (fun t -> 
 			Pcre.pmatch ~pat:sn (t#getText () ) ) m_texts
 	)
-	method getPos () = Pts2.add m_move (Pts2.fois m_x m_y)
-	method setPos p = (
-		m_x <- iofs(fst p) ; 
-		m_y <- iofs(snd p); 
+	method getPos () = Pts2.add m_move (m_x,m_y)
+	method setPos (x,y) = (
+		m_x <- x; 
+		m_y <- y; 
 	)
 	method getPadNets () = (
 		List.filter (fun n -> n != 0) ( (* only return non-zero nets.  (0 = noconnect) *)
@@ -360,8 +361,8 @@ object (self)
 		in
 		let parse_line1  = 
 			let sp = parse "Po ([\d-]+) ([\d-]+) (\d+) (\d+) (\w+) (\w+) ([^ ]+)" in
-			m_x <- ios sp.(1); 
-			m_y <- ios sp.(2); 
+			m_x <- fois (ios sp.(1)); 
+			m_y <- fois (ios sp.(2)); 
 			m_rot <- ios sp.(3); 
 			m_layer <- ios sp.(4);
 			m_LastEditTime <- sp.(5); 
@@ -449,7 +450,7 @@ object (self)
 	method save oc = (
 		fprintf oc "$MODULE %s\n" m_libRef ; 
 		fprintf oc "Po %d %d %d %d %s %s %s\n" 
-			m_x m_y m_rot m_layer m_LastEditTime m_TimeStamp m_statusText ; 
+			(iofs m_x) (iofs m_y) m_rot m_layer m_LastEditTime m_TimeStamp m_statusText ; 
 		fprintf oc "Li %s\n" m_libRef ; 
 		if (String.length m_doc) > 0 then (
 			fprintf oc "Cd %s\n" m_doc ; 

@@ -163,7 +163,7 @@ object (self)
 		)
 		method getHit () = m_hit ; 
 		method setHit h = m_hit <- h ; 
-		method hit (p, onlyworknet, hithold, netnum) = 
+		method hit (p, onlyworknet, hitz, hithold, netnum) = 
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* can hit on any layer if we are in track move mode *)
 			(* only hit on the working layer if we are adding tracks *)

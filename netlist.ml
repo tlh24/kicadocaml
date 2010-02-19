@@ -1,5 +1,33 @@
 (* this is just a test file for now - it is *not* in the makefile! *)
+open Printf
 open Mod
+open Comm
+
+(* generic netnumber/netname container *)
+class pcb_net = 
+object 
+	val mutable m_name = "" (*netname*)
+	val mutable m_net = 0 (*netnumber*)
+	method getNet () = m_net
+	method getName () = m_name
+	method set net name = m_net <- net; m_name <- name
+	method read ic = 
+	(
+		let line = input_line2 ic in
+		let d = ref "" in
+		let sp = Pcre.extract ~pat:"Na (\d+) \"([^\"]*)\"" line in
+		m_net <- ios sp.(1); 
+		m_name <- sp.(2); 
+		d := input_line2 ic ; (*read the St ~ line, not used*)
+		d := input_line2 ic ; (*read the $EndEQUIPOT line *)
+	)
+	method save oc = (
+		fprintf oc "$EQUIPOT\n" ; 
+		fprintf oc "Na %d \"%s\"\n" m_net m_name ; 
+		fprintf oc "St ~\n" ; 
+		fprintf oc "$EndEQUIPOT\n" ; 
+	)
+end;;
 
 type token =
     Kwd of string
@@ -185,12 +213,17 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 	get_nets modlist ;
 	Printf.printf "----------\n%!"; 
 	(* now stick these into a hashtable to map name to number. *)
+	(* also make a list of pcb_nets to update gnets - 
+	often the name/number associations change when reading in a new netlist *)
 	let netnumht = Hashtbl.create (List.length !nets) in
-	List.iter (fun n -> 
+	let pcb_nets = List.map (fun n -> 
 		let netnum,netname = n in
 		(* Printf.printf "net %d %s\n%!" netnum netname; *)
 		Hashtbl.add netnumht netname netnum ; 
-	) (List.rev !nets);
+		let pn = new pcb_net in
+		pn#set netnum netname ;  
+		pn
+	) (List.rev !nets) in
 	(* uh, now we have to check the netlist vs. the board *)
 	(* first, check to see if there are any modules in the netlist that 
 	aren't on the board *)
@@ -299,8 +332,8 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 				mm#update (); 
 			| _ -> ()
 		); 
-	) !boardmods ; 
-	!boardmods 
+	) !boardmods ;
+	!boardmods, pcb_nets
 	(*
 							List.iter (fun p -> 
 								let pn = p#getPadname () in

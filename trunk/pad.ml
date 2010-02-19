@@ -9,16 +9,16 @@ class pcb_pad =
 object (self)
 	val mutable m_padname = ""
 	val mutable m_shape : 'pcb_pad_shape = Pad_Circle
-	val mutable m_x = 0
-	val mutable m_y = 0
-	val mutable m_sx = 0
-	val mutable m_sy = 0
+	val mutable m_x = 0.
+	val mutable m_y = 0.
+	val mutable m_sx = 0.
+	val mutable m_sy = 0.
 	val mutable m_dsx = 0 (*delta size, not sure what it's for*)
 	val mutable m_dsy = 0
 	val mutable m_rot = 0
-	val mutable m_drill = 0
-	val mutable m_drillOffX = 0
-	val mutable m_drillOffY = 0
+	val mutable m_drill = 0.
+	val mutable m_drillOffX = 0.
+	val mutable m_drillOffY = 0.
 	val mutable m_type : 'pcb_pad_type = Pad_STD
 	val mutable m_layers : int list = [] 
 	val mutable m_netnum = 0
@@ -50,16 +50,14 @@ object (self)
 			| Pad_Rect -> m_g#makeRect m_x m_y m_sx m_sy ; 
 			| Pad_Oval -> (
 				match m_drill with 
-					| 0 -> m_g#makeOval (Pts2.foist (m_x,m_y)) 
-						(fois m_sx) (fois m_sy) ; 
-					| _ -> m_g#makeOvalRing 16 (Pts2.foist (m_x,m_y)) 
-						(fois m_sx) (fois m_sy) (fois m_drill); 
+					| 0. -> m_g#makeOval (m_x,m_y) m_sx m_sy ;
+					| _ -> m_g#makeOvalRing 16 (m_x,m_y) m_sx m_sy m_drill ;
 				)
 				
 			| _ -> (
 				match m_drill with 
-					| 0 -> m_g#makeCircle m_x m_y m_sx m_sy ; 
-					| _ -> m_g#makeRing (Pts2.foist (m_x,m_y)) m_drill m_sx ; 
+					| 0. -> m_g#makeCircle m_x m_y m_sx m_sy ; 
+					| _ -> m_g#makeRing (m_x,m_y) m_drill m_sx ; 
 				)
 		) ; 
 		
@@ -71,7 +69,7 @@ object (self)
 		let sx2 = min (dy /. 1.5) sx in
 		let width = sx2 /. 10.0 in
 		(* making text actually translates the other (actual) pad *)
-		m_gtext#makeText m_x m_y 0 0 0 0 
+		m_gtext#makeText m_x m_y 0 0. 0. 0 
 			(sx2-. width) 
 			(sx2 *. 1.33 -. width) 
 			width m_padname ; 
@@ -89,9 +87,9 @@ object (self)
 	method clearHit () = m_hit <- false ; 
 	method hit p onlyworknet ja netnum hitsize hitz clearhit = (
 		m_washit <- m_hit ; 
-		let selfsize = m_g#getBBXSize () in
+		let ms = m_g#getBBXSize () in
 		let mz = m_g#getZ () in
-		if selfsize < hitsize && mz >= hitz then (
+		if ( mz > hitz || (mz = hitz && ms < hitsize) ) then (
 			(*don't hit if we are not displayed*)
 			let en = List.fold_left (fun b lay -> (b || glayerEn.(lay))
 			) false m_layers in
@@ -101,7 +99,7 @@ object (self)
 				(* print_endline "snapped to pad!" ; *)
 				clearhit (); (*clear the previous hit record, we are smaller *)
 				gsnapped := bbxCenter ( m_g#getBBX() ) ;
-				true, m_netnum, selfsize, mz, self#clearHit
+				true, m_netnum, ms, mz, self#clearHit
 			)else ja, netnum, hitsize, hitz, clearhit
 		)else ja, netnum, hitsize, hitz, clearhit
 	)
@@ -117,10 +115,10 @@ object (self)
 		(* it is assumed that it is already translated into our coord sys *)
 		let a = (foi m_rot) /. -572.9577951308 in
 		let (px,py) = rotate2 ~angle:a p in
-		let x = fois m_x in
-		let y = fois m_y in
-		let sx = (fois m_sx) *. 0.5 in
-		let sy = (fois m_sy) *. 0.5 in
+		let x = m_x in
+		let y = m_y in
+		let sx = m_sx *. 0.5 in
+		let sy = m_sy *. 0.5 in
 		let hit = match m_shape with 
 			| Pad_Rect -> ( x -. sx < px && px < x +. sx && y -. sy < py && py < y +. sy)
 			| _ -> (Pts2.distance (px,py) (x,y)) < sx
@@ -209,7 +207,7 @@ object (self)
 		in
 		let testcircle () = 
 			let d,e,f = Pts2.closestpointdistance st en c false in
-			let width = ((fois m_sx) *. 0.5) in
+			let width = (m_sx *. 0.5) in
 			let violation = d < width +. width2 +. !gclearance in
 			if violation then (
 				let fe = Pts2.norm (Pts2.sub e f) in
@@ -231,10 +229,10 @@ object (self)
 	method setNetName nn = m_netname <- nn ; 
 	method getPadName () = m_padname 
 	method getShape () = m_shape 
-	method getPos () = Pts2.fois m_x m_y
-	method getSx () = if m_rot = 900 || m_rot = 2700 then fois m_sy else fois m_sx 
-	method getSy () = if m_rot = 900 || m_rot = 2700 then fois m_sx else fois m_sy 
-	method getDrill () = fois m_drill ; 
+	method getPos () = m_x,m_y
+	method getSx () = if m_rot = 900 || m_rot = 2700 then m_sy else m_sx 
+	method getSy () = if m_rot = 900 || m_rot = 2700 then m_sx else m_sy 
+	method getDrill () = m_drill ; 
 	method getBBX () = m_g#getBBX()
 	method getCenter () = (bbxCenter (m_g#getBBX() ) ) 
 	method setMoveCallback f = m_moveCallback <- f 
@@ -249,8 +247,8 @@ object (self)
 	method flip () = (
 		(* flip about the X-axis, ala pcbnew *)
 		(* update the layers, too. *)
-		m_y <- m_y * (-1); 
-		m_drillOffY <- m_drillOffY * (-1); 
+		m_y <- m_y *. (-1.); 
+		m_drillOffY <- m_drillOffY *. (-1.); 
 		m_layers <- List.map flip_layer m_layers ; 
 		(* the callee is responsible for calling update w/ appropriate params *)
 	)
@@ -271,17 +269,17 @@ object (self)
 					| "T" -> Pad_Trapezoid
 					| _    -> Pad_Circle
 			);
-			m_sx <- ios sp.(3) ; 
-			m_sy <- ios sp.(4) ; 
+			m_sx <- fois (ios sp.(3)); 
+			m_sy <- fois (ios sp.(4)); 
 			m_dsx <- ios sp.(5) ; 
 			m_dsy <- ios sp.(6) ; 
 			m_rot <- ios sp.(7) ; 
 		in
 		let parse_line2 = 
 			let sp = parse "Dr (\d+) (\d+) (\d+)" in
-			m_drill <- ios sp.(1) ; 
-			m_drillOffX <- ios sp.(2) ; 
-			m_drillOffY <- ios sp.(3) ; 
+			m_drill <- fois (ios sp.(1)); 
+			m_drillOffX <- fois (ios sp.(2)); 
+			m_drillOffY <- fois (ios sp.(3)); 
 			(* warning -- I'm not handling oval pads here! *)
 		in
 		let parse_line3 = 
@@ -306,8 +304,8 @@ object (self)
 		in
 		let parse_line5 =
 			let sp = parse "Po ([\d-]+) ([\d-]+)" in
-			m_x <- ios sp.(1) ;
-			m_y <- ios sp.(2) ; 
+			m_x <- fois(ios sp.(1)) ;
+			m_y <- fois(ios sp.(2)) ; 
 		in
 		parse_line1; 
 		parse_line2; 
@@ -326,8 +324,8 @@ object (self)
 				| Pad_Rect -> "R" 
 				| Pad_Oval -> "O"
 				| Pad_Trapezoid -> "T" )
-			m_sx m_sy m_dsx m_dsy m_rot ; 
-		fprintf oc "Dr %d %d %d\n" m_drill m_drillOffX m_drillOffY ; 
+			(iofs m_sx) (iofs m_sy) m_dsx m_dsy m_rot ; 
+		fprintf oc "Dr %d %d %d\n" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY); 
 		fprintf oc "At %s N %8.8lX\n"
 			(match m_type with
 				| Pad_STD -> "STD" 
@@ -337,7 +335,7 @@ object (self)
 				| Pad_MECA -> "MECA" )
 			(layers_to_int32 m_layers) ; 
 		fprintf oc "Ne %d \"%s\"\n" m_netnum m_netname ; 
-		fprintf oc "Po %d %d\n" m_x m_y ; 
+		fprintf oc "Po %d %d\n" (iofs m_x) (iofs m_y) ; 
 		fprintf oc "$EndPAD\n"
 	)
 end;;

@@ -203,9 +203,9 @@ object (self)
 								gsnapped := en ; ); 
 						| Track_Via -> gsnapped := st ;
 				) ; 
-				if m_hit then m_net
-				else netnum
-			) else netnum
+				if m_hit then m_net, mz
+				else netnum, hitz
+			) else netnum, hitz
 			
 		method touch p = 
 			(* this is a softer version of hit - 

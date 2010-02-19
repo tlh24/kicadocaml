@@ -71,10 +71,11 @@ object (self)
 	method getRot () = m_rot; 
 	method setRot b = m_rot <- b; 
 	
-	method hit (p, (superClearHit:unit->unit), ja, hitsize, clearhit) = (
+	method hit (p, (superClearHit:unit->unit), ja, hitsize, hitz,clearhit) = (
 		if not m_moving && glayerEn.(m_layer) then (
 			let selfsize = m_g#getBBXSize () in
-			if selfsize < hitsize then (
+			let mz = m_g#getZ () in
+			if selfsize < hitsize && mz >= hitz then (
 				m_washit <- m_hit ; 
 				m_hit <- (m_g#hit p); 
 				if m_hit then (
@@ -85,12 +86,12 @@ object (self)
 					!ginfodisp s; 
 					(* make a custom function that clears both us & our parent module 
 					if we happen to be overruled (have the hit variable cleared *)
-					(true, selfsize, (fun () -> self#clearHit(); superClearHit()) )
+					(true, selfsize, mz, (fun () -> self#clearHit(); superClearHit()) )
 				) else ( 
-					(ja, hitsize, clearhit) 
+					(ja, hitsize, hitz, clearhit) 
 				)
-			) else (ja, hitsize, clearhit) 
-		) else (ja, hitsize, clearhit) 
+			) else (ja, hitsize, hitz, clearhit) 
+		) else (ja, hitsize, hitz, clearhit) 
 	)
 	method clearHit () = m_hit <- false ; 
 	method getHit () = m_hit

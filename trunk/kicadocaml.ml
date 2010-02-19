@@ -14,6 +14,7 @@ open Propagate
 open Drc
 open Schematic
 open Doarray
+open Netlist
 
 let nulfun _ = false ;;
 
@@ -70,30 +71,6 @@ object
 			(*these sections seem to be followed by two newlines.. *)
 			flush oc ; 
 		)
-	)
-end;;
-
-class pcb_net = 
-object 
-	val mutable m_name = "" (*netname*)
-	val mutable m_net = 0 (*netnumber*)
-	method getNet () = m_net
-	method getName () = m_name
-	method read ic = 
-	(
-		let line = input_line2 ic in
-		let d = ref "" in
-		let sp = Pcre.extract ~pat:"Na (\d+) \"([^\"]*)\"" line in
-		m_net <- ios sp.(1); 
-		m_name <- sp.(2); 
-		d := input_line2 ic ; (*read the St ~ line, not used*)
-		d := input_line2 ic ; (*read the $EndEQUIPOT line *)
-	)
-	method save oc = (
-		fprintf oc "$EQUIPOT\n" ; 
-		fprintf oc "Na %d \"%s\"\n" m_net m_name ; 
-		fprintf oc "St ~\n" ; 
-		fprintf oc "$EndEQUIPOT\n" ; 
 	)
 end;;
 
@@ -418,23 +395,6 @@ let render togl cb =
 		let h = foi(snd !gwindowsize) in
 		let s = (2. /. h) /. !gzoom in
 		
-		let drawRect (xl,yl,xh,yh) = 
-			let count = ref 0 in
-			let raw = Raw.create_static `float 12 in
-			GlArray.vertex `three raw ; 
-			let vertex3 (x,y,z) = 
-				Raw.set_float raw ~pos:(!count*3 + 0) x ; 
-				Raw.set_float raw ~pos:(!count*3 + 1) y ; 
-				Raw.set_float raw ~pos:(!count*3 + 2) z ;
-				incr count ; 
-			in
-			vertex3 ( xl , yl, 0.5) ; 
-			vertex3 ( xl , yh, 0.5) ; 
-			vertex3 ( xh , yh, 0.5) ; 
-			vertex3 ( xh , yl, 0.5) ; 
-			GlArray.draw_arrays `quads 0 4 ; 
-			Raw.free_static raw ; 
-		in
 		let vertex3 raw c (x,y,z) = 
 			Raw.set_float raw ~pos:(!c*3 + 0) x ; 
 			Raw.set_float raw ~pos:(!c*3 + 1) y ; 
@@ -459,9 +419,9 @@ let render togl cb =
 			GlArray.draw_arrays `quads 0 8 ; 
 			Raw.free_static raw ; 
 		in
-		let drawRing (x,y) radius1 radius2 = 
+		(*let drawRing (x,y) radius1 radius2 = 
 			let c = ref 0 in
-			let n = 10 in
+			let n = 8 in
 			let raw = Raw.create_static `float (n*2*4*3) in 
 			GlArray.vertex `three raw ; 
 			let (fid, fod) = radius1 /. !gzoom, radius2 /. !gzoom in
@@ -479,22 +439,38 @@ let render togl cb =
 			GlArray.draw_arrays `quads 0 (n*2*4) ; 
 			Raw.free_static raw ; 
 		in
+		let drawRect (xl,yl,xh,yh) = 
+			let count = ref 0 in
+			let raw = Raw.create_static `float 12 in
+			GlArray.vertex `three raw ; 
+			let vertex3 (x,y,z) = 
+				Raw.set_float raw ~pos:(!count*3 + 0) x ; 
+				Raw.set_float raw ~pos:(!count*3 + 1) y ; 
+				Raw.set_float raw ~pos:(!count*3 + 2) z ;
+				incr count ; 
+			in
+			vertex3 ( xl , yl, 0.5) ; 
+			vertex3 ( xl , yh, 0.5) ; 
+			vertex3 ( xh , yh, 0.5) ; 
+			vertex3 ( xh , yl, 0.5) ; 
+			GlArray.draw_arrays `quads 0 4 ; 
+			Raw.free_static raw ; 
+		in
 		let drawCursor (x,y) = 
 			drawRect (x -. s,y -. s,x +. s,y +. s) 
-		in
-		GlDraw.color ~alpha:0.16 (match !gmode with
+		in *)
+		GlDraw.color ~alpha:0.7 (match !gmode with
 			| Mode_AddTrack -> (1.,0.80,0.22) (* orange *)
 			| Mode_MoveTrack -> (1.,0., 0.2) (* red *)
 			| Mode_MoveModule -> (0.55,0.16,1.) (* purple-blue *)
 			| Mode_MoveText -> (0.22,0.77,1.) (* aqua *)
 		); 
-		drawRing !gcurspos 0.17 0.2; 
+		drawCrosshairs !gcurspos ; 
+		(* drawRing !gcurspos (0.17 *. 0.7) (0.2 *. 0.7); 
 		GlDraw.color ~alpha:1. (1. , 1., 1. ); 
 		drawCursor !gcurspos ; 
-		GlDraw.color ~alpha:0.5 (1. , 1., 1. ); 
-		drawCrosshairs !gcurspos ; 
 		GlDraw.color ~alpha:1. (0.4 , 1., 0.8 ); 
-		drawCursor !gsnapped ; 
+		drawCursor !gsnapped ; *)
 		GlDraw.color ~alpha:0.5 (0.4 , 1., 0.8 ); 
 		drawCrosshairs !gsnapped ; 
 		(* draw crosshairs too ... may be useful! *)
@@ -1108,7 +1084,9 @@ let makemenu top togl filelist =
 				if m#getLibRef () = "0603" then k+1 else k) 0 mods 
 		in
 		let orig = count0603 !gmodules in
-		gmodules := Netlist.read_netlist fname gmodules;
+		let mods,nets = read_netlist fname gmodules in
+		gmodules := mods; 
+		gnets := nets; 
 		let neu = count0603 !gmodules in
 		printf "** original: %d new: %d\n%!" orig neu ; 
 		(* redo the rat's nest. *)
@@ -1262,15 +1240,15 @@ let makemenu top togl filelist =
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
 			(* set the hit flags& get a netnum *)
-			let (nn,_,_) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
-				m#hit out !ghithold onlyworknet netnum hitsize clearhit
-			) (worknet, 1e24, (fun() -> ()) ) !gmodules 
+			let (nn,_,_,_) = List.fold_left (fun (netnum,hitsize,clearhit) m -> 
+				m#hit out !ghithold onlyworknet netnum hitsize hitz clearhit
+			) (worknet, 1e24, -2e2, (fun() -> ()) ) !gmodules 
 			in
 			let netn = 
 				if !gdrawtracks then (
 					List.fold_left (fun netn1 track -> 
 						track#hit (out, onlyworknet, !ghithold, netn1) 
-					) nn !gtracks 
+					) (nn,-2e2) !gtracks 
 				) else nn
 			in
 			gcurnet := netn ; 
@@ -1609,7 +1587,6 @@ let makemenu top togl filelist =
 				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
 				gcurnet := !workingnet;
 				render togl nulfun;
-				print_endline "---" ; 
 			) ; 
 		)
 		~onRelease:
@@ -1897,7 +1874,7 @@ let makemenu top togl filelist =
 			| "add track" -> bindMouseAddTrack () ;
 			| _ -> () ; 
 	in
-	let clist = ["#6d48ff";"#48c7ff";"#e55c6a";"#e2873d"] in
+	let clist = ["#8537ff";"#48c7ff";"#e55c6a";"#e2873d"] in
 	let mlist = List.map2 (fun choice color ->
 		Radiobutton.create ~indicatoron:true ~text:choice ~value:choice
 				~background:(`Color color)
@@ -2771,8 +2748,10 @@ let _ =
 		let clients = ref (FDSet.singleton sockin) in
 		let crossprobein () =
 			let readstr ss = 
-				let arr,fnd = try (Pcre.extract ~pat:"\$PART: (\w\d+)" ss), true 
+				let arr,fnd = try (Pcre.extract ~pat:"\$PART: ([\w\d]+)" ss), true 
 					with Not_found -> [||],false in
+				let pinarr, pinfind = try (Pcre.extract ~pat:"\$PIN: ([\w\d]+)" ss),true
+					with _ -> [||], false in
 				if fnd then (
 					let part = arr.(1) in
 					print_endline part ; 
@@ -2780,11 +2759,16 @@ let _ =
 						List.iter (fun (m:Mod.pcb_module) -> 
 							let txt = m#getRef() in
 							if( String.compare txt part ) = 0 then (
-								let (x,y,x2,y2) = m#getBBX false in
-								let w,h = x2 -. x , y2 -. y in
-								let pp = Pts2.add (x,y) (w /. 2. , h /. 2.) in
-								gpan := Pts2.scl pp (-1.); 
-								gcurspos := pp ; 
+								let ctr = if pinfind then (
+									let pin = pinarr.(1) in
+									try (List.find (fun p -> (p#getPadName ()) = pin) 
+										(m#getPads()))#getCenter()
+										with _ -> m#getCenter false
+								) else (
+									m#getCenter false
+								) in
+								gpan := Pts2.scl ctr (-1.); 
+								gcurspos := ctr ; 
 								print_endline "found module! " ; 
 								render togl nulfun;
 							) ; 
@@ -2805,6 +2789,7 @@ let _ =
 						with Unix.Unix_error(_,"read",_) -> 0, false in
 					if got then (
 						let ss = String.sub s 0 rcvlen in
+						printf "%s\n" ss; 
 						readstr ss ;
 					); 
 				) else (
@@ -2852,7 +2837,7 @@ let _ =
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace...  *)
 	(*openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; 
-	gmodules := Netlist.read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
+	gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
 	gratsnest#clearAll (); 
 	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
 	redoRatNest (); *)

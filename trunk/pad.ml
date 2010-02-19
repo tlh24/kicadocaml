@@ -87,23 +87,23 @@ object (self)
 		(* we can keep refs to the other instance variables. *)
 	)
 	method clearHit () = m_hit <- false ; 
-	method hit p onlyworknet ja netnum hitsize clearhit = (
+	method hit p onlyworknet ja netnum hitsize hitz clearhit = (
 		m_washit <- m_hit ; 
 		let selfsize = m_g#getBBXSize () in
-		if selfsize < hitsize then (
-			(*don't hit if we are not displayed, or if we are not on this layer. *)
-			let (en,active) = List.fold_left (fun (b,c) lay -> 
-				( (b || glayerEn.(lay)),(c || !glayer = lay || !glayer < 0) )
-			) (false,false) m_layers in
+		let mz = m_g#getZ () in
+		if selfsize < hitsize && mz >= hitz then (
+			(*don't hit if we are not displayed*)
+			let en = List.fold_left (fun b lay -> (b || glayerEn.(lay))
+			) false m_layers in
 			(* don't update the hit variable if mouse button 1 is down *)
-			m_hit <- (m_g#hit p) && en && active && (not onlyworknet || netnum = m_netnum); 
+			m_hit <- (m_g#hit p) && en && (not onlyworknet || netnum = m_netnum); 
 			if m_hit then (
 				(* print_endline "snapped to pad!" ; *)
 				clearhit (); (*clear the previous hit record, we are smaller *)
 				gsnapped := bbxCenter ( m_g#getBBX() ) ;
-				true, m_netnum, selfsize, self#clearHit
-			)else ja, netnum, hitsize, clearhit
-		) else ja, netnum, hitsize, clearhit
+				true, m_netnum, selfsize, mz, self#clearHit
+			)else ja, netnum, hitsize, hitz, clearhit
+		)else ja, netnum, hitsize, hitz, clearhit
 	)
 	method crossprobe () = (
 		if m_hit then (

@@ -126,39 +126,39 @@ object (self)
 	
 	method clearHit () = m_hit <- false ; 
 	
-	method hit p hithold onlyworknet netnum hitsize clearhit = (
+	method hit p hithold onlyworknet netnum hitsize hitz clearhit = (
 		(* if any of the pads are hit, then this module is hit *)
 		(* pads can only be hit if you are on the right layer *)
 		(* modules can be hit from any layer fi you are in mod-move mode*)
 		if not m_moving && m_visible then (
 			(* texts can be moved semi-independently from the module, 
 			hence need to check these independently. *)
-			let (hittext, hitsize2, clearhit2) = 
+			let (hittext, hitsize2, hitz2, clearhit2) = 
 				if !gmode = Mode_MoveText then ( (*don't select texts in track modes.. *)
 					List.fold_left 
-					(fun (ht, hs, clrhit) t -> t#hit (p, self#clearHit, ht, hs, clrhit))
-					(false, hitsize, clearhit) m_texts 
-				) else (false, hitsize, clearhit)
+					(fun (ht, hs, hz, clrhit) t -> t#hit (p, self#clearHit, ht, hs, hz, clrhit))
+					(false, hitsize, hitz, clearhit) m_texts 
+				) else (false, hitsize, hitz, clearhit)
 			in
-			(* now check everything that moves with the module the body & the pads *)
+			(* now check everything that moves with the module - the body & the pads *)
 			let selfsize = m_g#getBBXSize () in
-			let (hitpad, netnum3, hitsize3, clearhit3) = 
-				List.fold_left (fun (hit,nn,siz,clrhit) pad ->
-					pad#hit p onlyworknet hit nn siz clrhit
-				) (false, netnum, hitsize2, clearhit2) m_pads
+			let (hitpad, netnum3, hitsize3, hitz3, clearhit3) = 
+				List.fold_left (fun (hit,nn,siz,z,clrhit) pad ->
+					pad#hit p onlyworknet hit nn siz z clrhit
+				) (false, netnum, hitsize2, hitz2, clearhit2) m_pads
 			in
+			let mz = glayerZ.(m_layer) in
 			let hitself = m_g#hit p && selfsize < hitsize3 
-				&& !gmode != Mode_MoveText && 
-				(!glayer = m_layer || !gmode = Mode_MoveModule) in
+				&& mz >= hitz3 && !gmode != Mode_MoveText in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
 			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 
 			if hitself then (
 				clearhit3 () ; (*clear the previous hit record, we are smaller *)
-				(netnum3, selfsize, self#clearHit)
+				(netnum3, selfsize, mz, self#clearHit)
 			) else 
-				(netnum3, hitsize3, clearhit3)
-		) else (netnum, hitsize, clearhit)
+				(netnum3, hitsize3, hitz3, clearhit3)
+		) else (netnum, hitsize, hitz, clearhit)
 	)
 	method getHit () = m_hit 
 	method setHit b = m_hit <- b ; 

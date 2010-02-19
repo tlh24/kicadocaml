@@ -167,7 +167,8 @@ object (self)
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* can hit on any layer if we are in track move mode *)
 			(* only hit on the working layer if we are adding tracks *)
-			if not m_moving && (m_layer = !glayer || m_type = Track_Via ) 
+			let mz = m_g#getZ () in
+			if not m_moving && mz >= hitz 
 				&& m_visible && (not onlyworknet || netnum = m_net) then (
 				(* don't update the hit variable if we are moving*)
 				(* don't hit if onlyworknet (e.g. when adding or removing a track)

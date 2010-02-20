@@ -1311,6 +1311,7 @@ let makemenu top togl filelist =
 		Mouse.releasePress top; 
 		Mouse.bindPress top ~onPress:
 		(fun ev -> 
+			updatecurspos ev; (* get a new hit *)
 			workingnet := !gcurnet ; 
 			if !workingnet > 0 then (
 				(* we should figure out the orientation of the present track, if we are extending any *)
@@ -1329,6 +1330,10 @@ let makemenu top togl filelist =
 						)
 					) else ( (0.0, 0.0), false ) 
 				in
+				(* update the layer *)
+				let lay =  try (List.find (fun t -> t#getHit()) !gtracks)#getLayer ()
+					with _ -> !glayer in
+				if lay <> !glayer then changelayercallback (layer_to_string lay); 
 				let track = new pcb_track in
 				gtracks := (track :: !gtracks); 
 				gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true; 

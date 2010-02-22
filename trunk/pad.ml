@@ -85,6 +85,7 @@ object (self)
 		(* we can keep refs to the other instance variables. *)
 	)
 	method clearHit () = m_hit <- false ; 
+	method getHit () = m_hit ; 
 	method hit p onlyworknet ja netnum hitsize hitz clearhit = (
 		m_washit <- m_hit ; 
 		let ms = m_g#getBBXSize () in
@@ -96,7 +97,7 @@ object (self)
 			(* don't update the hit variable if mouse button 1 is down *)
 			m_hit <- (m_g#hit p) && en && (not onlyworknet || netnum = m_netnum); 
 			if m_hit then (
-				(* print_endline "snapped to pad!" ; *)
+				(* printf "snapped to pad %s\n%!" m_padname; *)
 				clearhit (); (*clear the previous hit record, we are smaller *)
 				gsnapped := bbxCenter ( m_g#getBBX() ) ;
 				true, m_netnum, ms, mz, self#clearHit

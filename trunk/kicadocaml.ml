@@ -312,13 +312,6 @@ let helpbox name text top () =
 	let mesg = Message.create ~text helptop in
 	pack [mesg]
 
-
-let maketop =
-	let top = openTk () in
-	(*Wm.aspect_set top ~minnum:4 ~mindenom:3 ~maxnum:4 ~maxdenom:3;*)
-	Wm.title_set top "Kicad Ocaml";
-	top
-
 let render togl cb =
 	Togl.make_current togl ; 
 	let w, h = !gwindowsize in
@@ -1123,6 +1116,7 @@ let makemenu top togl filelist =
 	Menu.add_command filemenu ~label:"Quit" ~command:
 		(fun () -> 
 			(!gclosesock) () ; 
+			let geo = Wm.geometry_get top in
 			closeTk () ; 
 			(* save the file list (perhaps this will include more preferences, later *)
 			let prefs = "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" in
@@ -1131,6 +1125,7 @@ let makemenu top togl filelist =
 			List.iter (fun (board, schematic) -> 
 				fprintf oc "%s %s\n" board schematic;
 			) !gfilelist ; 
+			fprintf oc "Geometry %s\n" geo; 
 			flush oc ; 
 			close_out_noerr oc; 
 		); 
@@ -2325,6 +2320,7 @@ let makemenu top togl filelist =
 		gcurspos := calcCursPos ev !gpan true; (* this will update the list of hit modules *)
 		(* if shift is down, do the blockrotate *)
 		if !ghithold then ( 
+			(* printf "rotate modules\n%!"; *)
 			let tracks = List.filter (fun t -> t#getHit()) !gtracks in
 			Blockrotate.rotate 
 				(List.filter (fun m -> m#getHit()) !gmodules)
@@ -2333,7 +2329,8 @@ let makemenu top togl filelist =
 			let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 			SI.iter (fun n -> gratsnest#updateTracks ~final:true n !gtracks ) worknets;
 		) else (
-			List.iter (fun m -> m#rotate()) !gmodules ; 
+			(* printf "rotate module\n%!"; *)
+			List.iter (fun m -> m#rotate !gcurspos) !gmodules ; 
 		); 
 		render togl nulfun;
 	in
@@ -2687,6 +2684,7 @@ let _ =
 	testLineDistance (1., -1.) (2., -1.) (-1., 1.) (-1., 1.) ;
 	
 	(* read in the preferences *)
+	let geo = ref "" in
 	let fil = "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" in
 	let cin = try Some (open_in fil)
 		with _ -> None
@@ -2700,18 +2698,23 @@ let _ =
 					with End_of_file -> "", false
 				in
 				if ok then (
-					(* printf " pref line: %s\\n \n%!" line ;  *)
-					let space = String.index line ' ' in
-					(* printf "space @ %d\n%!" space ; *)
-					let stripSpace x = 
-						Pcre.qreplace ~pat:"\s" ~templ:"" x 
-					in
-					let fname = stripSpace (String.sub line 0 space) in
-					let sname = stripSpace 
-						(String.sub line (space+1) ((String.length line) - space-1)) in
-					printf " pref fname:%s\\s sname:%s\\s\n%!" fname sname ;
-					gfilelist := ((fname, sname) :: !gfilelist); 
-					okok := true; 
+					if String.get line 0 = '/' then (
+						(* printf " pref line: %s\\n \n%!" line ;  *)
+						let space = String.index line ' ' in
+						(* printf "space @ %d\n%!" space ; *)
+						let stripSpace x = 
+							Pcre.qreplace ~pat:"\s" ~templ:"" x 
+						in
+						let fname = stripSpace (String.sub line 0 space) in
+						let sname = stripSpace 
+							(String.sub line (space+1) ((String.length line) - space-1)) in
+						printf " pref fname:%s\\s sname:%s\\s\n%!" fname sname ;
+						gfilelist := ((fname, sname) :: !gfilelist); 
+						okok := true; 
+					) ;
+					if Pcre.pmatch ~pat:"Geometry" line then (
+						geo := (Pcre.extract ~pat:"Geometry ([\w\d\+]+)" line).(1); 
+					) ; 
 				) else (
 					okok := false; 
 				)
@@ -2720,7 +2723,11 @@ let _ =
 		| None -> ()
 	); 
 	gfilelist := List.rev !gfilelist ;
-	let top = maketop in
+	let top = openTk () in
+	(*Wm.aspect_set top ~minnum:4 ~mindenom:3 ~maxnum:4 ~maxdenom:3;*)
+	Wm.title_set top "Kicad Ocaml";
+	if !geo <> "" then Wm.geometry_set top !geo ; 
+	printf "Geometry set at %s ; delete line in %s to reset\n%!" !geo fil; 
 	let togl = Togl.create ~width:1024 ~height:700 
 		~rgba:true ~double:true ~depth:true top in
 	Togl.display_func togl ~cb:(fun () -> render togl nulfun);

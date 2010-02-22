@@ -249,7 +249,7 @@ object (self)
 		let (mx,my) = if movin then m_move else (0.0, 0.0) in
 		(ohx +. ox) /. 2. +. mx,  (ohy +. oy) /. 2. +. my
 	)
-	method rotate () = (
+	method rotate p = (
 		if m_washit then (
 			if !gmode = Mode_MoveText then (
 				let (txt, found) = self#txthit() in
@@ -258,20 +258,31 @@ object (self)
 				)
 			); 
 			if !gmode = Mode_MoveModule then (
-				let getOffset () = 
-					Pts2.sub (self#getCenter false ) (m_x,m_y)
+				(* don't rotate if we hit a pad - this is used for switching layers
+				and it's too confusing to have it rotate modules too *)
+				let (hitpad, _, _, _, _) = 
+					List.fold_left (fun (hit,nn,siz,z,clrhit) pad ->
+						pad#hit p false hit nn siz z clrhit
+					) (false, 0, 100.0, -2.0, (fun ()->())) m_pads
 				in
-				let (ofx, ofy) = getOffset () in
-				self#setRot (m_rot + 900) ; 
-				if m_rot > 3600 then m_rot <- m_rot - 3600 ;
-				(* rotation by +90 deg is pretty simple -- *)
-				let (px,py) = Pts2.sub (ofx,ofy) ((1.) *. ofy, (-1.) *. ofx) in
-				m_x <- m_x +. px ; 
-				m_y <- m_y +. py ; 
-				let oldmove = m_move in
-				self#update ();
-				m_move <- oldmove ; (* the move is actually applied when you release the mouse.*)
-				(* this lets you drag and rotate at the same time *)
+				if not hitpad then (
+					let getOffset () = 
+						Pts2.sub (self#getCenter false ) (m_x,m_y)
+					in
+					let (ofx, ofy) = getOffset () in
+					self#setRot (m_rot + 900) ; 
+					if m_rot > 3600 then m_rot <- m_rot - 3600 ;
+					(* rotation by +90 deg is pretty simple -- *)
+					let (px,py) = Pts2.sub (ofx,ofy) ((1.) *. ofy, (-1.) *. ofx) in
+					m_x <- m_x +. px ; 
+					m_y <- m_y +. py ; 
+					let oldmove = m_move in
+					self#update ();
+					m_move <- oldmove ; (* the move is actually applied when you release the mouse.*)
+					(* this lets you drag and rotate at the same time *)
+				) else (
+					printf "To rotate a module, click on the body an not any of the pads\n%!"; 
+				)
 			) ;
 		) ; 
 	)

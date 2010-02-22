@@ -494,6 +494,7 @@ let render togl cb =
 	GlMat.pop() ; 
 	Gl.flush ();
 	Togl.swap_buffers togl ; 
+	(* Printexc.print_backtrace stdout ocaml 3.11 *)
   ;;
 
 let redoRatNest () =
@@ -2897,8 +2898,8 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
-	Printexc.record_backtrace true ; 
-	Printexc.print_backtrace stdout mainLoop ()          (* and go! *)
+	(* Printexc.record_backtrace true ; ocaml 3.11 *)
+	Printexc.print mainLoop () ;
 	;;
 		
 	

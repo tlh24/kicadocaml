@@ -149,7 +149,7 @@ object (self)
 			let ms = m_g#getBBXSize () in
 			let mz = glayerZ.(m_layer) in
 			let hitself = m_g#hit p && 
-				( ms < hitsize ) &&
+				( ms < hitsize3 ) &&
 				!gmode <> Mode_MoveText in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 

@@ -174,8 +174,7 @@ object (self)
 		method hitclear () = m_hit <- false
 		method hit (p, onlyworknet, hitsize, hitz, hitclear, hithold, netnum) = 
 			(* do not update 'hit' if the first mouse button is down. *)
-			(* can hit on any layer if we are in track move mode *)
-			(* only hit on the working layer if we are adding tracks *)
+			(* hit bazed on z-sorting. *)
 			(* hitclear is a list as we can hit more than one track at a time *)
 			let mz = match m_type with
 				| Track_Track -> glayerZ.(m_layer)
@@ -236,10 +235,10 @@ object (self)
 						m_net, ms, mz, (self#hitclear :: hitclear)
 					)
 				)
-				else netnum, hitsize, hitz, hitclear
-			) else netnum, hitsize, hitz, hitclear
+				else ( m_hit <- false; netnum, hitsize, hitz, hitclear )
+			) else  ( m_hit <- false; netnum, hitsize, hitz, hitclear )
 			
-		method touch p = 
+		method touch p = (
 			(* this is a softer version of hit - 
 			it only sees if the point is within the track area. 
 			it does not update anything, just returns a bool 
@@ -252,7 +251,7 @@ object (self)
 			)else if glayerEn.(m_layer) then (
 				Pts2.tracktouch st en p w2
 			) else false
-		
+		)
 		method updateDrcBBX () = (
 			let stx,sty = self#getStart () in
 			let enx,eny = self#getEnd () in
@@ -296,7 +295,6 @@ object (self)
 				)
 			)
 		)
-		
 		method move m = (
 			if m_u <= 1. && m_u >= 0. then (
 				m_move <- m ; 

@@ -1326,8 +1326,14 @@ let makemenu top togl filelist =
 					) else ( (0.0, 0.0), false ) 
 				in
 				(* update the layer *)
-				let lay =  try (List.find (fun t -> t#getHit()) !gtracks)#getLayer ()
-					with _ -> !glayer in
+				(* see if the present layer is in the hittracks *)
+				let preslayergood = List.exists (fun t -> 
+					t#getLayer() = !glayer || t#isVia() ) hittracks in
+				(* if it's not, choose the one with the largest Z *)
+				let sorted = List.sort (fun b a -> 
+					compare (glayerZ.(a#getLayer())) (glayerZ.(b#getLayer()))) hittracks in
+				let lay = if preslayergood || List.length sorted = 0 then !glayer else 
+					(List.hd sorted)#getLayer() in
 				if lay <> !glayer then changelayercallback (layer_to_string lay); 
 				let track = new pcb_track in
 				gtracks := (track :: !gtracks); 
@@ -1730,7 +1736,7 @@ let makemenu top togl filelist =
 		)
 		~onRelease: 
 		(fun evinf ->
-			printf "bindMouseMoveModule: releasing movement\n%!" ;
+			(* printf "bindMouseMoveModule: releasing movement\n%!" ;*)
 			Mouse.releaseMove top ; 
 			(* need to update the moved tracks, if there were any *)
 			List.iter (fun m -> m#setMoving false; m#setHit false) !modules ; 

@@ -84,9 +84,9 @@ object (self)
 		m_gtext <- new grfx;
 		(* we can keep refs to the other instance variables. *)
 	)
-	method clearHit () = m_hit <- false ; 
+	method clearHit () = printf "clearhit %s\n%!" m_padname; m_hit <- false ; List.hd [] ; ()
 	method getHit () = m_hit ; 
-	method hit p onlyworknet ja netnum hitsize hitz clearhit = (
+	method hit p onlyworknet ja netnum hitsize hitz clearhitin = (
 		m_washit <- m_hit ; 
 		let ms = m_g#getBBXSize () in
 		let mz = m_g#getZ () in
@@ -97,12 +97,12 @@ object (self)
 			(* don't update the hit variable if mouse button 1 is down *)
 			m_hit <- (m_g#hit p) && en && (not onlyworknet || netnum = m_netnum); 
 			if m_hit then (
-				(* printf "snapped to pad %s\n%!" m_padname; *)
-				clearhit (); (*clear the previous hit record, we are smaller *)
+				printf "snapped to pad %s\n%!" m_padname;
+				clearhitin (); (*clear the previous hit record, we are smaller *)
 				gsnapped := bbxCenter ( m_g#getBBX() ) ;
 				true, m_netnum, ms, mz, self#clearHit
-			)else ja, netnum, hitsize, hitz, clearhit
-		)else ja, netnum, hitsize, hitz, clearhit
+			)else ja, netnum, hitsize, hitz, clearhitin
+		)else ja, netnum, hitsize, hitz, clearhitin
 	)
 	method crossprobe () = (
 		if m_hit then (

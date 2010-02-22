@@ -1252,6 +1252,7 @@ let makemenu top togl filelist =
 		); 
 		out
 	in
+	
 	let updatecurspos ev = 
 		gcurspos :=  calcCursPos ev !gpan true; 
 		!gcursordisp "cursor" (fst !gcurspos) (snd !gcurspos) ; 
@@ -1327,13 +1328,26 @@ let makemenu top togl filelist =
 					) else ( (0.0, 0.0), false ) 
 				in
 				(* update the layer *)
+				(* see if we hit a pad - if we hit a pad and a track, may not need to change layers *)
+				(* therefore update the hit vars *)
+				printf "adding track ..\n%!" ; 
+				ignore( List.fold_left (fun (nn,hitsize,hitz,clearhit) m -> 
+					m#hit !gcurspos false false nn hitsize hitz clearhit
+				) (0, 1e24, -2e2, (fun() -> ()) ) !gmodules ); 
+				let padHasLayer = List.exists (fun m-> 
+					List.exists (fun p -> 
+						if p#getHit() then printf "pin hit\n%!"; 
+						(p#getHit ()) && (p#hasLayer !glayer)
+					) (m#getPads ())
+				) !gmodules in
+				printf "padhasLayer %B\n%!" padHasLayer ; 
 				(* see if the present layer is in the hittracks *)
 				let preslayergood = List.exists (fun t -> 
 					t#getLayer() = !glayer || t#isVia() ) hittracks in
 				(* if it's not, choose the one with the largest Z *)
 				let sorted = List.sort (fun b a -> 
 					compare (glayerZ.(a#getLayer())) (glayerZ.(b#getLayer()))) hittracks in
-				let lay = if preslayergood || List.length sorted = 0 then !glayer else 
+				let lay = if preslayergood || padHasLayer || List.length sorted = 0 then !glayer else 
 					(List.hd sorted)#getLayer() in
 				if lay <> !glayer then changelayercallback (layer_to_string lay); 
 				let track = new pcb_track in
@@ -2873,8 +2887,8 @@ let _ =
 	let pts = List.map  (fun(x,y) -> foi x, foi y)
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
-	(* this for testing (so we can get a backtrace...  *)
-	(*openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; 
+	(* this for testing (so we can get a backtrace...  
+	openFile top "/home/tlh24/svn/myopen/emg_dsp/stage3/stage3.brd"; 
 	gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
 	gratsnest#clearAll (); 
 	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
@@ -2883,7 +2897,8 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
-	Printexc.print mainLoop ()          (* and go! *)
+	Printexc.record_backtrace true ; 
+	Printexc.print_backtrace stdout mainLoop ()          (* and go! *)
 	;;
 		
 	

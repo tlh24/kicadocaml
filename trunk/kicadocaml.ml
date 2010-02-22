@@ -1244,7 +1244,8 @@ let makemenu top togl filelist =
 				if !gdrawtracks then (
 					List.fold_left (fun (netn1,hitsize,hitz,hitclear) track -> 
 						track#hit (out, onlyworknet, hitsize, hitz, hitclear, !ghithold, netn1)
-					) (nn,hitsize2,hitz2,[hitclear2]) !gtracks 
+					) (nn,hitsize2,(hitz2 -. 1.0),[hitclear2]) !gtracks 
+					(* subtract one so that we can hit tracks if we don't hit a module *)
 				) else nn,hitsize2,hitz2,[]
 			in
 			gcurnet := netn ; 

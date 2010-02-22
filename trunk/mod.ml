@@ -150,7 +150,7 @@ object (self)
 			let mz = glayerZ.(m_layer) in
 			let hitself = m_g#hit p && 
 				( ms < hitsize ) &&
-				!gmode != Mode_MoveText in
+				!gmode <> Mode_MoveText in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
 			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 

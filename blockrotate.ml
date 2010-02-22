@@ -30,7 +30,7 @@ let rotate mods tracks =
 	then rotate about the collective center *)
 	let cnt = ref 0 in
 	List.iter (fun m -> 
-		m#rotate () ; 
+		m#rotate (-1e26,-1e26) ; (* to be sure no pads are hit *)
 		m#move (Pts2.rotateMove (Pts2.sub (m#getCenter false) center) );
 		m#setMoving false ; (* to apply the move *)
 		incr cnt; 

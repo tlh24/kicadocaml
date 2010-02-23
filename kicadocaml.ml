@@ -1337,11 +1337,9 @@ let makemenu top togl filelist =
 				) (0, 1e24, -2e2, (fun() -> ()) ) !gmodules ); 
 				let padHasLayer = List.exists (fun m-> 
 					List.exists (fun p -> 
-						if p#getHit() then printf "pin hit\n%!"; 
 						(p#getHit ()) && (p#hasLayer !glayer)
 					) (m#getPads ())
 				) !gmodules in
-				printf "padhasLayer %B\n%!" padHasLayer ; 
 				(* see if the present layer is in the hittracks *)
 				let preslayergood = List.exists (fun t -> 
 					t#getLayer() = !glayer || t#isVia() ) hittracks in

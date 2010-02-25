@@ -20,6 +20,7 @@ object (self)
 	val mutable m_hit = false
 	val mutable m_moving = false
 	val mutable m_hitN = 0
+	val mutable m_hitEdge = -1
 	(* minimum thickness of the zone.  kicad draws the edges of each polygon
 	using a stroke of this width.  hence, when meshing our zones, we add this to the offset.
 	therefore the rendering and meshing of zones here will have larger holes than in kicad or 
@@ -70,7 +71,7 @@ object (self)
 				let (x2,y2,_) = corners.(0) in
 				x0 := x2 ; y0 := y2 ;
 				let len = (Array.length corners) in
-				(* Printf.printf "zone update corners %d\n%!" len;  *)
+				Printf.printf "zone update corners %d\n%!" len;
 				let rawv = Raw.create_static `float (4 * len) in
 				i := 0 ; 
 				Array.iteri (fun j (x1,y1,_) -> 
@@ -93,7 +94,7 @@ object (self)
 				y0 := y2 ; 
 				incr i; 
 				m_rawv <- rawv :: m_rawv ; 
-				(*  make little circles to let you drag around the corners *)
+				(*  make little squares to let you drag around the corners *)
 				let w = 0.01 /. 2.0 in
 				Array.iter (fun  (x1,y1,_) -> 
 					m_g#makeRectFloat ~accumulate:true x1 y1 w w ; 
@@ -101,14 +102,15 @@ object (self)
 			);
 		) m_corners ; 
 		(* now need to manage the color ; use grfx to compute this *)
-		m_g#updateLayer false m_layer; (* also calls update raw *)
+		m_g#updateLayer m_layer; (* also calls update raw *)
 		m_g#updateBBX () ; 
 		m_g#setZ 0.0 ; 
 		m_g#setAlpha 0.6 ; 
 	)
 	method update () = (
 		self#free () ; 
-		self#updateCorners (); 
+		self#updateCorners ();
+		self#updateLayers (); 
 		let i = ref 0 in
 		if List.length m_tris > 2 then (
 			let len = (List.length m_tris * 3) in (* number of lines *)
@@ -164,7 +166,7 @@ object (self)
 		); 
 	)
 	method updateLayers () = (
-		m_g#updateLayer false m_layer;
+		m_g#updateLayer m_layer;
 		m_Z <- m_g#getZ(); 
 	)
 	method empty () = (
@@ -419,29 +421,102 @@ object (self)
 				let found = ref false in
 				let n = ref 0 in
 				let r = 0.01 /. 2.0 in
-				for i = 0 to (Array.length (m_corners.(0)))-1 do (
+				let len = Array.length m_corners.(0) in
+				for i = 0 to len-1 do (
 					let (cx,cy,_) = (m_corners.(0)).(i) in
 					if fabs(px-.cx) < r && fabs(py-.cy) < r then (
 						found := true; 
 						n := i; 
 					)
 				) done ; 
+				(* also look at the lines between corners *)
+				let hitEdge k n s = 
+					let j = (k+1) mod len in
+					let ax,ay,_ = (m_corners.(0)).(k) in
+					let bx,by,_ = (m_corners.(0)).(j) in
+					let siz = (Pts2.distance (ax,ay) (bx,by)) *. r in
+					if Pts2.tracktouch (ax,ay) (bx,by) (px,py) (r/. 2.0) then k,siz else n,s
+				in
 				if !found then (
 					m_hitN <- !n ; 
+					m_hitEdge <- -1 ; 
 					let ms = 3.1415926 *. r *. r in
 					if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
 						m_hit <- true ; 
 						List.iter (fun f -> f ()) hitclear; 
 						(m_net,ms,m_Z,[self#hitclear])
 					) else (netnum,hitsize,hitz,hitclear)
-				) else (netnum,hitsize,hitz,hitclear)
+				) else (
+					(* see if we hit a segment *)
+					let k = ref (-1) in
+					let hitedge,edgesize = Array.fold_left (fun (n,s) _ -> 
+						incr k; 
+						hitEdge !k n s
+					) ((-1),hitsize) (m_corners.(0)) in
+(* 					if hitedge >= 0 then printf "hit an edge in zone!\n%!" ;  *)
+					if hitedge >= 0 && (m_Z > hitz || (m_Z = hitz && edgesize < hitsize)) then (
+						m_hit <- true; 
+						m_hitEdge <- hitedge; 
+						m_hitN <- -1 ; 
+						List.iter (fun f -> f ()) hitclear; 
+						(m_net,hitsize,m_Z,[self#hitclear])
+					) else (netnum,hitsize,hitz,hitclear)
+				)
 			) else (netnum,hitsize,hitz,hitclear)
 		) else (netnum,hitsize,hitz,hitclear)
 	)
+	method add (x,y) = (
+		(* add a point to the given selected edge *)
+		let corners = (m_corners.(0)) in
+		let clen = Array.length corners in
+		if m_hit && m_hitEdge >= 0 && m_hitEdge < clen then (
+			let j = ref 0 in
+			let c2 = Array.make (clen+1) (0.0,0.0,0) in
+			for i = 0 to clen-1 do (
+				c2.(!j) <- corners.(i); 
+				incr j; 
+				if i = m_hitEdge then (
+					c2.(!j) <- x,y,0 ; 
+					incr j;
+				)
+			) done ; 
+			self#cleanCorners c2; 
+			self#empty (); 
+			self#update (); 
+		)
+	)
+	method delete () = (
+		(* remove a corner *)
+		let corners = (m_corners.(0)) in
+		let clen = Array.length corners in
+		if m_hit && m_hitN >= 0 && m_hitN < clen && clen > 2 then (
+			let c2 = Array.make (clen-1) (0.0,0.0,0) in
+			let j = ref 0 in
+			for i = 0 to clen-1 do (
+				if i <> m_hitN then (
+					c2.(!j) <- corners.(i); 
+					incr j;
+				)
+			) done ;
+			self#cleanCorners c2; 
+			self#empty (); 
+			self#update (); 
+		)
+	)
+	method cleanCorners corners = (
+		let clen = Array.length corners in
+		let c3 = Array.map (fun (x,y,_) -> x,y,0) corners in
+		let x,y,_ = c3.(clen-1) in
+		c3.(clen-1) <- x,y,1 ; 
+		m_corners.(0) <- c3; 
+	)
 	method move (x,y) = (
 		let len = Array.length m_corners.(0) in
-		if m_moving && m_hitN >= 0 && m_hitN < len then
-			(m_corners.(0)).(m_hitN) <- (x,y,0); 
+		if m_moving && m_hitN >= 0 && m_hitN < len then (
+			let _,_,z = (m_corners.(0)).(m_hitN) in
+			(m_corners.(0)).(m_hitN) <- (x,y,z); 
+			self#updateCorners (); 
+		) ; 
 	)
 	method polyToTris () = (
 		(* try to convert the polygons in the input to triangles *)
@@ -454,12 +529,12 @@ object (self)
 			let loc (e,f,_,_) = (e,f) in
 			if (mark a) && not (mark !b) && not (mark !c) then (
 				(* this is a legit triangle, add it to the list *)
-				m_tris <- (loc a, loc !b, loc !c) :: m_tris ; 
+				m_tris <- (loc !c, loc !b, loc a) :: m_tris ; 
 			); 
 			c := !b ; 
 			b := a ; 
 		) m_poly; 
-		
+		m_tris <- List.rev m_tris ; 
 		if List.length m_tris = (List.length m_poly) / 3 then (
 			printf "converted %d poly segments to %d triangles\n%!" 
 				(List.length m_poly) (List.length m_tris) ; 
@@ -478,7 +553,7 @@ object (self)
 			m_poly <- ( (conv 1),(conv 2),(ios (sp.(3))),(ios (sp.(4))) ) :: m_poly ; 
 			line := input_line2 ic ; 
 		) done ; 
-		m_poly <- List.rev m_poly ; 
+		m_poly <- List.rev m_poly ;
 		self#polyToTris (); 
 	)
 	method read ic = (
@@ -534,19 +609,30 @@ object (self)
 		List.iter (fun (a,b,c) -> 
 			dcorners := (a,b,c) :: !dcorners ; 
 			if c > 0 then (
-				acorners := (List.rev !dcorners) :: !acorners ; 
+				acorners := (!dcorners) :: !acorners ; 
 				dcorners := [] ; (* empty so can be filled again *)
 			)
 		) (List.rev !corners); 
 		(* now convert this to an array of arrays *)
 		m_corners <- Array.map (fun lst -> 
 			Array.of_list (List.rev lst); 
-		) (Array.of_list !acorners); 
+		) (Array.of_list (List.rev !acorners)); 
 	)
 	method draw bbox = (
 		let alpha = if !gcurnet = m_net then 0.78 else 0.5 in
 		m_g#setAlpha alpha ; 
 		if m_g#draw bbox ~hit:m_hit then ( (* there shouldn't be anything outside the corners, right? *)
+			(* if we hit an edge, highlight that *)
+			let clen = Array.length (m_corners.(0)) in
+			if m_hit && m_hitEdge >= 0 && m_hitEdge < clen then (
+				let (ax,ay,_) = (m_corners.(0)).(m_hitEdge) in
+				let (bx,by,_) = (m_corners.(0)).((m_hitEdge+1) mod clen) in
+				GlDraw.begins `lines ; 
+				GlDraw.color ~alpha (1.,1.,1.) ; (* white *)
+				GlDraw.vertex2 (ax,ay) ; 
+				GlDraw.vertex2 (bx,by) ; 
+				GlDraw.ends () ;
+			) ; 
 			let color = m_g#getColor() in
 			GlDraw.color ~alpha color ;
 			List.iter (fun rv -> 

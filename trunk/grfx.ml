@@ -25,7 +25,8 @@ method getNumVerts () = numverts
 
 method updateRaw () = 
 	(* update the raw list *)
-	if(numverts > 3) then (
+	numverts <- List.length verts ; 
+	if(numverts > 2) then (
 		Raw.free_static rawv ; 
 		rawv <- Raw.create_static `float (2 * numverts) ; 
 		let i = ref 0 in
@@ -34,20 +35,15 @@ method updateRaw () =
 			Raw.set_float rawv ~pos:(2 * !i + 1) y ; 
 			incr i ; 
 		) verts ; 
-		numverts <- List.length verts ; 
 	) ; 
 	
-method updateLayer  ?(z=0.001) overridez layer = 
+method updateLayer layer = 
 	if glayerEn.(layer) then (
 		color <- layer_to_color layer ; 
 	) else (
 		color <- (0. , 0., 0. ); 
 	); 
-	if overridez then  (
-		m_z <- z ; 
-	)else(
-		m_z <- glayerZ.(layer);
-	); 
+	m_z <- glayerZ.(layer);
 	self#updateRaw (); 
 	
 method updateLayers layers = 
@@ -81,7 +77,6 @@ method updateBBX () =
 			(ix, iy) ) (List.hd verts) verts 
 		with _ -> (0.0, 0.0) in
 	bbx <- (minx, miny, maxx, maxy) ; 
-	numverts <- List.length verts ; 
 	
 method getBBX () = bbx
 

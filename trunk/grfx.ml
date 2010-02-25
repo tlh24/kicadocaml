@@ -90,10 +90,15 @@ method getBBXSize () = bbxSize bbx
 method makeRect x y w h = 
 	self#makeRectFloat x y (w/.2.0) (h/.2.0); 
 
-method makeRectFloat fx fy fw fh = 
-	verts <- [ (fx -. fw , fy -. fh ) ; (fx -. fw , fy +. fh ) ; (fx +. fw , fy +. fh ) ; (fx +. fw , fy -. fh ) ] ;
-	self#updateBBX (); 
-	self#updateRaw() ; 
+method makeRectFloat ?(accumulate=false) fx fy fw fh = 
+	verts <- List.rev_append 
+		[ (fx -. fw , fy -. fh ) ; (fx -. fw , fy +. fh ) ; 
+			(fx +. fw , fy +. fh ) ; (fx +. fw , fy -. fh ) ] 
+		verts ; 
+	if not accumulate then (
+		self#updateBBX (); 
+		self#updateRaw() ; 
+	)
 	
 method makeCircle ?(accumulate=false) x y w h = 
 	(* for convienence, will make this drawable with quads not triangles. *)

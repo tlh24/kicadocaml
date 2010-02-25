@@ -34,6 +34,12 @@ netlist.cmo:netlist.ml $(OBJS1)
 netlist.cmx:netlist.ml $(OPTOBJS1)
 	$(OCAMOPT) -syntax camlp4o $(OPTIONS),camlp4 $<
 	
+kicadocaml.cmo:kicadocaml.ml $(OBJS1) zone.ml
+	$(OCAMLC) $(OPTIONS),camlp4 $<
+	
+kicadocaml.cmx:kicadocaml.ml $(OPTOBJS1) zone.ml
+	$(OCAMOPT) $(OPTIONS),camlp4 $<
+	
 kicadocaml: $(OBJS)
 	$(LINKER) -linkpkg $(OPTIONS) $(OBJS) -o kicadocaml
 	

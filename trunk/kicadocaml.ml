@@ -93,7 +93,7 @@ object
 		m_g#makeTrackInt m_stx m_sty m_enx m_eny m_width ; 
 	)
 	method draw bbox = (
-		m_g#draw ~hit:false bbox ; 
+		ignore(m_g#draw ~hit:false bbox); 
 	)
 	method read ic = (
 		let line = input_line2 ic in
@@ -149,6 +149,7 @@ let groute135 = ref true
 let gtrackKeepSlope = ref true
 let gfilelist = ref [] 
 let gdrawtracks = ref true
+let gdrawmods = ref true
 let gdrawzones = ref true
 let gdrawratsnest = ref true
 let gpushrouting = ref false
@@ -346,17 +347,22 @@ let render togl cb =
 	!ginfodisp( "" ) ;
 	let more = cb () in
 	if not more then (
-		List.iter (fun m -> 
-			m#draw screenbbx
-			) !gmodules ; 
 		(* draw the tracks back to front so that the alpha-blending makes sense *)
 		(* this requires slightly more iteration but.. eh well, it is the correct way to do it*)
 		let layerZlist = List.filter (fun a -> glayerEn.(a)) (List.rev !glayerZlist) in
 		let lastLayer = try List.hd (List.rev layerZlist) with _ -> 0 in
 		List.iter ( fun lay -> 
 			let lastiter = (lay = lastLayer) in
+			let z = glayerZ.(lay) in
 			GlMat.push () ; 
-			GlMat.translate ~x:0. ~y:0. ~z:glayerZ.(lay) () ; 
+			GlMat.translate ~x:0. ~y:0. ~z () ; 
+			(* draw the modules - they handle z-sorting internally *)
+			if !gdrawmods then (
+				List.iter (fun m -> 
+					m#draw screenbbx z
+				) !gmodules ; 
+			);
+			(* draw the tracks.. *)
 			if !gdrawtracks then (
 				List.iter (fun m -> 
 					if m#isVia() then (
@@ -370,7 +376,7 @@ let render togl cb =
 			if !gdrawzones then (
 				List.iter (fun zon -> 
 					if zon#getLayer() = lay then (
-						zon#draw () ; 
+						zon#draw screenbbx ; 
 					); 
 				) !gzones ;
 			) ; 
@@ -432,6 +438,30 @@ let render togl cb =
 			GlArray.draw_arrays `quads 0 (n*2*4) ; 
 			Raw.free_static raw ; 
 		in *)
+		let drawCircle (x,y) radius = 
+			(* for convienence, will make this drawable with quads not triangles. *)
+			let fw,fh = radius/.2.0, radius/.2.0 in
+			let n = 10 in
+			let c = ref 0 in
+			let raw = Raw.create_static `float (n*4*3) in 
+			GlArray.vertex `three raw ; 
+			let t = ref (pi /. foi((n+1) * 2)) in
+			let dt = pi /. foi(n+1) in
+			let cos_ t = cos(t) *. fw in
+			let sin_ t = sin(t) *. fh in
+			let pnt a = 
+				vertex3 raw c a in
+			let z = 0.99 in
+			for i = 1 to n do (
+				pnt (x -. cos_(!t), y -. sin_(!t), z) ; 
+				pnt (x -. cos_(!t+.dt), y -. sin_(!t+.dt), z) ; 
+				pnt (x -. cos_(!t+.dt), y +. sin_(!t+.dt), z) ; 
+				pnt (x -. cos_(!t), y +. sin_(!t), z) ; 
+				t := !t +. dt ; 
+			) done; 
+			GlArray.draw_arrays `quads 0 (n*4) ; 
+			Raw.free_static raw ; 
+		in
 		let drawRect (xl,yl,xh,yh) = 
 			let count = ref 0 in
 			let raw = Raw.create_static `float 12 in
@@ -452,6 +482,11 @@ let render togl cb =
 		(* let drawCursor (x,y) = 
 			drawRect (x -. s,y -. s,x +. s,y +. s) 
 		in *)
+		if !gmode = Mode_AddTrack then (
+			(* draw the layer we'll add a track on, scaled appropriately *)
+			GlDraw.color ~alpha: 0.25 (layer_to_color !glayer); 
+			drawCircle !gcurspos !gtrackwidth; 
+		); 
 		GlDraw.color ~alpha:0.7 (match !gmode with
 			| Mode_AddTrack -> (1.,0.80,0.22) (* orange *)
 			| Mode_MoveTrack -> (1.,0., 0.2) (* red *)
@@ -494,7 +529,7 @@ let render togl cb =
 	GlMat.pop() ; 
 	Gl.flush ();
 	Togl.swap_buffers togl ; 
-	(* Printexc.print_backtrace stdout ocaml 3.11 *)
+	(* Printexc.print_backtrace stdout (* ocaml 3.11 *) *)
   ;;
 
 let redoRatNest () =
@@ -545,7 +580,23 @@ let selectSch top fname =
 		if not ok then selectSchFile() else schfile 
 	with Not_found -> selectSchFile ()
 	;;
-	
+
+let updateLayers layer b = 
+	if glayerEn.(layer) != b  || b then (
+		glayerEn.(layer) <- b ; 
+		(* need to recreate the via color *)
+		let copperlayers = List.filter ((>) 16) !glayerPresent in 
+		(* the > seems backwards to me .. ehwell. *)
+		gviaColor := layers_to_color copperlayers glayerEn ; 
+		List.iter (fun m -> m#updateLayers() ) !gmodules ; 
+		List.iter (fun m -> 
+			m#setHit false; 
+			if m#isVia() then m#updateColor () ; 
+		) !gtracks ;
+		(* render togl nulfun; *)
+	) ;;
+
+
 (* open a file *)
 let openFile top fname = 
 	let ic = open_in fname in
@@ -563,6 +614,7 @@ let openFile top fname =
 	List.iter (fun m -> m#update()) !gtracks ; 
 	List.iter (fun z -> z#update ()) !gzones ; 
 	List.iter (fun s -> s#update ()) !gdrawsegments ; 
+	updateLayers 15 true ; (* default to component layer *)
 	(* if the board was saved in pcbnew, then we need to propagate the netcodes to all tracks. *)
 	(* otherwise, adding tracks to existing ones becomes impossible ... *)
 	let trackzero = List.length (List.filter (fun t -> (t#getNet ()) <= 0) !gtracks) in
@@ -611,7 +663,6 @@ let openFile top fname =
 		gschema#collapseAr ""; 
 		printf " done.\n%!"; 
 	) ;
-	(* gschema#print "" ;*)
 	;;
 
 let makemenu top togl filelist = 
@@ -1180,23 +1231,6 @@ let makemenu top togl filelist =
 		in
 		(frame0, updateradio)
 	in
-	let updateLayers layer b = 
-		if glayerEn.(layer) != b  || b then (
-			glayerEn.(layer) <- b ; 
-			(* need to recreate the via color *)
-			let copperlayers = List.filter ((>) 16) !glayerPresent in 
-			(* the > seems backwards to me .. ehwell. *)
-			(*print_endline "copperlayers:";
-			List.iter (fun u -> print_endline (soi u)) copperlayers; *)
-			gviaColor := layers_to_color copperlayers glayerEn ; 
-			List.iter (fun m -> m#updateLayers() ) !gmodules ; 
-			List.iter (fun m -> 
-				m#setHit false; 
-				if m#isVia() then m#updateColor () ; 
-			) !gtracks ;
-			render togl nulfun; 
-		)
-	in
 	let raiseLayer lay = 
 		if List.exists ((=) lay) !glayerPresent then (
 			glayer := lay ; 
@@ -1204,6 +1238,7 @@ let makemenu top togl filelist =
 			glayerZlist := (lay :: !glayerZlist); (* put layer at head *)
 			update_layer_z () ; 
 			updateLayers lay true; 
+			render togl nulfun
 		) else ( print_endline "layer not present in board"; ) ; 
 	in
 	let (layerframe,changelayercallback) = makeLayerFrame 
@@ -1214,6 +1249,7 @@ let makemenu top togl filelist =
 			let lay = string_to_layer s in
 			if List.exists ((=) lay) !glayerPresent then (
 				updateLayers lay b; 
+				render togl nulfun
 			) else ( print_endline "layer not present in board"; ) ; 
 		)
 		top in
@@ -1236,20 +1272,30 @@ let makemenu top togl filelist =
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
 			(* set the hit flags& get a netnum *)
-			let (nn,hitsize2,hitz2,hitclear2) = List.fold_left (fun (netnum,hitsize,hitz,clearhit) m -> 
-				m#hit out !ghithold onlyworknet netnum hitsize hitz clearhit
-			) (worknet, 1e24, -2e2, (fun() -> ()) ) !gmodules 
+			let (nn,hitsize2,hitz2,hitclear2) = 
+				if !gdrawmods then (
+					List.fold_left (fun (netnum,hitsize,hitz,clearhit) m -> 
+						m#hit out !ghithold onlyworknet netnum hitsize hitz clearhit
+					) (worknet, 1e24, -2e2, (fun() -> ()) ) !gmodules 
+				) else (worknet, 1e24, -2e2, (fun() -> ()) )
 			in
 			(* printf "after mod: hitsize %f hitz %f\n%!" hitsize2 hitz2;*)
-			let netn,_,_,_ = 
+			let nn3,hitsize3,hitz3,hitclear3 = 
 				if !gdrawtracks then (
 					List.fold_left (fun (netn1,hitsize,hitz,hitclear) track -> 
 						track#hit (out, onlyworknet, hitsize, hitz, hitclear, !ghithold, netn1)
-					) (nn,hitsize2,(hitz2 -. 1.0),[hitclear2]) !gtracks 
-					(* subtract one so that we can hit tracks if we don't hit a module *)
+					) (nn,hitsize2,hitz2,[hitclear2]) !gtracks 
 				) else nn,hitsize2,hitz2,[]
 			in
-			gcurnet := netn ; 
+			(* and do the zones .. *)
+			let netn2,_,_,_ = 
+				if !gdrawzones then (
+					List.fold_left (fun (netnum,hitsize,hitz,hitclear) zon -> 
+						zon#hit out netnum hitsize hitz hitclear
+					) (nn3,hitsize3,hitz3,hitclear3) !gzones  
+				) else nn3,hitsize3,hitz3,hitclear3
+			in
+			gcurnet := netn2 ; 
 		); 
 		out
 	in
@@ -2093,6 +2139,7 @@ let makemenu top togl filelist =
 	addOption displaySub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
 	addOption displaySub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption displaySub "draw module text" (fun b -> gdrawText := b) !gdrawText ; 
+	addOption displaySub "draw modules" (fun b -> gdrawmods := b) !gdrawmods ; 
 	addOption displaySub "draw ratsnest" (fun b -> gdrawratsnest := b) !gdrawratsnest ; 
 	addOption displaySub "draw pad numbers" (fun b -> gshowPadNumbers := b) !gshowPadNumbers ; 
 	
@@ -2542,7 +2589,7 @@ let makemenu top togl filelist =
 				print_endline "breaking track...";
 				let track2 = Oo.copy track in
 				track2#setU 0.5 ; 
-				track2#clearGrfx (); (* need to make a new graphics b/c the track is copied. *)
+				track2#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
 				track#setEnd midpoint ; 
 				track2#setStart midpoint ; 
 				gtracks := (track2 :: !gtracks); 
@@ -2896,7 +2943,7 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
-	(* Printexc.record_backtrace true ; ocaml 3.11 *)
+	(* Printexc.record_backtrace true ; (* ocaml 3.11 *) *)
 	Printexc.print mainLoop () ;
 	;;
 		

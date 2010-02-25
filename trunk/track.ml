@@ -153,12 +153,12 @@ object (self)
 				if !gcurnet = m_net && !gcurnet != 0 then (
 					m_g#setAlpha 0.78
 				) else ( m_g#setAlpha 0.50 ); 
-				if m_highlight then (
+				ignore(if m_highlight then (
 					m_highlight <- false; 
 					m_g#draw ~hit:true ~hcolor:(0.4, 1., 1.) bbox ; 
 				) else (
 					m_g#draw ~hit:m_hit bbox ; 
-				);
+				));
 			); 
 		)
 		method getSize () = (
@@ -322,7 +322,7 @@ object (self)
 			else( self#applyMove () ) ; 
 		)
 		method getMoving () = m_moving
-		method clearGrfx () = m_g <- new grfx ; 
+		method newGrfx () = m_g <- new grfx ; 
 		method manhattanLength () = (abs_float (m_stx -. m_enx)) +. (abs_float (m_sty -. m_eny))
 		
 		(*below, timestamp and status always seem to be 0 - not including *)

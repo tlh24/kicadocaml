@@ -43,6 +43,7 @@ object
 		m_g#rotateTranslate rot x y ; 
 	)
 	method updateLayers () = m_g#updateLayer false m_layer ; 
+	method getZ () = m_g#getZ (); 
 	method copy () = (
 		m_g <- new grfx ; 
 	)
@@ -53,7 +54,7 @@ object
 		(* callee must call update *)
 	)
 	method draw bbox = (
-		m_g#draw ~hit:false bbox
+		ignore(m_g#draw ~hit:false bbox);
 	)
 	method read ic line shapetype = (
 		let parse_startend = 

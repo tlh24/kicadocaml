@@ -16,11 +16,13 @@ object (self)
 	val mutable m_clearance = 0.005 
 	(* this is the minimum distance between the zone edges and a track / pad *)
 	val mutable m_minthick = 0.005
+	val mutable m_Z = 0.0
+	val mutable m_hit = false
 	(* minimum thickness of the zone.  kicad draws the edges of each polygon
 	using a stroke of this width.  hence, when meshing our zones, we add this to the offset.
 	therefore the rendering and meshing of zones here will have larger holes than in kicad or 
 	in the gerbers that kicad produces. *)
-	val mutable m_corners = [] (* list of lists of coordinates, float*float*int  *)
+	val mutable m_corners = [||] (* array of arrays of coordinates, float*float*int  *)
 	val mutable m_poly = [] (* list of poly coordinates, float*float*int*int 
 							-- this is read in from the board file *)
 	val mutable m_tris = [] (* list of triangles, ((float*float)*(float*float)*(float*float)) 
@@ -37,8 +39,9 @@ object (self)
 	method getLayer () = m_layer
 
 	method set_corners pts = (
-		m_corners <- [] ; (* list of lists, remember! *)
-		m_corners <- (List.map (fun (x,y) -> (x,y,0)) pts) :: m_corners ; 
+		m_corners <- Array.make 1 [||] ; (* array of arrays *)
+		m_corners.(0) <- (Array.map (fun (x,y) -> (x,y,0)) 
+			(Array.of_list pts)); 
 	)
 	method free () = ( (* required by ocaml 3.11 & lablgl 1.05, blah. *)
 		List.iter(fun rw -> 
@@ -52,30 +55,49 @@ object (self)
 	)
 	method update () = (
 		self#free () ; 
+		m_g#empty () ; 
+		m_g#setZ 0.0 ; 
 		let i = ref 0 in
 		(* printf "updating poly lines length %d\n%!" len ; *)
 		let x0 = ref 0.0 in
 		let y0 = ref 0.0 in
-		List.iter (fun corners -> 
-			if List.length corners > 2 then (
-				let (x2,y2,_) = (List.hd corners) in
+		Array.iter (fun corners -> 
+			let len = Array.length corners in
+			if len > 2 then (
+				let (x2,y2,_) = corners.(0) in
 				x0 := x2 ; y0 := y2 ;
-				let len = (List.length corners) -1 in
+				let len = (Array.length corners) in
 				Printf.printf "zone update corners %d\n%!" len; 
 				let rawv = Raw.create_static `float (4 * len) in
 				i := 0 ; 
-				List.iter (fun (x1,y1,_) -> 
-					Raw.set_float rawv ~pos:(4 * !i + 0) !x0 ; 
-					Raw.set_float rawv ~pos:(4 * !i + 1) !y0 ; 
-					Raw.set_float rawv ~pos:(4 * !i + 2) x1 ; 
-					Raw.set_float rawv ~pos:(4 * !i + 3) y1 ;
+				Array.iteri (fun j (x1,y1,_) -> 
+					if j > 0 then (
+						Raw.set_float rawv ~pos:(4 * !i + 0) !x0 ; 
+						Raw.set_float rawv ~pos:(4 * !i + 1) !y0 ; 
+						Raw.set_float rawv ~pos:(4 * !i + 2) x1 ; 
+						Raw.set_float rawv ~pos:(4 * !i + 3) y1 ;
+						incr i ; 
+					); 
 					x0 := x1 ; 
 					y0 := y1 ; 
-					incr i; 
-				) (List.tl corners) ; 
+				) corners ; 
+				(* close the outline *)
+				Raw.set_float rawv ~pos:(4 * !i + 0) !x0 ; 
+				Raw.set_float rawv ~pos:(4 * !i + 1) !y0 ; 
+				Raw.set_float rawv ~pos:(4 * !i + 2) x2 ; 
+				Raw.set_float rawv ~pos:(4 * !i + 3) y2 ;
+				x0 := x2 ; 
+				y0 := y2 ; 
+				incr i; 
 				m_rawv <- rawv :: m_rawv ; 
+				(*  make little circles to let you drag around the corners *)
+				let w = 0.01 in
+				Array.iteri (fun j (x1,y1,_) -> 
+					m_g#makeCircle ~accumulate:(j <> len-1) x1 y1 w w ; 
+				) corners ; 
 			);
 		) m_corners ; 
+		
 		if List.length m_tris > 2 then (
 			let len = (List.length m_tris * 3) in (* number of lines *)
 			Raw.free_static m_rawv_tri ; 
@@ -127,7 +149,14 @@ object (self)
 			m_rawv <- rawv :: m_rawv ; 
 		); 
 		(* now need to manage the color ; use grfx to compute this *)
-		m_g#updateLayer false m_layer; 
+		m_g#updateLayer false m_layer;
+		m_g#updateBBX () ; 
+		m_g#setZ 0.1 ; 
+		m_g#setAlpha 0.6 ; 
+	)
+	method updateLayers () = (
+		m_g#updateLayer false m_layer;
+		m_Z <- m_g#getZ(); 
 	)
 	method empty () = (
 		m_tris <- [] ; 
@@ -138,7 +167,7 @@ object (self)
 		m_tris <- [] ; 
 		m_poly <- [] ; 
 		(* generate a bounding box *)
-		let corners = (List.map (fun (a,b,_) -> (a,b)) (List.hd m_corners)) in
+		let corners = (List.map (fun (a,b,_) -> (a,b)) (Array.to_list m_corners.(0))) in
 		let (minx,miny) = 
 			List.fold_left (fun (mx,my) (x,y)  -> (min mx x),(min my y))
 			(List.hd corners) corners  in
@@ -372,6 +401,31 @@ object (self)
 		m_tris <- Mesh.mesh !pts !segs filter ; 
 		self#update() ; (* refill the Raw buffers *)
 	)
+	method hitclear () = m_hit <- false
+	method hit p netnum hitsize hitz hitclear = (
+		(* see if p is next to any of our corners *)
+		m_hit <- false ; 
+		if glayerEn.(m_layer) then (
+			let found = ref false in
+			let n = ref 0 in
+			let r = 0.01 /. 2.0 in
+			for i = 0 to Array.length (m_corners.(0)) do (
+				let (cx,cy,_) = (m_corners.(0)).(i) in
+				if Pts2.distance p (cx,cy) < r then (
+					found := true; 
+					n := i; 
+				)
+			) done ; 
+			if !found then (
+				let ms = 3.1415926 *. r *. r in
+				if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
+					m_hit <- true ; 
+					List.iter (fun f -> f ()) hitclear; 
+					(m_net,ms,m_Z,[self#hitclear])
+				) else (netnum,hitsize,hitz,hitclear)
+			) else (netnum,hitsize,hitz,hitclear)
+		) else (netnum,hitsize,hitz,hitclear)
+	)
 	method polyToTris () = (
 		(* try to convert the polygons in the input to triangles *)
 		(* for now only works if kicadocaml saved the file previously *)
@@ -457,36 +511,45 @@ object (self)
 		) done ;
 		(* need to clean up the corners - break into a series of polygons; 
 		the first is the primary, the rest are cutouts *)
-		m_corners <- [] ; 
+		m_corners <- [||] ; 
+		let acorners = ref [] in
 		let dcorners = ref [] in 
 		List.iter (fun (a,b,c) -> 
 			dcorners := (a,b,c) :: !dcorners ; 
 			if c > 0 then (
-				m_corners <- (List.rev !dcorners) :: m_corners ; 
+				acorners := (List.rev !dcorners) :: !acorners ; 
 				dcorners := [] ; (* empty so can be filled again *)
 			)
 		) (List.rev !corners); 
-		m_corners <- List.rev m_corners ; 
+		(* now convert this to an array of arrays *)
+		m_corners <- Array.map (fun lst -> 
+			Array.of_list (List.rev lst); 
+		) (Array.of_list !acorners); 
 	)
 	
-	method draw () =  (* really should accept a screenbox here for culling *)
-		GlDraw.color ~alpha:0.5 (m_g#getColor()) ;
-		List.iter (fun rv -> 
-			if (Raw.length rv) > 2 then (
-				let len = (Raw.length rv)/2 in
-				GlArray.vertex `two rv;
-				GlArray.draw_arrays `lines 0 len ; 
-			) ;
-		) m_rawv ; 
-		if (Raw.length m_rawv_tri) > 2 then (
-			GlDraw.color ~alpha:0.4 (m_g#getColor()) ;
-			GlArray.vertex `two m_rawv_tri;
-			GlArray.draw_arrays `lines 0 ((Raw.length m_rawv_tri)/2) ; 
-		); 
-		if (Raw.length m_rawv_fill) >= 6 then (
-			GlDraw.color ~alpha:0.3 (m_g#getColor()) ;
-			GlArray.vertex `two m_rawv_fill;
-			GlArray.draw_arrays `triangles 0 ((Raw.length m_rawv_fill)/2) ; 
+	method draw bbox = 
+		let alpha = if !gcurnet = m_net then 0.78 else 0.5 in
+		m_g#setAlpha alpha ; 
+		if m_g#draw bbox ~hit:m_hit then ( (* there shouldn't be anything outside the corners, right? *)
+			let color = m_g#getColor() in
+			GlDraw.color ~alpha color ;
+			List.iter (fun rv -> 
+				if (Raw.length rv) > 2 then (
+					let len = (Raw.length rv)/2 in
+					GlArray.vertex `two rv;
+					GlArray.draw_arrays `lines 0 len ; 
+				) ;
+			) m_rawv ; 
+			if (Raw.length m_rawv_tri) > 2 then (
+				GlDraw.color ~alpha:(0.3+. alpha/. 2.5) color ;
+				GlArray.vertex `two m_rawv_tri;
+				GlArray.draw_arrays `lines 0 ((Raw.length m_rawv_tri)/2) ; 
+			); 
+			if (Raw.length m_rawv_fill) >= 6 then (
+				GlDraw.color ~alpha:(0.2+. alpha/. 2.5) color ;
+				GlArray.vertex `two m_rawv_fill;
+				GlArray.draw_arrays `triangles 0 ((Raw.length m_rawv_fill)/2) ; 
+			);
 		); 
 
 	method save oc = (
@@ -497,8 +560,8 @@ object (self)
 		fprintf oc "ZClearance %d T\n"  (iofs m_clearance) ; 
 		fprintf oc "ZMinThickness %d\n" (iofs m_minthick) ; 
 		fprintf oc "%s\n%!" m_options ; 
-		List.iter (fun corn -> 
-			List.iter (fun (x,y,z) -> 
+		Array.iter (fun corn -> 
+			Array.iter (fun (x,y,z) -> 
 				fprintf oc "ZCorner %d %d %d\n" 
 				(iofs x) (iofs y) z ; 
 			) corn ; 

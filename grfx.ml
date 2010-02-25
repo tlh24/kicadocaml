@@ -12,7 +12,7 @@ object (self)
 	val mutable m_z : float  = 0.0 
 	val mutable bbx : (float * float * float * float)  = ( 0. , 0. , 1. , 1. )
 
-method empty () = verts <- []
+method empty () = verts <- []; Raw.free_static rawv ; rawv <- Raw.create_static `float 1
 
 method setAlpha a = alpha <- a 
 method getColor() = color ;
@@ -20,18 +20,21 @@ method setColor c = color <- c
 method getZ () = m_z  
 method setZ a = m_z <- a 
 
+method getRawLength () = Raw.length rawv
+method getNumVerts () = numverts
+
 method updateRaw () = 
 	(* update the raw list *)
 	if(numverts > 3) then (
 		Raw.free_static rawv ; 
-		rawv <- Raw.create_static `float (3 * numverts) ; 
+		rawv <- Raw.create_static `float (2 * numverts) ; 
 		let i = ref 0 in
 		List.iter (fun (x,y) ->
-			Raw.set_float rawv ~pos:(3* !i + 0) x ; 
-			Raw.set_float rawv ~pos:(3* !i + 1) y ; 
-			Raw.set_float rawv ~pos:(3* !i + 2) m_z ; 
+			Raw.set_float rawv ~pos:(2 * !i + 0) x ; 
+			Raw.set_float rawv ~pos:(2 * !i + 1) y ; 
 			incr i ; 
 		) verts ; 
+		numverts <- List.length verts ; 
 	) ; 
 	
 method updateLayer  ?(z=0.001) overridez layer = 
@@ -92,7 +95,7 @@ method makeRectFloat fx fy fw fh =
 	self#updateBBX (); 
 	self#updateRaw() ; 
 	
-method makeCircle x y w h = 
+method makeCircle ?(accumulate=false) x y w h = 
 	(* for convienence, will make this drawable with quads not triangles. *)
 	let fw,fh = w/.2.0, h/.2.0 in
 	let n = 10 in
@@ -107,9 +110,10 @@ method makeCircle x y w h =
 		verts <- ( (x -. cos_(!t), y +. sin_(!t)) :: verts) ; 
 		t := !t +. dt ; 
 	) done; 
-	self#updateBBX (); 
-	self#updateRaw() ; 
-	(* print_endline( "initializing verts: " ^ string_of_int(List.length b.verts)) *)
+	if not accumulate then (
+		self#updateBBX (); 
+		self#updateRaw() ; 
+	)
 
 method makeRing (fx,fy) id od = 
 	(* again, make drawable with quads. *)
@@ -289,8 +293,9 @@ method draw ?(hit=false) ?(hcolor=(1.,1.,1.)) bbox =
 				color
 			in
 		GlDraw.color ~alpha col ; 
-		GlArray.vertex `three rawv; 
+		GlArray.vertex `two rawv; (* used to be 3 - but that's 50% more data! *)
 		GlArray.draw_arrays `quads 0 numverts ; 
-	); 
+		true
+	) else false
 end
 	

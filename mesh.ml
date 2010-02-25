@@ -403,7 +403,7 @@ let mesh pts segs filter =
 		!n, !g
 	in
 	
-	let rec edgefind d e = 
+	let rec edgefind d e = (
 		(* look for intersections between triangle edges and segment d e *)
 		(* first find the triangle that d is in *)
 		let n = ref (!tlast) in
@@ -411,14 +411,42 @@ let mesh pts segs filter =
 		let addseg = ref false in
 		let found = ref false in
 		let g =  ref (0.0, 0.0) in
-		while !n >= 0 && !n < ntri && not !found do (
+		(* original algorithm: use the links between the triangles to move toward 
+		the best triangle ; 
+		present more brute-force algorithm: just choose the triangle that has a vertex
+		closest to d, and return that  *)
+		let mindist = ref 1e60 in
+		let d2 = ref d in
+		let dist (x,y) (w,z) = (x -. w)*.(x -. w)+.(y -. z)*.(y -. z) in (* squared distance *)
+		for i = 0 to (Array.length tt)-1 do (
+			let dista = dist (tt.(i)).a d in
+			let distb = dist (tt.(i)).b d in
+			let distc = dist (tt.(i)).c d in
+			if dista < distb && dista < distc && dista < !mindist then (
+				n := i; 
+				d2 := (tt.(i)).a; 
+				mindist := dista; 
+			)else if distb < dista && distb < distc && distb < !mindist then (
+				n := i; 
+				d2 := (tt.(i)).b; 
+				mindist := distb; 
+			)else if distc < dista && distc < distb && distc < !mindist then (
+				n := i; 
+				d2 := (tt.(i)).c; 
+				mindist := distc; 
+			)
+		) done; 
+		(* while !n >= 0 && !n < ntri && not !found do (
 			(* this search will be different from above - the point must be 
 			a vertex of the triangle *)
 			let t = tt.(!n) in
-			(* gselected := !n ; 
+			gselected := !n ; 
 			(!renderfunc) (); 
-			printf "edge (%f,%f) (%f,%f) at " (fst d) (snd d) (fst e) (snd e); 
-				printtri t ; *)
+			printf "%% looking for a triangle which contains this point as a vertex\n%!"; 
+			debugTris t d e;
+			debugTris tt.(t.abn) d e;
+			debugTris tt.(t.bcn) d e; 
+			debugTris tt.(t.can) d e; 
 			if not (distok t d) then (
 				found := true ; (* a vertex!*)
 			) else (
@@ -436,10 +464,11 @@ let mesh pts segs filter =
 					if dc < da && dc < db then n := t.can ; 
 				) ; 
 			) ; 
-		) done ; 
+		) done ; *)
 		(* update for next time *)
 		if !n >= 0 && !n < ntri then tlast := !n ;
 		found := false ;
+		let f = !d2 in
 		ghotseg := (d,e) ; 
 		while !n >= 0 && !n < ntri && not !found do (
 			let v = tt.(!n) in
@@ -451,11 +480,12 @@ let mesh pts segs filter =
 				addpoint := false ; 
 				addseg := false ; 
 			) else (
-				let u = if not (distt v.a d) then v
-					else if not (distt v.b d) then rotate !n 1 
+				let u = if not (distt v.a f) then v
+					else if not (distt v.b f) then rotate !n 1 
 					else rotate !n 2 
 				in
-				(* debugTris u d e; *)
+				(* printf "looking for intersection with edges of triangle\n%!";
+				debugTris u f e; *)
 				let ab = Pts2.norm (sub u.b u.a) in
 				let ac = Pts2.norm (sub u.c u.a) in
 				let ae = Pts2.norm (sub e u.a) in
@@ -491,15 +521,15 @@ let mesh pts segs filter =
 					if x > 0.0 then ( (* CCW angle *)
 						if y < 0.0 then ( (* CW angle *)
 							(* must intersect segment BC *)
-							let sect,h = Pts2.intersectBool u.b u.c d e in
+							let sect,h = Pts2.intersectBool u.b u.c f e in
 							if not sect then(
 								(* did not hit, but close to an endpoint, so just use that *)
 								found := true ; 
 								addpoint := false ; 
-								addseg := true ; 							
+								addseg := true ;
 								if abs_float x < abs_float y then g := u.b else g := u.c ;
 								(* printf "error in edgefind: segments should intersect but do not\n%!" ; 
-								debugTris u d e; 
+								debugTris u f e; 
 								(!renderfunc) (); 
 								I've checked a few of these instances, and the code seems to do the right thing
 								(fingers crossed!*)
@@ -523,12 +553,12 @@ let mesh pts segs filter =
 		) done ; 
 		if !n >= 0 && !n < ntri then tlast := !n ;
 		!addpoint, !addseg, !g , e (* never update the far endpoint - only the closer *)
-	in
+	) in
 	
 	let insert d = 
 		(* printf "inserting (%f,%f)\n%!" (fst d) (snd d) ; *)
 		let tn,e = findcontaining d in
-		if tn >= 0 && tn < ntri then subdivide tn e ; 
+		if tn >= 0 && tn < ntri then subdivide tn e
 	in
 	
 	(* ok, we start with two triangles which are slightly larger than the bounding box
@@ -578,7 +608,7 @@ let mesh pts segs filter =
 		if List.length ss > 0 && w < 1000 then (
 			(* only optimize if we've eliminated at least 5 segments *)
 			let dopt2 = if chthr - (List.length ss) > 5 then true else false in
-			if dopt && dopt2 then( (* printf "optimizing\n%!";*) opt () ; ); 
+			if dopt && dopt2 then( (!renderfunc) (); opt () ; ); 
 			(* printf "eliminate %d segments\n%!" (List.length ss) ; *)
 			let morpts = ref [] in
 			let morsegs = ref [] in
@@ -587,7 +617,7 @@ let mesh pts segs filter =
 				if addpoint then ( morpts := g :: (!morpts); ); 
 				if addseg then ( morsegs := (e,g) :: (!morsegs); ); 
 			) ss ; 
-			(* printf "eliminate: inserting %d points\n%!" (List.length !morpts) ; *)
+			printf "eliminate segments:  %d points\n%!" (List.length !morpts) ;
 			gannopts := !morpts ; 
 			gannosegs := !morsegs ; 
 			List.iter insert !morpts ; 
@@ -601,6 +631,7 @@ let mesh pts segs filter =
 	(* second pass to make sure all segments are there  - 
 	optimization may have caused a segment to be crossed after the 
 	segment was shortened during iteration *)
+	opt () ;
 	eliminate segs 0 false (List.length segs + 10);  
 	
 	gannosegs := segs ; 

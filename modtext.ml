@@ -47,6 +47,7 @@ object (self)
 	method updateLayers () = 
 		(* if we are hidden, set Z to 0.001 *)
 		m_g#updateLayer (not m_show) m_layer ;
+	method getZ () = m_g#getZ ()
 	method copy () = (
 		m_g <- new grfx; 
 	)
@@ -100,7 +101,7 @@ object (self)
 			GlMat.push(); 
 			GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
 		); 
-		m_g#draw ~hit:(m_hit || highlight) bbox; 
+		ignore(m_g#draw ~hit:(m_hit || highlight) bbox); 
 		if m_moving then ( GlMat.pop() ) ; 
 	)
 	method setMoving b = (

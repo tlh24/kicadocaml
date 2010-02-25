@@ -35,6 +35,7 @@ object (self)
 	method getConnect() = m_connect
 	method setConnect b = m_connect <- b
 	method setHighlight b = m_highlight <- b ;
+	method getZ () = m_g#getZ ()
 	method update x y = (
 		m_g#updateLayers m_layers ; (* this sets the color *)
 		(* make ground pads a little greenish *)
@@ -146,22 +147,21 @@ object (self)
 				m_gtext#setAlpha 0.25 
 			)
 		); 
-		if m_highlight then (
+		ignore(if m_highlight then (
 			m_highlight <- false; 
 			m_g#draw ~hit:true ~hcolor:(0.4, 1., 1.) bbox ; (* cyan, for DRC *)
 		) else (
 			m_g#draw ~hit:m_hit bbox ; 
-		);
+		));
 		if m_hit then (
 			!ginfodispappend( "pad:" ^ m_padname ^ " net:" ^ (string_of_int m_netnum) ^ 
 			" netname:" ^ m_netname ^ "\n") ;
 		) ; 
 		if !gshowPadNumbers then (
-			let z = m_g#getZ () in
 			(* also should push it to the foreground, in case depth buffer is on. *)
 			GlMat.push() ; 
-			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:(z +. 1.0/.80.0) (); 
-			m_gtext#draw ~hit:m_hit bbox ; 
+			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:(1.0/.80.0) (); 
+			ignore(m_gtext#draw ~hit:m_hit bbox); 
 			GlMat.pop(); 
 		); 
 		if m_hit then self#select () ; 

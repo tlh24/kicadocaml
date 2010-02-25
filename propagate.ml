@@ -124,6 +124,7 @@ let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () =
 									let hitstart, _ = p#pointInPad (Pts2.sub st (m#getPos())) in
 									let hitend, _ = p#pointInPad (Pts2.sub en (m#getPos())) in
 									if hitstart || hitend then (
+										incr change; 
 										if pn != tn then (
 											let s = Printf.sprintf "pad net %d connected to track net %d" pn tn in
 											if hitstart then (

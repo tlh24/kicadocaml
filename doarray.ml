@@ -142,7 +142,7 @@ let doArray sheets template ax ay
 				mm#setNet 0; 
 				mm#setU 0.5 ; 
 				mm#move ((fi *. ax), (fi *. ay)) ; 
-				mm#clearGrfx (); (* need to make a new graphics b/c the track is copied. *)
+				mm#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
 				mm#applyMove () ; 
 				mm#update ();
 				tracks := (mm :: !tracks); 

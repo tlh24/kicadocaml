@@ -46,6 +46,10 @@ object (self)
 	val mutable m_texts : 'pcb_modtext list = []
 	val mutable m_shapes : 'pcb_shape list = []
 	val mutable m_shapes3d : 'shape3d list = []
+	val mutable m_Z = 0.0
+	val mutable m_padsZ = 0.0
+	val mutable m_textsZ = 0.0
+	val mutable m_shapesZ = 0.0
 	val mutable m_move = (0. , 0.); 
 	val mutable m_moving = false
 	val mutable m_g = new grfx
@@ -106,6 +110,18 @@ object (self)
 		List.iter (fun p -> p#updateLayers () ) m_texts ; 
 		List.iter (fun p -> p#updateLayers () ) m_shapes ; 
 		m_g#updateLayer true m_layer ; 
+		(* update the stored Z-values  -- 
+			assumes lists are z-homogenous *)
+		m_padsZ <- if List.length m_pads > 0 then (
+				(List.hd m_pads)#getZ()
+			) else 0.0 ;
+		m_textsZ <- if List.length m_texts > 0 then (
+				(List.hd m_texts)#getZ()
+			) else 0.0 ; 
+		m_shapesZ <- if List.length m_shapes > 0 then (
+				(List.hd m_shapes)#getZ()
+			) else 0.0 ; 
+		m_Z <- m_g#getZ ();
 	)
 	method hasLayer lay = List.exists (fun p -> p#hasLayer lay) m_pads ; 
 		(* module has the layer if at least one pad has the layer *)
@@ -150,13 +166,15 @@ object (self)
 			let mz = glayerZ.(m_layer) in
 			let hitself = m_g#hit p && 
 				( ms < hitsize3 ) &&
-				!gmode <> Mode_MoveText in
+				!gmode <> Mode_MoveText && 
+				glayerEn.(m_layer) in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
 			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 
 			if hitself then (
 				clearhit3 () ; (*clear the previous hit record, we are smaller *)
-				(netnum3, ms, mz, self#clearHit)
+				(netnum3, ms,(mz -. 1.0),self#clearHit) (* subtract one so we can hit tracks if we hit a mod*)
+				(* not true for pads, of course. *)
 			) else 
 				(netnum3, hitsize3, hitz3, clearhit3)
 		) else (netnum, hitsize, hitz, clearhit)
@@ -286,36 +304,39 @@ object (self)
 			) ;
 		) ; 
 	)
-	method draw bboxin = (
+	method draw bboxin zin = (
 		let bbox = if m_moving then (-1e20, -1e20, 1e20, 1e20) else bboxin in
 		(*  because the bounding box is not recalculated while moving, 
-			hence module will disappear if you pan and move at the same time. *)
+			module will disappear if you pan and move at the same time. *)
 		if bbxIntersect bbox (m_g#getBBX()) && m_visible then (
 			if m_moving then (
 				GlMat.push () ; 
 				GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
-				List.iter (fun p -> p#move()) m_pads ; 
-			) ;  
-			m_g#draw ~hit:m_hit bbox;  
-			(* update the module text before the pad text, so that we can clear *)
-			if m_hit then (
-				let s =  ref m_libRef in
-				List.iter (fun t -> 
-					let x = t#getText () in
-					s := !s ^ " " ^ x ; 
-				) m_texts ; 
-				s := !s ^ "\n" ; 
-				!ginfodisp( !s ) ; 
+				List.iter (fun p -> p#move()) m_pads ; (* call the update fns *)
 			) ; 
-			List.iter (fun p -> p#draw bbox ) m_pads ; 
-			List.iter (fun p -> p#draw bbox ) m_shapes ; 
-			if !gdrawText then (List.iter (fun p -> p#draw bbox m_hit) m_texts ); 
-			(* highlight the text if the module is selected *)
-			(* this makes it a bit easier to see. *)
+			if m_Z = zin then (
+				ignore(m_g#draw ~hit:m_hit bbox); 
+				(* update the module text before the pad text, so that we can clear *)
+				if m_hit then (
+					let s =  ref m_libRef in
+					List.iter (fun t -> 
+						let x = t#getText () in
+						s := !s ^ " " ^ x ; 
+					) m_texts ; 
+					s := !s ^ "\n" ; 
+					!ginfodisp( !s ) ; 
+				) ; 
+			) ; 
+			if m_padsZ = zin then 
+				List.iter (fun p -> p#draw bbox ) m_pads ;
+			if m_shapesZ = zin then 
+				List.iter (fun p -> p#draw bbox ) m_shapes ; 
+			if m_textsZ = zin && !gdrawText then 
+				List.iter (fun p -> p#draw bbox m_hit ) m_texts ; 
+			
 			if m_moving then (
 				GlMat.pop () ; 
 			); 
-			(* m_washit <- ((move || hithold) && m_washit) || m_hit ; *)
 		); 
 	)
 	method testdrc st en width2 net lay suggest = (

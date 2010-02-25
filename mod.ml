@@ -78,8 +78,8 @@ object (self)
 			let max c d = if c > d then c else d in
 			((min aminx bminx), (min aminy bminy),(max amaxx bmaxx),(max amaxy bmaxy))
 		) ((List.hd m_pads)#getBBX()) m_pads in
-		m_g#updateLayer true m_layer ; 
-		m_g#setAlpha 0.125 ;
+		m_g#updateLayer m_layer ; 
+		m_g#setAlpha 0.16 ;
 		m_g#empty(); 
 		m_g#makeRectFloat ((lx +. hx)/.2.) ((ly +. hy)/.2.) ((hx -. lx)/.2.) ((hy -. ly)/.2.) ; 
 		let g = !gclearance in
@@ -109,7 +109,7 @@ object (self)
 		List.iter (fun p -> p#updateLayers () ) m_pads ; 
 		List.iter (fun p -> p#updateLayers () ) m_texts ; 
 		List.iter (fun p -> p#updateLayers () ) m_shapes ; 
-		m_g#updateLayer true m_layer ; 
+		m_g#updateLayer m_layer ; 
 		(* update the stored Z-values  -- 
 			assumes lists are z-homogenous *)
 		m_padsZ <- if List.length m_pads > 0 then (
@@ -158,9 +158,11 @@ object (self)
 			in
 			(* now check everything that moves with the module - the body & the pads *)
 			let (hitpad, netnum3, hitsize3, hitz3, clearhit3) = 
-				List.fold_left (fun (hit,nn,siz,z,clrhit) pad ->
-					pad#hit p onlyworknet hit nn siz z clrhit
-				) (false, netnum, hitsize2, hitz2, clearhit2) m_pads
+				if !gmode <> Mode_MoveText then (
+					List.fold_left (fun (hit,nn,siz,z,clrhit) pad ->
+						pad#hit p onlyworknet hit nn siz z clrhit
+					) (false, netnum, hitsize2, hitz2, clearhit2) m_pads
+				) else (false, netnum, hitsize2, hitz2, clearhit2)
 			in
 			let ms = m_g#getBBXSize () in
 			let mz = glayerZ.(m_layer) in
@@ -315,7 +317,10 @@ object (self)
 				List.iter (fun p -> p#move()) m_pads ; (* call the update fns *)
 			) ; 
 			if m_Z = zin then (
+				GlMat.push () ; 
+				GlMat.translate ~x:0.0 ~y:0.0 ~z:(-0.01) (); 
 				ignore(m_g#draw ~hit:m_hit bbox); 
+				GlMat.pop () ; 
 				(* update the module text before the pad text, so that we can clear *)
 				if m_hit then (
 					let s =  ref m_libRef in

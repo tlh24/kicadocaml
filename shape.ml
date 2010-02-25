@@ -19,7 +19,7 @@ object
 	val mutable m_type = Shape_Segment
 	val mutable m_g = new grfx
 	method update rot x y = (
-		m_g#updateLayer false m_layer ; (* this also sets z, needed for vertices *)
+		m_g#updateLayer m_layer ; (* this also sets z, needed for vertices *)
 		m_g#empty () ;
 		(
 		match m_type with
@@ -42,7 +42,7 @@ object
 		); 
 		m_g#rotateTranslate rot x y ; 
 	)
-	method updateLayers () = m_g#updateLayer false m_layer ; 
+	method updateLayers () = m_g#updateLayer m_layer ; 
 	method getZ () = m_g#getZ (); 
 	method copy () = (
 		m_g <- new grfx ; 

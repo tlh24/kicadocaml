@@ -21,7 +21,6 @@ object (self)
 	val mutable m_text = ""
 	val mutable m_g = new grfx
 	val mutable m_hit = false
-	val mutable m_washit = false
 	val mutable m_moving = false
 	val mutable m_move = (0. , 0.)
 	method updateColor () = 
@@ -45,8 +44,7 @@ object (self)
 	method update2 () = 
 		self#update m_orot m_ox m_oy ; 
 	method updateLayers () = 
-		(* if we are hidden, set Z to 0.001 *)
-		m_g#updateLayer (not m_show) m_layer ;
+		m_g#updateLayer m_layer ;
 	method getZ () = m_g#getZ ()
 	method copy () = (
 		m_g <- new grfx; 
@@ -77,7 +75,6 @@ object (self)
 			let selfsize = m_g#getBBXSize () in
 			let mz = m_g#getZ () in
 			if selfsize < hitsize && mz >= hitz then (
-				m_washit <- m_hit ; 
 				m_hit <- (m_g#hit p); 
 				if m_hit then (
 					clearhit () ; (*clear the previous hit record, we are smaller *)

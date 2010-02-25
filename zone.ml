@@ -18,6 +18,8 @@ object (self)
 	val mutable m_minthick = 0.005
 	val mutable m_Z = 0.0
 	val mutable m_hit = false
+	val mutable m_moving = false
+	val mutable m_hitN = 0
 	(* minimum thickness of the zone.  kicad draws the edges of each polygon
 	using a stroke of this width.  hence, when meshing our zones, we add this to the offset.
 	therefore the rendering and meshing of zones here will have larger holes than in kicad or 
@@ -37,6 +39,8 @@ object (self)
 	val mutable m_options = ""
 	
 	method getLayer () = m_layer
+	method getHit () = m_hit
+	method setMoving m = m_moving <- m
 
 	method set_corners pts = (
 		m_corners <- Array.make 1 [||] ; (* array of arrays *)
@@ -53,10 +57,9 @@ object (self)
 		Raw.free_static m_rawv_fill ; 
 		m_rawv_fill <- Raw.create_static `float 1 ; 
 	)
-	method update () = (
-		self#free () ; 
+	method updateCorners () = (
 		m_g#empty () ; 
-		m_g#setZ 0.0 ; 
+		m_rawv <- [] ; 
 		let i = ref 0 in
 		(* printf "updating poly lines length %d\n%!" len ; *)
 		let x0 = ref 0.0 in
@@ -67,7 +70,7 @@ object (self)
 				let (x2,y2,_) = corners.(0) in
 				x0 := x2 ; y0 := y2 ;
 				let len = (Array.length corners) in
-				Printf.printf "zone update corners %d\n%!" len; 
+				(* Printf.printf "zone update corners %d\n%!" len;  *)
 				let rawv = Raw.create_static `float (4 * len) in
 				i := 0 ; 
 				Array.iteri (fun j (x1,y1,_) -> 
@@ -91,13 +94,22 @@ object (self)
 				incr i; 
 				m_rawv <- rawv :: m_rawv ; 
 				(*  make little circles to let you drag around the corners *)
-				let w = 0.01 in
-				Array.iteri (fun j (x1,y1,_) -> 
-					m_g#makeCircle ~accumulate:(j <> len-1) x1 y1 w w ; 
+				let w = 0.01 /. 2.0 in
+				Array.iter (fun  (x1,y1,_) -> 
+					m_g#makeRectFloat ~accumulate:true x1 y1 w w ; 
 				) corners ; 
 			);
 		) m_corners ; 
-		
+		(* now need to manage the color ; use grfx to compute this *)
+		m_g#updateLayer false m_layer; (* also calls update raw *)
+		m_g#updateBBX () ; 
+		m_g#setZ 0.0 ; 
+		m_g#setAlpha 0.6 ; 
+	)
+	method update () = (
+		self#free () ; 
+		self#updateCorners (); 
+		let i = ref 0 in
 		if List.length m_tris > 2 then (
 			let len = (List.length m_tris * 3) in (* number of lines *)
 			Raw.free_static m_rawv_tri ; 
@@ -133,6 +145,8 @@ object (self)
 		) else if List.length m_poly > 2 then (
 			(* draw polylines *)
 			let (x2,y2,_,_) = (List.hd m_poly) in
+			let x0 = ref 0.0 in
+			let y0 = ref 0.0 in
 			x0 := x2 ; y0 := y2 ;
 			let len = (List.length m_poly) -1 in
 			i := 0 ; 
@@ -148,11 +162,6 @@ object (self)
 			) (List.tl m_poly) ; 
 			m_rawv <- rawv :: m_rawv ; 
 		); 
-		(* now need to manage the color ; use grfx to compute this *)
-		m_g#updateLayer false m_layer;
-		m_g#updateBBX () ; 
-		m_g#setZ 0.1 ; 
-		m_g#setAlpha 0.6 ; 
 	)
 	method updateLayers () = (
 		m_g#updateLayer false m_layer;
@@ -402,29 +411,37 @@ object (self)
 		self#update() ; (* refill the Raw buffers *)
 	)
 	method hitclear () = m_hit <- false
-	method hit p netnum hitsize hitz hitclear = (
+	method hit (px,py) netnum hitsize hitz hitclear = (
 		(* see if p is next to any of our corners *)
-		m_hit <- false ; 
-		if glayerEn.(m_layer) then (
-			let found = ref false in
-			let n = ref 0 in
-			let r = 0.01 /. 2.0 in
-			for i = 0 to Array.length (m_corners.(0)) do (
-				let (cx,cy,_) = (m_corners.(0)).(i) in
-				if Pts2.distance p (cx,cy) < r then (
-					found := true; 
-					n := i; 
-				)
-			) done ; 
-			if !found then (
-				let ms = 3.1415926 *. r *. r in
-				if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
-					m_hit <- true ; 
-					List.iter (fun f -> f ()) hitclear; 
-					(m_net,ms,m_Z,[self#hitclear])
+		if not m_moving then (
+			m_hit <- false ; 
+			if glayerEn.(m_layer) then (
+				let found = ref false in
+				let n = ref 0 in
+				let r = 0.01 /. 2.0 in
+				for i = 0 to (Array.length (m_corners.(0)))-1 do (
+					let (cx,cy,_) = (m_corners.(0)).(i) in
+					if fabs(px-.cx) < r && fabs(py-.cy) < r then (
+						found := true; 
+						n := i; 
+					)
+				) done ; 
+				if !found then (
+					m_hitN <- !n ; 
+					let ms = 3.1415926 *. r *. r in
+					if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
+						m_hit <- true ; 
+						List.iter (fun f -> f ()) hitclear; 
+						(m_net,ms,m_Z,[self#hitclear])
+					) else (netnum,hitsize,hitz,hitclear)
 				) else (netnum,hitsize,hitz,hitclear)
 			) else (netnum,hitsize,hitz,hitclear)
 		) else (netnum,hitsize,hitz,hitclear)
+	)
+	method move (x,y) = (
+		let len = Array.length m_corners.(0) in
+		if m_moving && m_hitN >= 0 && m_hitN < len then
+			(m_corners.(0)).(m_hitN) <- (x,y,0); 
 	)
 	method polyToTris () = (
 		(* try to convert the polygons in the input to triangles *)
@@ -526,8 +543,7 @@ object (self)
 			Array.of_list (List.rev lst); 
 		) (Array.of_list !acorners); 
 	)
-	
-	method draw bbox = 
+	method draw bbox = (
 		let alpha = if !gcurnet = m_net then 0.78 else 0.5 in
 		m_g#setAlpha alpha ; 
 		if m_g#draw bbox ~hit:m_hit then ( (* there shouldn't be anything outside the corners, right? *)
@@ -551,7 +567,7 @@ object (self)
 				GlArray.draw_arrays `triangles 0 ((Raw.length m_rawv_fill)/2) ; 
 			);
 		); 
-
+	)
 	method save oc = (
 		fprintf oc "$CZONE_OUTLINE\n" ; 
 		fprintf oc "ZInfo %s %d \"%s\"\n"  m_timestamp m_net m_netname ; 

@@ -529,7 +529,7 @@ let render togl cb =
 	GlMat.pop() ; 
 	Gl.flush ();
 	Togl.swap_buffers togl ; 
-	(* Printexc.print_backtrace stdout (* ocaml 3.11 *) *)
+	Printexc.print_backtrace stdout (* ocaml 3.11 *)
   ;;
 
 let redoRatNest () =
@@ -1535,6 +1535,7 @@ let makemenu top togl filelist =
 		bindVtoVia () ; 
 		let workingnet = ref 0 in
 		let tracks = ref [] in
+		let zones = ref [] in
 		let startPoint = ref (0., 0.) in
 		Mouse.releasePress top; 
 		Mouse.bindPress top ~onPress:
@@ -1543,6 +1544,8 @@ let makemenu top togl filelist =
 			ignore(  calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true ); 
 			startPoint := !gsnapped ;
 			tracks := List.filter (fun t -> t#getHit() ) !gtracks ; 
+			zones := List.filter (fun z -> z#getHit ()) !gzones ;
+			List.iter (fun z -> z#setMoving true) !zones ; 
 			if List.length !tracks > 0 then (
 				print_endline "redoing tracks list in drag";
 				(* make a list of the tracks that are directly connected to hit tracks 
@@ -1629,7 +1632,8 @@ let makemenu top togl filelist =
 			gbutton1pressed := true ; 
 			Mouse.bindMove top ~action:
 			(fun evinf ->
-				ignore (calcCursPos ~worknet:!workingnet ~onlyworknet:true evinf !gpan true ); 
+				let cx,cy = calcCursPos ~worknet:!workingnet 
+					~onlyworknet:true evinf !gpan true in
 				gdrag :=  Pts2.sub !gsnapped !startPoint ; 
 				!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 				(* simple method: try moving the tracks; if there is an error, 
@@ -1652,6 +1656,13 @@ let makemenu top togl filelist =
 				); 
 				(* update the tracks moved by the pushdrc *)
 				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
+				(* now, move the zones *)
+				let curspos = if !ggridSnap then (
+					let grd = ggrid.(0) in
+					(snap cx grd), (snap cy grd)
+				) else cx,cy in
+				List.iter (fun z -> z#move curspos) !zones ; 
+				List.iter (fun z -> z#updateCorners ()) !zones ; 
 				gcurnet := !workingnet;
 				render togl nulfun;
 			) ; 
@@ -1665,6 +1676,7 @@ let makemenu top togl filelist =
 				t#setMoving false; 
 				t#setHit false;
 			) !tracks ; 
+			List.iter (fun z -> z#setMoving false; z#empty ()) !zones ;
 			(* do this second so that all constraints have a chance to be applied *)
 			List.iter (fun t -> t#clearConstraint (); t#update () ) !tracks ; 
 			gratsnest#updateTracks !workingnet !gtracks ; 
@@ -2943,7 +2955,7 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
-	(* Printexc.record_backtrace true ; (* ocaml 3.11 *) *)
+	Printexc.record_backtrace true ; (* ocaml 3.11 *)
 	Printexc.print mainLoop () ;
 	;;
 		

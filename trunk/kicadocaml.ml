@@ -753,6 +753,7 @@ let makemenu top togl filelist =
 		Tk.pack  ~fill:`X ~side:`Left 
 			[Tk.coe msg; Tk.coe min; Tk.coe msg2; Tk.coe max; Tk.coe msg3; Tk.coe drill; Tk.coe button]; 
 	in
+
 	let entryframe dlog (txt,default) = 
 		let frame1 = Frame.create dlog in
 		let msg = Message.create ~text:txt ~width:110 frame1 in
@@ -2115,8 +2116,8 @@ let makemenu top togl filelist =
 	Menu.add_command viamenu ~label:"add ..." ~command:viasFun;
 	
 	(* add in the sub-options menus .. *)
-	let displaySub = Menu.create ~tearoff:false optionmenu in (* pass the contatining menu as the final argument *)
-	let tracksSub = Menu.create ~tearoff:false optionmenu in
+	let displaySub = Menu.create optionmenu in (* pass the contatining menu as the final argument *)
+	let tracksSub = Menu.create optionmenu in
 	let viasSub = Menu.create ~tearoff:false optionmenu in
 	let textsSub = Menu.create ~tearoff:false optionmenu in
 	let zonesSub = Menu.create ~tearoff:false optionmenu in
@@ -2158,6 +2159,7 @@ let makemenu top togl filelist =
 	addOption displaySub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
 	addOption displaySub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption displaySub "draw module text" (fun b -> gdrawText := b) !gdrawText ; 
+	addOption displaySub "draw hidden text" (fun b -> gshowHiddenText := b) !gshowHiddenText ; 
 	addOption displaySub "draw modules" (fun b -> gdrawmods := b) !gdrawmods ; 
 	addOption displaySub "draw ratsnest" (fun b -> gdrawratsnest := b) !gdrawratsnest ; 
 	addOption displaySub "draw pad numbers" (fun b -> gshowPadNumbers := b) !gshowPadNumbers ; 
@@ -2172,6 +2174,15 @@ let makemenu top togl filelist =
 	
 	Menu.add_command viasSub ~label:"Vias dialog (Ctrl-V)" ~command:viasFun ;
 	Menu.add_command viasSub ~label:"Adjust via drill sizes" ~command:viaDrillAdjust ; 
+	Menu.add_command viasSub ~label:"Teardrop vias" ~command:(fun () -> 
+		gtracks := List.rev_append (Teardrop.teardrop !gtracks !gmodules) !gtracks ; 
+		let vias,tracks = List.partition (fun t-> t#getType() = Track_Via) !gtracks in
+		gtracks := List.rev_append tracks vias; (* so that the vias are drawn last *)
+		render togl nulfun; ); 
+	Menu.add_command viasSub ~label:"Remove teardrops" ~command:(fun () -> 
+		gtracks := Teardrop.unteardrop !gtracks ; 
+		render togl nulfun; ); 
+	
 	
 	Menu.add_command textsSub ~label:"Adjust text sizes per module" ~command:textSizeAdjust ; 
 	Menu.add_command textsSub ~label:"Adjust minimum text sizes" ~command:minTextSizeAdjust ; 

@@ -11,7 +11,7 @@ OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 3
 endif
 OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
-	propagate.cmo schematic.cmo
+	propagate.cmo schematic.cmo teardrop.cmo
 OBJS2 = netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \
 	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo anneal.cmo kicadocaml.cmo 
 OBJS = $(OBJS1) $(OBJS2)

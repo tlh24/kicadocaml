@@ -61,6 +61,7 @@ let gcurnet = ref 0
 let glookupnet = ref (fun (_:int) -> "unkown")
 let gviaColor = ref (1., 1., 1.)
 let gshowPadNumbers = ref true
+let gshowHiddenText = ref true
 let gselectRect = ref (1e99, 1e99, 1e99, 1e99)
 let ggrid = [| 0.01; 0.05; 0.1; 0.5; 1.0 |]
 let ggridDraw = ref false 

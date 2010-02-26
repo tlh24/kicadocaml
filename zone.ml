@@ -444,7 +444,7 @@ object (self)
 					if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
 						m_hit <- true ; 
 						List.iter (fun f -> f ()) hitclear; 
-						(m_net,ms,m_Z,[self#hitclear])
+						(m_net,ms,(m_Z-. 0.01),[self#hitclear])
 					) else (netnum,hitsize,hitz,hitclear)
 				) else (
 					(* see if we hit a segment *)

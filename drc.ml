@@ -65,6 +65,7 @@ let testdrc2 track tracks modules =
 let testdrcAll tracks modules top rendercb () = 
 	print_endline "note: DRC check should be performed after propagating netcodes to all tracks"; 
 	print_endline "(or after pad connectivity test)"; 
+	print_endline "also: DRC does not include Zones - you must refill zones after making any changes."; 
 	(* test all the tracks & make a dialog for centering on the violations*)
 	(* does not check spacing between pads and other pads *)
 	let drcerr = ref [] in

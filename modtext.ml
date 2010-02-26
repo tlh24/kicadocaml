@@ -71,7 +71,7 @@ object (self)
 	method setRot b = m_rot <- b; 
 	
 	method hit (p, (superClearHit:unit->unit), ja, hitsize, hitz,clearhit) = (
-		if not m_moving && glayerEn.(m_layer) then (
+		if not m_moving && glayerEn.(m_layer) && (m_show || !gshowHiddenText) then (
 			let selfsize = m_g#getBBXSize () in
 			let mz = m_g#getZ () in
 			if selfsize < hitsize && mz >= hitz then (
@@ -88,18 +88,20 @@ object (self)
 				) else ( 
 					(ja, hitsize, hitz, clearhit) 
 				)
-			) else (ja, hitsize, hitz, clearhit) 
-		) else (ja, hitsize, hitz, clearhit) 
+			) else ( m_hit <- false; (ja, hitsize, hitz, clearhit) )
+		) else ( m_hit <- false; (ja, hitsize, hitz, clearhit) )
 	)
 	method clearHit () = m_hit <- false ; 
 	method getHit () = m_hit
 	method draw bbox highlight = (
-		if m_moving then ( 
-			GlMat.push(); 
-			GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
-		); 
-		ignore(m_g#draw ~hit:(m_hit || highlight) bbox); 
-		if m_moving then ( GlMat.pop() ) ; 
+		if m_show || !gshowHiddenText then (
+			if m_moving then ( 
+				GlMat.push(); 
+				GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
+			); 
+			ignore(m_g#draw ~hit:(m_hit || highlight) bbox); 
+			if m_moving then ( GlMat.pop() ) ; 
+		);
 	)
 	method setMoving b = (
 		if b then (

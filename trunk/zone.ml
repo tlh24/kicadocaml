@@ -71,7 +71,7 @@ object (self)
 				let (x2,y2,_) = corners.(0) in
 				x0 := x2 ; y0 := y2 ;
 				let len = (Array.length corners) in
-				Printf.printf "zone update corners %d\n%!" len;
+				(* Printf.printf "zone update corners %d\n%!" len;*)
 				let rawv = Raw.create_static `float (4 * len) in
 				i := 0 ; 
 				Array.iteri (fun j (x1,y1,_) -> 
@@ -152,7 +152,7 @@ object (self)
 			x0 := x2 ; y0 := y2 ;
 			let len = (List.length m_poly) -1 in
 			i := 0 ; 
-			let rawv = Raw.create `float (4 * len) in
+			let rawv = Raw.create_static `float (4 * len) in
 			List.iter (fun (x1,y1,_,_) -> 
 				Raw.set_float rawv ~pos:(4 * !i + 0) !x0 ; 
 				Raw.set_float rawv ~pos:(4 * !i + 1) !y0 ; 

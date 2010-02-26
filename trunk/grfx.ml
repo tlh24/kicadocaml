@@ -38,12 +38,12 @@ method updateRaw () =
 	) ; 
 	
 method updateLayer layer = 
-	if glayerEn.(layer) then (
-		color <- layer_to_color layer ; 
-	) else (
-		color <- (0. , 0., 0. ); 
-	); 
-	m_z <- glayerZ.(layer);
+	color <- (0. , 0., 0. ); 
+	let l2 = if layer > 31 then 24 else layer in (* map unkown to drawings *)
+	if glayerEn.(l2) then (
+		color <- layer_to_color l2 ; 
+	);
+	m_z <- glayerZ.(l2);
 	self#updateRaw (); 
 	
 method updateLayers layers = 

@@ -65,10 +65,11 @@ let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () =
 			if !pass = 1 || checkpads then (
 				List.iter (fun m-> 
 					if bbxIntersect bbx (m#getDrcBBX()) then (
+						let rot = m#getRot () in
 						List.iter (fun p -> 
 							if p#getNet() > 0 && p#hasLayer layer && p#getConnect() then (
-								let hitstart, _ = p#pointInPad (Pts2.sub st (m#getPos())) in
-								let hitend, _ = p#pointInPad (Pts2.sub en (m#getPos())) in
+								let hitstart, _ = p#pointInPad rot (Pts2.sub st (m#getPos())) in
+								let hitend, _ = p#pointInPad rot (Pts2.sub en (m#getPos())) in
 								if hitstart || hitend then (
 									if (m#getDeleteAttachedTracks()) then (
 										t#setNet (-1 * (p#getNet()) ) 
@@ -118,11 +119,12 @@ let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () =
 					let tn = t#getNet() in
 					List.iter (fun m-> 
 						if bbxIntersect bbx (m#getDrcBBX()) then (
+							let rot = m#getRot () in
 							List.iter (fun p -> 
 								let pn = p#getNet() in
 								if pn > 0 && not (p#getConnect()) && p#hasLayer layer then (
-									let hitstart, _ = p#pointInPad (Pts2.sub st (m#getPos())) in
-									let hitend, _ = p#pointInPad (Pts2.sub en (m#getPos())) in
+									let hitstart, _ = p#pointInPad rot (Pts2.sub st (m#getPos())) in
+									let hitend, _ = p#pointInPad rot (Pts2.sub en (m#getPos())) in
 									if hitstart || hitend then (
 										incr change; 
 										if pn != tn then (

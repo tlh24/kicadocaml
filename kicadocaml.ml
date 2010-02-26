@@ -73,7 +73,12 @@ object
 		)
 	)
 end;;
-
+ (* 
+class pcb_simpZone = 
+object
+	val mutable 
+	val mutable m_segs
+*)
 class pcb_drawsegment = 
 object
 	val mutable m_shape = 0
@@ -596,7 +601,11 @@ let updateLayers layer b =
 		) !gtracks ;
 		(* render togl nulfun; *)
 	) ;;
-
+	
+let getPrefsFile () = try "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" 
+	with _ ->  (Unix.getcwd()) ^ "/.kicadocaml" 
+	;;
+	
 
 (* open a file *)
 let openFile top fname = 
@@ -1173,7 +1182,7 @@ let makemenu top togl filelist =
 			let geo = Wm.geometry_get top in
 			closeTk () ; 
 			(* save the file list (perhaps this will include more preferences, later *)
-			let prefs = "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" in
+			let prefs = getPrefsFile () in 
 			let oc = open_out prefs in
 			print_endline( "writing preferences " ^ prefs ) ; 
 			List.iter (fun (board, schematic) -> 
@@ -2739,53 +2748,11 @@ let reshape togl =
 	GlArray.enable `vertex;
 	render togl nulfun; 
 	;;
-
-let _ = 
-	(* first, test the linedistance algorithm *)
-	let testLineDistance a b c d = 
-		let l,e,f = Pts2.linedistance a b c d in
-		let printpoint a = 
-			print_string " x " ; 
-			print_float (fst a) ; 
-			print_string " y " ; 
-			print_float (snd a) ; 
-		in
-		print_endline "points:" ; 
-		printpoint a; 
-		printpoint b; print_endline " "; 
-		printpoint c; 
-		printpoint d; print_endline " "; 
-		print_endline ( "distance: " ^ (sof l) ) ; 
-		print_endline "suggested points: " ; 
-		printpoint e ; 
-		printpoint f ; 
-		print_endline " " ; 
-		print_endline "---" ; 
-	in
-	print_endline "distance should be 1.0";
-	testLineDistance (0., 0.) (2., 0.) (1., 1.) (2., 2.) ; 
-	print_endline "should be 0.0";
-	testLineDistance (-2., -2.) (-5., -2.) (-2., 0.) (-3., -4.) ;
-	print_endline "should be 6.708";
-	testLineDistance (0., -4.) (0., -4.) (-5., 1.) (-6., -1.) ; 
-	print_endline "should be 5.0";
-	testLineDistance (0., -4.) (0., 4.) (-5., 1.) (-6., 1.) ;
-	print_endline "should be 1.0";
-	testLineDistance (-10., 0.) (10., 0.5) (-10., 2.) (30., 1.) ;
-	print_endline "should be 0.0";
-	testLineDistance (0., 0.) (2., 2.) (0., 2.) (1., 1.) ;
-	print_endline "should be 0.0";
-	testLineDistance (0., 2.) (1., 1.) (0., 0.) (2., 2.) ;
-	print_endline "should be 2.0";
-	testLineDistance (0., -1.) (2., -1.) (-0.5, 0.99999) (1., 1.) ;
-	print_endline "should be 2.0";
-	testLineDistance (0., -1.) (2., -1.) (0.5, 1.) (0.5, 6.) ;
-	print_endline "should be 2.828427";
-	testLineDistance (1., -1.) (2., -1.) (-1., 1.) (-1., 1.) ;
 	
+let _ = 
 	(* read in the preferences *)
 	let geo = ref "" in
-	let fil = "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" in
+	let fil = getPrefsFile () in
 	let cin = try Some (open_in fil)
 		with _ -> None
 	in
@@ -2966,9 +2933,12 @@ let _ =
 	let pts = List.map  (fun(x,y) -> foi x, foi y)
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
-	(* this for testing (so we can get a backtrace...  
-	openFile top "/home/tlh24/svn/myopen/emg_dsp/stage3/stage3.brd"; 
-	gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
+	(* this for testing (so we can get a backtrace... *) 
+	(* openFile top "/home/tlh24/svn/kicad/demos/flat_hierarchy/flat_hierarchy.brd"; *)
+	(* openFile top "/home/tlh24/svn/kicad/demos/ecc83/ecc83-pp_v2.brd";  *)
+	(* openFile top "/home/tlh24/svn/kicad/demos/pic_programmer/pic_programmer.brd"; 
+	List.iter (fun z -> z#empty ()) !gzones ; *)
+	(* gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
 	gratsnest#clearAll (); 
 	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
 	redoRatNest (); *)

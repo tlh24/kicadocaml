@@ -1,4 +1,3 @@
-
 open Printf
 open Comm
 open Grfx
@@ -39,8 +38,8 @@ object (self)
 	val mutable m_keyword = ""
 	val mutable m_path = ""
 	(*val mutable m_timestamp = "" *)
-	val mutable m_cntRot90 = 0
-	val mutable m_cntRot180 = 0
+	val mutable m_cntRot90 = ""
+	val mutable m_cntRot180 = ""
 	val mutable m_attributes = ""
 	val mutable m_pads : 'pcb_pad list = []
 	val mutable m_texts : 'pcb_modtext list = []
@@ -66,7 +65,7 @@ object (self)
 	method update () = (
 		(* print_endline("updating pads:" ^ (string_of_int (List.length m_pads))); *)
 		m_move <- (0. , 0. ) ;
-		List.iter (fun p -> p#update m_x m_y) m_pads ; 
+		List.iter (fun p -> p#update m_rot m_x m_y) m_pads ; 
 		List.iter (fun p -> p#setPart ( self#getRef() ) ) m_pads ; 
 		List.iter (fun p -> p#update m_rot m_x m_y) m_shapes ; 
 		List.iter (fun p -> p#update m_rot m_x m_y ) m_texts ; 
@@ -256,7 +255,6 @@ object (self)
 	method getRot () = m_rot
 	method setRot r = (
 		m_rot <- r ; 
-		List.iter (fun p -> p#setRot r) m_pads; 
 		(*the shapes do not need to be rotated (apparently) *)
 	)
 	method getBBX movin = (
@@ -290,7 +288,7 @@ object (self)
 						Pts2.sub (self#getCenter false ) (m_x,m_y)
 					in
 					let (ofx, ofy) = getOffset () in
-					self#setRot (m_rot + 900) ; 
+					m_rot <- (m_rot + 900) ; 
 					if m_rot > 3600 then m_rot <- m_rot - 3600 ;
 					(* rotation by +90 deg is pretty simple -- *)
 					let (px,py) = Pts2.sub (ofx,ofy) ((1.) *. ofy, (-1.) *. ofx) in
@@ -391,13 +389,8 @@ object (self)
 	method read ic = (
 		(*note: don't bother with the $MODULE <libref> line --
 			the information is duplicated in the Li <libref> line *)
-		let parse pattern  = 
-			let line = input_line2 ic in
-			Pcre.extract ~pat:pattern line
-			(* with Not_found -> [| |] , false *)
-		in
-		let parse_line1  = 
-			let sp = parse "Po ([\d-]+) ([\d-]+) (\d+) (\d+) (\w+) (\w+) ([^ ]+)" in
+		let parse_line1 s = 
+			let sp = Pcre.extract ~pat:"Po ([\d-]+) ([\d-]+) (\d+) (\d+) (\w+) (\w+) ([^ ]+)" !s in
 			m_x <- fois (ios sp.(1)); 
 			m_y <- fois (ios sp.(2)); 
 			m_rot <- ios sp.(3); 
@@ -406,36 +399,20 @@ object (self)
 			m_TimeStamp <- sp.(6); 
 			m_statusText <- sp.(7); 
 		in
-		let parse_line2 = 
-			let sp = parse "Li (.+)" in
+		let parse_line2 s = 
+			let sp = Pcre.extract ~pat:"Li (.+)" !s in
 			m_libRef <- sp.(1) ; 
 		in
-		let parse_line3 = 
-			(*note, timestamp already read in the first line *)
-			(*there are two optional entries here : 
-			Cd = documentation. 
-			Kw = keyword. *)
-			let d = ref (input_line2 ic) in  
-			while not (Pcre.pmatch ~pat:"^Sc" !d) do (
-				m_doc <- (try (Pcre.extract ~pat:"^Cd (.+)" !d).(1)
-					with Not_found -> m_doc ); 
-				m_keyword <- (try (Pcre.extract ~pat:"^Kw (.+)" !d).(1)
-					with Not_found -> m_keyword ); 
-				d := input_line2 ic ; 
-			) done;
-			(* m_timestamp <- try (Pcre.extract ~pat:"^Sc (.+)" !d).(1)
-					with Not_found -> "" ; *)
-		in
-		let parse_line4 = 
+		let parse_line4 s = 
 			try 
-				let sp = parse "AR (.+)" in
+				let sp = Pcre.extract ~pat:"AR (.+)" !s in
 				m_path <- sp.(1) ; 
 			with Not_found -> ()  (*for modules that are inserted after schematic, AR will be blank *)
 		in
-		let parse_line5 = 
-			let sp = parse "Op (\d+) (\d+)" in
-			m_cntRot90 <- ios sp.(1) ; 
-			m_cntRot180 <- ios sp.(2) ;
+		let parse_line5 s = (* options for auto placement *)
+			let sp = Pcre.extract ~pat:"Op ([\d/w]+) ([\d\w]+)" !s in
+			m_cntRot90 <- sp.(1) ; 
+			m_cntRot180 <- sp.(2) ;
 		in
 		let parse_remaining = 
 			let line = ref (input_line2 ic) in
@@ -449,9 +426,22 @@ object (self)
 				let c = (Pcre.extract ~pat:"^([^ \d]+)" !line).(1) in
 				(
 				match c with 
+					| "Po" -> parse_line1 line
+					| "Li" -> parse_line2 line
+					| "Cd" -> (
+						m_doc <- (try (Pcre.extract ~pat:"^Cd (.+)" !line).(1)
+							with Not_found -> m_doc ); 
+						)
+					| "Kw" -> (
+						m_keyword <- (try (Pcre.extract ~pat:"^Kw (.+)" !line).(1)
+							with Not_found -> m_keyword ); 
+					)
+					(* | "Sc" ->  alread have the timestamp *)
+					| "AR" -> parse_line4 line
+					| "Op" -> parse_line5 line
 					| "$PAD" -> (
 						let pad = new pcb_pad in
-						pad#read ic; 
+						pad#read ic m_rot; 
 						m_pads <- (pad :: m_pads ) ; 
 						)
 					| "$SHAPE" -> (
@@ -477,11 +467,6 @@ object (self)
 			)
 			done; 
 		in
-		parse_line1 ; 
-		parse_line2 ; 
-		parse_line3 ; 
-		parse_line4 ; 
-		parse_line5 ;
 		parse_remaining ; 
 	)
 	method save oc = (
@@ -497,13 +482,13 @@ object (self)
 		) ; 
 		fprintf oc "Sc %s\n" m_TimeStamp ; 
 		fprintf oc "AR %s\n" m_path ; 
-		fprintf oc "Op %d %d 0\n" m_cntRot90 m_cntRot180 ; 
+		fprintf oc "Op %s %s 0\n" m_cntRot90 m_cntRot180 ; 
 		if (String.length m_attributes) > 0 then (
 			fprintf oc "At %s\n" m_attributes ; 
 		) ; 
 		List.iter (fun t -> t#save oc) (List.rev m_texts) ; 
 		List.iter (fun s -> s#save oc) (List.rev m_shapes) ; 
-		List.iter (fun p -> p#save oc) (List.rev m_pads) ; 
+		List.iter (fun p -> p#save oc m_rot) (List.rev m_pads) ; 
 		List.iter (fun s -> s#save oc) (List.rev m_shapes3d) ; 
 		fprintf oc "$EndMODULE  %s\n" m_libRef ; (*two spaces there for some reason *)
 		flush oc ; 

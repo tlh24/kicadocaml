@@ -19,6 +19,8 @@ object (self)
 	val mutable m_drill = 0.
 	val mutable m_drillOffX = 0.
 	val mutable m_drillOffY = 0.
+	val mutable m_drillSx = 0.
+	val mutable m_drillSy = 0.
 	val mutable m_type : 'pcb_pad_type = Pad_STD
 	val mutable m_layers : int list = [] 
 	val mutable m_netnum = 0
@@ -36,7 +38,8 @@ object (self)
 	method setConnect b = m_connect <- b
 	method setHighlight b = m_highlight <- b ;
 	method getZ () = m_g#getZ ()
-	method update x y = (
+	
+	method update rot x y = (
 		m_g#updateLayers m_layers ; (* this sets the color *)
 		(* make ground pads a little greenish *)
 		if m_netname = "GND" then (
@@ -48,17 +51,17 @@ object (self)
 		m_gtext#setColor (0.0, 0.0, 0.0) ;  (* has no layer so set color manually *)
 		(
 		match m_shape with
-			| Pad_Rect -> m_g#makeRect m_x m_y m_sx m_sy ; 
+			| Pad_Rect -> m_g#makeRect 0.0 0.0 m_sx m_sy ; 
 			| Pad_Oval -> (
 				match m_drill with 
-					| 0. -> m_g#makeOval (m_x,m_y) m_sx m_sy ;
-					| _ -> m_g#makeOvalRing 16 (m_x,m_y) m_sx m_sy m_drill ;
+					| 0. -> m_g#makeOval (0.0,0.0) m_sx m_sy ;
+					| _ -> m_g#makeOvalRing 16 (0.0,0.0) m_sx m_sy m_drill ;
 				)
 				
 			| _ -> (
 				match m_drill with 
-					| 0. -> m_g#makeCircle m_x m_y m_sx m_sy ; 
-					| _ -> m_g#makeRing (m_x,m_y) m_drill m_sx ; 
+					| 0. -> m_g#makeCircle 0.0 0.0 m_sx m_sy ; 
+					| _ -> m_g#makeRing (0.0,0.0) m_drill m_sx ; 
 				)
 		) ; 
 		
@@ -70,13 +73,14 @@ object (self)
 		let sx2 = min (dy /. 1.5) sx in
 		let width = sx2 /. 10.0 in
 		(* making text actually translates the other (actual) pad *)
-		m_gtext#makeText m_x m_y 0 0. 0. 0 
+		m_gtext#makeText 0.0 0.0 0 0. 0. 0 
 			(sx2-. width) 
 			(sx2 *. 1.33 -. width) 
 			width m_padname ; 
-			
-		m_g#rotateTranslate m_rot x y ; 
-		m_gtext#rotateTranslate m_rot x y ; 
+		m_g#rotateTranslate m_rot m_x m_y; 
+		m_g#rotateTranslate rot x y ; 
+		m_gtext#rotateTranslate m_rot m_x m_y; 
+		m_gtext#rotateTranslate rot x y ; 
 		m_moveCallback () ; 
 	)
 	method updateLayers () = m_g#updateLayers m_layers ; 
@@ -112,22 +116,25 @@ object (self)
 			true
 		) else false
 	)
-	method pointInPad p = (
+	method pointInPad rot p = (
 		(* need to rotate the point into our coordinate system *)
 		(* it is assumed that it is already translated into our coord sys *)
-		let a = (foi m_rot) /. -572.9577951308 in
+		(* coordinate system: world -> module -> pad *)
+		let a = (foi (rot)) /. -572.9577951308 in (* remove module rotation (negative) *)
 		let (px,py) = rotate2 ~angle:a p in
-		let x = m_x in
-		let y = m_y in
 		let sx = m_sx *. 0.5 in
 		let sy = m_sy *. 0.5 in
+		(* remove pad rotation *)
+		let a2 = (foi (m_rot)) /. -572.9577951308 in 
+		let (qx,qy) = rotate2 ~angle:a2 (Pts2.sub (px,py) (m_x,m_y))in
 		let hit = match m_shape with 
-			| Pad_Rect -> ( x -. sx < px && px < x +. sx && y -. sy < py && py < y +. sy)
-			| _ -> (Pts2.distance (px,py) (x,y)) < sx
+			| Pad_Rect
+			| Pad_Oval -> ( qx < sx && qx > (-1.0 *. sx) && qy < sy && qy > (-1.0 *. sy) )
+			| _ -> (Pts2.length (qx,qy) ) < sx
 		in
 		(* return boolean hit + where to snap to *)
 		(* don't forget to rotate back into world-coords! *)
-		(hit,( rotate2 ~angle:(-1. *. a) (x,y)) )
+		(hit,( rotate2 ~angle:(-1. *. a) (m_x,m_y)) ) (* really should make this more consistent *)
 	)
 	method hasLayer lay = List.exists ((=) lay) m_layers ; 
 	method addLayer lay = m_layers <- lay :: m_layers; 
@@ -173,7 +180,7 @@ object (self)
 		track , and the second to the pad *)
 		(* width2 is half the actual track width *)
 		(* have to use the bounding box here *)
-		let c = Pts2.add move (bbxCenter (m_g#getBBX() ) ) in
+		let c = Pts2.add move (bbxCenter (m_g#getBBX() ) ) in (* this in global coords, so ok*)
 		let (xl2,yl2,xh2,yh2) = m_g#getBBX() in
 		let xl,yl = Pts2.add (xl2,yl2) move in
 		let xh,yh = Pts2.add (xh2,yh2) move in
@@ -220,11 +227,12 @@ object (self)
 		if net != m_netnum &&  ((List.exists (fun n -> n=lay) m_layers) || lengthzero) then (
 			match m_shape with
 				| Pad_Rect -> testrect () 
-				| Pad_Oval -> testrect () (* yea.. really should do two circles and one rect .. eh. *)
+				| Pad_Oval -> testrect () (* yea.. really should do two circles and one rect .
+						or an appropriately sized track, 
+						also, need this to work with pad rotations, bleh *)
 				| _ -> testcircle ()
 		) else false
 	)
-	method setRot r = m_rot <- r ; 
 	method getNet () = m_netnum 
 	method setNet n = m_netnum <- n ;
 	method setNetName nn = m_netname <- nn ; 
@@ -253,14 +261,16 @@ object (self)
 		m_layers <- List.map flip_layer m_layers ; 
 		(* the callee is responsible for calling update w/ appropriate params *)
 	)
-	method read ic = (
+	method read ic rot = (
+		(* rot is the parent module rotation - 
+		rotations are in global coordinates in the file *)
 		let parse pattern = 
 			let line = input_line2 ic in
 			Pcre.extract ~pat:pattern line
 		in
-		(* first line should be `Sh "2" R 236 354 0 0 900` *)
+		(* first line should be eg. `Sh "2" R 236 354 0 0 900` *)
 		let parse_line1 = 
-			let sp = parse "Sh \"([^\"]*)\" (\w) (\d+) (\d+) (\d+) (\d+) (\d+)"  in
+			let sp = parse "Sh \"([^\"]*)\" (\w) (\d+) (\d+) (\d+) (\d+) ([-\d]+)"  in
 			m_padname <- sp.(1); 
 			m_shape <- (
 				match sp.(2) with
@@ -274,14 +284,28 @@ object (self)
 			m_sy <- fois (ios sp.(4)); 
 			m_dsx <- ios sp.(5) ; 
 			m_dsy <- ios sp.(6) ; 
-			m_rot <- ios sp.(7) ; 
+			m_rot <- (ios sp.(7)) - rot ; 
+			if m_rot < 0 then m_rot <- m_rot + 3600 ; 
+			if m_rot > 3600 then m_rot <- m_rot - 3600 ; 
 		in
 		let parse_line2 = 
-			let sp = parse "Dr (\d+) (\d+) (\d+)" in
-			m_drill <- fois (ios sp.(1)); 
-			m_drillOffX <- fois (ios sp.(2)); 
-			m_drillOffY <- fois (ios sp.(3)); 
-			(* warning -- I'm not handling oval pads here! *)
+			let line = input_line2 ic in
+			try (
+				let sp = Pcre.extract ~pat:"Dr (\d+) ([-\d]+) ([-\d]+) (\d+) (\d+)" line in
+				m_drill <- fois (ios sp.(1)); 
+				m_drillOffX <- fois (ios sp.(2)); 
+				m_drillOffY <- fois (ios sp.(3)); 
+				m_drillSx <- fois (ios sp.(4)); 
+				m_drillSy <- fois (ios sp.(5)); 
+			) with _ -> (
+				let sp = Pcre.extract ~pat:"Dr (\d+) ([-\d]+) ([-\d]+)" line in
+				m_drill <- fois (ios sp.(1)); 
+				m_drillOffX <- fois (ios sp.(2)); 
+				m_drillOffY <- fois (ios sp.(3)); 
+				m_drillSx <- 0.0; 
+				m_drillSy <- 0.0; 
+			)
+			(* warning -- I'm not handling oval drill here! *)
 		in
 		let parse_line3 = 
 			let sp = parse "At (\w+) N ([\d\w]+)" in
@@ -316,7 +340,9 @@ object (self)
 		ignore( input_line2 ic); (*read the last line, $EndPAD *)
 		(*function should return unit *)
 	)
-	method save oc = (
+	method save oc rot = (
+		let ra = m_rot + rot in (* convert back to global coords *)
+		let rb = mod2 ra 3600 in
 		fprintf oc "$PAD\n" ; 
 		fprintf oc "Sh \"%s\" %s %d %d %d %d %d\n"
 			m_padname 
@@ -325,8 +351,9 @@ object (self)
 				| Pad_Rect -> "R" 
 				| Pad_Oval -> "O"
 				| Pad_Trapezoid -> "T" )
-			(iofs m_sx) (iofs m_sy) m_dsx m_dsy m_rot ; 
-		fprintf oc "Dr %d %d %d\n" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY); 
+			(iofs m_sx) (iofs m_sy) m_dsx m_dsy rb ; 
+		fprintf oc "Dr %d %d %d\ %d %dn" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY)
+			(iofs m_drillSx) (iofs m_drillSy); 
 		fprintf oc "At %s N %8.8lX\n"
 			(match m_type with
 				| Pad_STD -> "STD" 

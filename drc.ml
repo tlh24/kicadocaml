@@ -295,10 +295,11 @@ let enlargeDrc tracks modules maxwidth increment renderfun =
 				let bbx = t#getDrcBBX() in
 				let hitpad = List.exists (fun m -> 
 					if bbxIntersect bbx (m#getDrcBBX()) then (
+						let rot = m#getRot() in
 						List.exists (fun p -> 
 							(* we do not test netcodes here  *)
-							let hitstart, _ = p#pointInPad (Pts2.sub st (m#getPos())) in
-							let hitend, _ = p#pointInPad (Pts2.sub en (m#getPos())) in
+							let hitstart, _ = p#pointInPad rot (Pts2.sub st (m#getPos())) in
+							let hitend, _ = p#pointInPad rot (Pts2.sub en (m#getPos())) in
 							if hitstart || hitend then (
 								(* check the size .. *)
 								if w < p#getSx() && w < p#getSy() then 

@@ -67,7 +67,7 @@ let unteardrop intracks =
 			let check a = 
 				let d = Pts2.distance p a in
 				let d2 = d -. (r -. w) in (* r-w is where the teardrops should be *)
-				fabs d2 < 0.002 
+				fabs d2 < 0.002 && r > 2.4 *. w
 			in
 			(* the starts will always be in the via *)
 			if check st then t#setVisible false

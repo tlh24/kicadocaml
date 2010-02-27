@@ -9,6 +9,157 @@ open Mod
 open Track
 open Ratnest
 
+type tt_shp = Typ_Circle | Typ_Track ;;
+
+type tt = {
+	t_s: float*float; (* pad or start location *)
+	t_e: float*float; 
+	t_siz : float ; 
+	t_shp : tt_shp ; 
+	t_pad : pcb_pad option; 
+	t_track : pcb_track option ; 
+	mutable t_connected : bool ; 
+	mutable t_net : int ;
+	t_layers : int list
+}
+
+let rec propagateNetcodes2 modules tracks doall checkpads top rendercb ratcb () = (
+	(* look at all the unnumbered (0) tracks & try to set their netcode 
+	based on connectivity. *)
+	(* if doall=true, then look at all the tracks. *)
+	if doall then (
+		List.iter (fun t -> t#setNet 0; ) !tracks ;
+	); 
+	(* if we are testing pad connectivity, set all pads except the first to be disconnected *)
+	let padnetnums = ref SI.empty in
+	if checkpads then (
+		List.iter (fun m-> 
+			List.iter (fun p->
+				let n = p#getNet() in
+				if n > 0 then (
+					if SI.exists ((=)n) !padnetnums then (
+						p#setConnect false ; 
+					) else (
+						p#setConnect true ; 
+						padnetnums := SI.add n !padnetnums ; 
+					);
+					(* note that this will mark all hanging pads - 
+					pads on a net with no other pads - as connected *)
+				);
+			) (m#getPads())
+		) !modules ; 
+	) else (
+		List.iter (fun m-> 
+			List.iter (fun p->
+				p#setConnect true ; 
+			) (m#getPads())
+		) !modules ; 
+	); 
+	(* convert to a more efficient data structure. *)
+	let objs = ref [] in
+	List.iter (fun m -> 
+		List.iter (fun p -> 
+			let sx,sy = bbxWH (p#getBBX ()) in
+			let siz = (min sx sy)/. 2.0 in
+			let q = {
+				t_s = p#getCenter () ; 
+				t_e = (0.0,0.0) ; 
+				t_siz = siz ; 
+				t_shp = Typ_Circle ; 
+				t_pad = Some p;
+				t_track = None ; 
+				t_connected = p#getConnect ();
+				t_net = p#getNet (); 
+				t_layers = p#getLayers (); 
+			} in
+			objs := q :: !objs; 
+		) (m#getPads()); 
+	) !modules; 
+	(* iterate over the tracks, too *)
+	List.iter (fun t -> 
+		let w = t#getWidth () /. 2.0 in
+		let q = {
+			t_s = t#getStart (); 
+			t_e = t#getEnd (); 
+			t_siz = w ;
+			t_shp = (match t#getType () with 
+				| Track_Via -> Typ_Circle
+				| _ -> Typ_Track ); 
+			t_pad = None ; 
+			t_track = Some t; 
+			t_connected = false ; 
+			t_net = t#getNet (); 
+			t_layers = [t#getLayer()]; 
+		} in
+		objs := q :: !objs; 
+	) !tracks ; 
+	(* thought: should sort by layer (duhh!) *)
+	for layer = 0 to 15 do (
+		let viaviaConn a b = 
+			let d = Pts2.distance a.t_s b.t_s in
+			d < (a.t_siz +. b.t_siz)
+		in
+		let viatrackConn a b = (* via, then track *)
+			let d = Pts2.distance a.t_s b.t_s in
+			let e = Pts2.distance a.t_s b.t_e in
+			let f = a.t_siz +. b.t_siz in
+			d < f || e < f
+		in
+		let tracktrackConn a b = 
+			let d = Pts2.distance a.t_s b.t_s in
+			let e = Pts2.distance a.t_s b.t_e in
+			let f = Pts2.distance a.t_e b.t_s in
+			let g = Pts2.distance a.t_e b.t_e in
+			let h = a.t_siz +. b.t_siz in
+			d < h || e < h || f < h || g < h
+		in
+		let rec propagate unconn changed = (
+			(* each iteration conn are those that have been *changed* *)
+			printf "propagate netcodes: changed %d\n%!" (List.length changed); 
+			let newchanged = ref [] in
+			List.iter (fun o -> (* changed modules *)
+				List.iter (fun q -> (* unconnected modules *)
+					let conn = if q.t_shp = Typ_Circle then (
+						if o.t_shp = Typ_Circle then 
+							viaviaConn o q
+						else 
+							viatrackConn q o
+					) else (
+						if o.t_shp = Typ_Circle then 
+							viatrackConn o q
+						else 
+							tracktrackConn q o
+					) in
+					if conn then (
+						q.t_connected <- true; 
+						q.t_net <- o.t_net ; 
+						newchanged := q :: !newchanged ; 
+					) ;
+				) unconn ; 
+			) changed ; 
+			if List.length !newchanged > 0 then (
+				propagate (List.filter (fun o -> not o.t_connected) unconn) !newchanged ; 
+			) ; 
+		) in
+		let active = List.filter (fun o -> 
+			List.exists ((=) layer) o.t_layers
+		) !objs in
+		printf "layer %d active %d\n%!" layer (List.length active) ; 
+		let conn,unconn = List.partition (fun o -> o.t_connected) active in
+		propagate unconn conn ; 
+		List.iter (fun o -> 
+			(match o.t_pad with 
+				| Some p -> p#setConnect o.t_connected ; (* don't change the nets ! *)
+				| None -> ()
+			); 
+			(match o.t_track with 
+				| Some t -> t#setNet o.t_net ; 
+				| None -> ()
+			); 
+		) !objs ; 
+	) done; 
+)
+
 let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () = 
 	(* look at all the unnumbered (0) tracks & try to set their netcode 
 	based on connectivity. *)

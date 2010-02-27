@@ -136,6 +136,7 @@ object (self)
 		(* don't forget to rotate back into world-coords! *)
 		(hit,( rotate2 ~angle:(-1. *. a) (m_x,m_y)) ) (* really should make this more consistent *)
 	)
+	method getLayers () = m_layers
 	method hasLayer lay = List.exists ((=) lay) m_layers ; 
 	method addLayer lay = m_layers <- lay :: m_layers; 
 	method getLayer () = ( (* just returns the first copper layer - not useful for through-hole*)

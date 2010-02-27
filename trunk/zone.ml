@@ -42,6 +42,8 @@ object (self)
 	method getLayer () = m_layer
 	method getHit () = m_hit
 	method setMoving m = m_moving <- m
+	method getNetName () = m_netname
+	method setNetNum n = m_net <- n
 
 	method set_corners pts = (
 		m_corners <- Array.make 1 [||] ; (* array of arrays *)
@@ -437,12 +439,17 @@ object (self)
 					let siz = (Pts2.distance (ax,ay) (bx,by)) *. r in
 					if Pts2.tracktouch (ax,ay) (bx,by) (px,py) (r/. 2.0) then k,siz else n,s
 				in
+				let xprobe () = 
+					!ginfodisp ("zone, layer:" ^ (layer_to_string m_layer) ^ 
+						"\nnet:" ^ (soi m_net) ^ " netname:" ^ (!glookupnet m_net)) ; 
+				in
 				if !found then (
 					m_hitN <- !n ; 
 					m_hitEdge <- -1 ; 
 					let ms = 3.1415926 *. r *. r in
 					if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
 						m_hit <- true ; 
+						xprobe (); 
 						List.iter (fun f -> f ()) hitclear; 
 						(m_net,ms,(m_Z-. 0.01),[self#hitclear])
 					) else (netnum,hitsize,hitz,hitclear)
@@ -456,6 +463,7 @@ object (self)
 (* 					if hitedge >= 0 then printf "hit an edge in zone!\n%!" ;  *)
 					if hitedge >= 0 && (m_Z > hitz || (m_Z = hitz && edgesize < hitsize)) then (
 						m_hit <- true; 
+						xprobe ();
 						m_hitEdge <- hitedge; 
 						m_hitN <- -1 ; 
 						List.iter (fun f -> f ()) hitclear; 

@@ -1135,16 +1135,15 @@ let makemenu top togl filelist =
 		let filetyp2 = [ {typename="netlist";extensions=[".net"];mactypes=[]} ] in
 		let fname = Tk.getOpenFile ~defaultextension:".net" 
 			~filetypes:filetyp2 ~title:"open netlist" () in
-		let count0603 mods = 
-			List.fold_left (fun k m -> 
-				if m#getLibRef () = "0603" then k+1 else k) 0 mods 
-		in
-		let orig = count0603 !gmodules in
 		let mods,nets = read_netlist fname gmodules in
 		gmodules := mods; 
 		gnets := nets; 
-		let neu = count0603 !gmodules in
-		printf "** original: %d new: %d\n%!" orig neu ; 
+		(* need to update the zone nets *)
+		List.iter (fun z -> 
+			let name = z#getNetName() in
+			let nn = List.find (fun n -> n#getName() = name) !gnets in
+			z#setNetNum (nn#getNet ()); 
+		) !gzones ; 
 		(* redo the rat's nest. *)
 		propagateNetcodes gmodules gtracks true false top 
 			(fun () -> render togl nulfun) 
@@ -2214,7 +2213,7 @@ let makemenu top togl filelist =
 		~command:(propagateNetcodes gmodules gtracks false false top 
 			(fun () -> render togl nulfun) redoRatNest ); 
 	Menu.add_command ratsnestSub ~label:"Propagate netcodes to all tracks" 
-		~command:(propagateNetcodes gmodules gtracks true false top 
+		~command:(propagateNetcodes2 gmodules gtracks true false top 
 			(fun () -> render togl nulfun) redoRatNest ); 
 	(*the following option no longer works *)
 	addOption ratsnestSub "show all nets when selected" (fun b -> gdragShowAllNets := b ) !gdragShowAllNets; 

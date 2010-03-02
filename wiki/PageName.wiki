@@ -5,18 +5,20 @@ http://m8ta.com/images/812_1.jpg
 
 = Commands = 
 
-(from the source code, see 'about' in the program)
+See 'about' in the program - this is formatted poorly yet. 
 
 right mouse button --- pan
 
 scroll wheel --- zoom
 middle mouse button --- 
-* in move module & move text mode, rotate;
-* in add or move track mode, select layer and update width
-"       (based on the track currently under the cursor).
+  * in move module & move text mode, rotate;
+  * in add or move track mode, select layer and update width
+"       (based on the track highlighted under the cursor).
 
-a - add track \n 
-" Ctrl-T - select track width \n" ^ 
+a - add track 
+
+Ctrl-T - select track width 
+
 " b - break track or zone edge under cursor \n" ^
 " e - edit (only text edit mplemented srry)\n" ^
 " f - In track editing/adding mode:\n\tfuse (join) tracks - two tracks must be highlighted \n" ^

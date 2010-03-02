@@ -688,7 +688,7 @@ object (self)
 		fprintf oc "%s\n" m_aux ; 
 		fprintf oc "ZClearance %d T\n"  (iofs m_clearance) ; 
 		fprintf oc "ZMinThickness %d\n" (iofs m_minthick) ; 
-		fprintf oc "\n%!" m_options ; 
+		fprintf oc "%s\n%!" m_options ; 
 		Array.iter (fun corn -> 
 			Array.iter (fun (x,y,z) -> 
 				fprintf oc "ZCorner %d %d %d\n" 

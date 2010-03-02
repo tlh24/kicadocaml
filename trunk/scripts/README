@@ -47,3 +47,9 @@ scripts:
 	
 	No guarantees are made of this program's functionality :-)
 	
+	
+4.  rename_pho.pl
+	Just renames the gerber output of Pcbnew to something more inteligable -
+	Top/Bot instead of Cmp/Cop. 
+	run it as ./rename_pho.pl /path/to/gerber/files/
+	

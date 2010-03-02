@@ -77,7 +77,7 @@ let doArray sheets template ax ay
 	) lut; 
 	(* set the flags for the tracks attached to the moved modules *)
 	print_endline "calculating tracks associated with to-be-moved modules" ; 
-	propagateNetcodes modules tracks true false top render (fun () -> ()) (); 
+	propagateNetcodes2 modules tracks true false top render; 
 	(* filter these tracks out *)
 	print_endline "removing tracks associated with moved modules" ; 
 	tracks := List.filter (fun t -> (t#getNet()) >= 0) !tracks; 
@@ -91,7 +91,7 @@ let doArray sheets template ax ay
 	(* build up a list of the template tracks in the same way. *) 	 
 	List.iter (fun m-> m#setDeleteAttachedTracks true ) tmplmods ; 	 
 	print_endline "calculating tracks associated with template modules (by continuity test)" ; 	 
-	propagateNetcodes modules tracks true false top render (fun () -> ()) (); 
+	propagateNetcodes2 modules tracks true false top render ; 
 	let templatetracks = List.filter (fun t -> (t#getNet()) < 0) !tracks in (* delete -> set neetcode < 0  *)
 	(* clear the flag *) 	 
 	List.iter (fun m-> m#setDeleteAttachedTracks false ) tmplmods ;
@@ -152,6 +152,7 @@ let doArray sheets template ax ay
 	) sheetlist ; 
 	(* set the netcodes ..  all tracks, since we made the template tracks negative when selecting them *)
 	print_endline "setting netcodes of all tracks" ; 	  
-	propagateNetcodes modules tracks true false top render redoRatNest(); 
+	propagateNetcodes2 modules tracks true false top render; 
 	render() ; 
+	redoRatNest()
 	;;

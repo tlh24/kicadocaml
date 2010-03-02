@@ -633,7 +633,7 @@ let openFile top fname =
 	
 	if (foi trackzero) /. (foi tracklen) > 0.4 then (
 		printf "It seems that this board was previously saved in PCBnew...\n%!"; 
-		propagateNetcodes gmodules gtracks true false top (fun () -> ()) (fun () -> ()) (); 
+		propagateNetcodes2 gmodules gtracks true false top (fun () -> ()); 
 	); 
 	gratsnest#clearAll (); 
 	gratsnest#make !gmodules !gtracks; 
@@ -1097,8 +1097,8 @@ let makemenu top togl filelist =
 			List.iter (fun p -> 
 				if p#getShape () = Pad_Circle then (
 					let x,y = p#getCenter () in
-					if p#hasLayer (string_to_layer "Cop") && 
-					   p#hasLayer (string_to_layer "Cmp") then (
+					if p#hasLayer (string_to_layer "Bot") && 
+					   p#hasLayer (string_to_layer "Top") then (
 						let p1x,p1y = (p#getSx()),(p#getSy()) in
 						fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
 							("F"^(soi !fidnum))
@@ -1145,10 +1145,9 @@ let makemenu top togl filelist =
 			z#setNetNum (nn#getNet ()); 
 		) !gzones ; 
 		(* redo the rat's nest. *)
-		propagateNetcodes gmodules gtracks true false top 
-			(fun () -> render togl nulfun) 
-			(fun () -> gratsnest#clearAll (); gratsnest#make !gmodules !gtracks) 
-			(); 
+		propagateNetcodes2 gmodules gtracks true false top 
+			(fun () -> render togl nulfun) ; 
+		redoRatNest() ; 
 	in
 	Menu.add_command filemenu ~label:"Load netlist" ~command:openNetlistCommand ; 
 	(* 
@@ -1252,8 +1251,8 @@ let makemenu top togl filelist =
 		) else ( print_endline "layer not present in board"; ) ; 
 	in
 	let (layerframe,changelayercallback) = makeLayerFrame 
-		["Cop";"L1";"L2";"L3";"L4";"Cmp";"SS_Cop";"SS_Cmp";]
-		["Cop";"L1";"L2";"L3";"L4";"Cmp";"SS_Cop";"SS_Cmp";"Drawings"]
+		["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot"]
+		["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot";"Drawings"]
 		(fun s -> raiseLayer (string_to_layer s) )
 		(fun s b ->
 			let lay = string_to_layer s in
@@ -2210,11 +2209,15 @@ let makemenu top togl filelist =
 	addOption gridsSub "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
 	
 	Menu.add_command ratsnestSub ~label:"Propagate netcodes to unconn. (nn=0) tracks" 
-		~command:(propagateNetcodes gmodules gtracks false false top 
-			(fun () -> render togl nulfun) redoRatNest ); 
+		~command:(fun () -> 
+			propagateNetcodes2 gmodules gtracks false false top 
+				(fun () -> render togl nulfun) ; 
+			redoRatNest () ); 
 	Menu.add_command ratsnestSub ~label:"Propagate netcodes to all tracks" 
-		~command:(propagateNetcodes2 gmodules gtracks true false top 
-			(fun () -> render togl nulfun) redoRatNest ); 
+		~command:(fun () -> 
+			propagateNetcodes2 gmodules gtracks true false top 
+				(fun () -> render togl nulfun) ; 
+			redoRatNest () ); 
 	(*the following option no longer works *)
 	addOption ratsnestSub "show all nets when selected" (fun b -> gdragShowAllNets := b ) !gdragShowAllNets; 
 	addOption ratsnestSub "show 4 smallest nets when selected" (fun b -> gdragShow5Smallest := b ) !gdragShow5Smallest; 
@@ -2236,8 +2239,10 @@ let makemenu top togl filelist =
 	Menu.add_command checkSub ~label:"Check soldermask on through-hole pads" 
 		~command:padSolderMaskAdjust ; 
 	Menu.add_command checkSub ~label:"Check pad connectivity" 
-		~command:(propagateNetcodes gmodules gtracks true true top 
-			(fun () -> render togl nulfun) redoRatNest );  
+		~command:(fun () -> 
+			propagateNetcodes2 gmodules gtracks true true top 
+				(fun () -> render togl nulfun) ; 
+			redoRatNest () ); 
 	Menu.add_command checkSub ~label:"Check DRC (track/pad copper spacing)"
 		~command:(testdrcAll gtracks gmodules top (fun () -> render togl nulfun)); 
 
@@ -2537,8 +2542,8 @@ let makemenu top togl filelist =
 			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then 
 				switchSelectTrack ev
 			else doRotate ev) top ; (* middle mouse button rotates, or selectsswitches*)
-	bind ~events:[`KeyPressDetail("Page_Up")] ~action:(fun _-> changelayercallback "Cop";) top;  
-	bind ~events:[`KeyPressDetail("Page_Down")] ~action:(fun _ -> changelayercallback "Cmp";) top;  
+	bind ~events:[`KeyPressDetail("Page_Up")] ~action:(fun _-> changelayercallback "Bot";) top;  
+	bind ~events:[`KeyPressDetail("Page_Down")] ~action:(fun _ -> changelayercallback "Top";) top;  
 	bind ~events:[`KeyPressDetail("F5")] ~action:(fun _ -> changelayercallback "L1";) top;  
 	bind ~events:[`KeyPressDetail("F6")] ~action:(fun _ -> changelayercallback "L2";) top;  
 	bind ~events:[`KeyPressDetail("F7")] ~action:(fun _ -> changelayercallback "L3";) top;  
@@ -2620,7 +2625,7 @@ let makemenu top togl filelist =
 		(* break track under cursor *)
 		(* breaking a track does not effect DRC, so don't bother testing *)
 		(fun ev -> 
-			ignore(  calcCursPos ev !gpan true ); 
+			ignore( calcCursPos ev !gpan true ); 
 			let midpoint = !gsnapped in
 			let track, found = try 
 				(List.find (fun t -> t#getHit() ) !gtracks),true
@@ -2638,8 +2643,16 @@ let makemenu top togl filelist =
 				track2#update () ; 
 				gratsnest#updateTracks (track#getNet()) !gtracks ; 
 				render togl nulfun; 
-				updateMode "move track"; (*you always want to move track after breaking it *)
-			); 
+				updateMode "move track"; (*you always want to move a track after breaking it *)
+			) else (
+				if List.exists (fun z -> z#getHit () ) !gzones then (
+					(* try adding a point to a zone *)
+					let zones = List.filter (fun z -> z#getHit()) !gzones in
+					List.iter (fun z -> z#add !gcurspos) zones ;
+					render togl nulfun; 
+					updateMode "move track";
+				)
+			)
 		) top; 
 	bind ~events:[`KeyPressDetail("f")] ~fields:[`MouseX; `MouseY] ~action:
 		(* fuse two tracks together.  DRC is effected, so test before 
@@ -2926,14 +2939,14 @@ let _ =
 		| Unix.Unix_error(Unix.EADDRINUSE, "bind", "") -> 
 			print_endline "could not open a unix socket to listen for eeschema: port already used (probably by pcbnew)" ; 
 	); 
-	(* Mesh.makewindow top ; *)
+(* 	Mesh.makewindow top ; *)
 	(* test out the mesh module 
 	printf "-- testing meshing --\n%!"; 
 	let pts = List.map  (fun(x,y) -> foi x, foi y)
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace... *) 
-	(* openFile top "/home/tlh24/svn/kicad/demos/flat_hierarchy/flat_hierarchy.brd"; *)
+	(* openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/ecc83/ecc83-pp_v2.brd";  *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/pic_programmer/pic_programmer.brd"; 
 	List.iter (fun z -> z#empty ()) !gzones ; *)

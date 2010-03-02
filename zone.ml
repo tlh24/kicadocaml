@@ -282,7 +282,7 @@ object (self)
 				List.iter (fun e -> segs := e :: !segs) segv ; 
 			) ; 
 		in
-		
+		printf "adding tracks to zone ..\n%!"; 
 		(* iterate over the tracks *)
 		List.iter (fun t -> 
 			let v = 
@@ -298,7 +298,8 @@ object (self)
 		) tracks ; 
 		
 		(* iterate over the modules *)
-		printf "Note: pads are not connected to zone; manual thermal releif required (for now)\n%!"; 
+		printf "adding modules to zone ..\n%!"; 
+		printf "Note: pads are not connected to zone; manual thermal relief required (for now)\n%!"; 
 		List.iter (fun m -> 
 			List.iter (fun p -> 
 				if p#hasLayer m_layer (*&& p#getNet() != m_net*) then (
@@ -329,81 +330,86 @@ object (self)
 		(* add the corners in last so they are added first *)
 		pts := List.rev_append corners !pts ; 
 		segs := List.rev_append (segments corners) !segs ;
+		printf "meshing points and segments\n%!"; 
 		(* make the filter function *)
 		let filter (a,b,c) =
 			let d = Pts2.scl (Pts2.add a (Pts2.add b c)) 0.33333 in
 			let good = ref (Poly.inside corners_poly d) in 
 			List.iter (fun t -> 
-				let e = 
-				match t#getType() with
-					| Track_Track ->
-						( Pts2.closestpointonline (t#getStart()) (t#getEnd()) d true )
-					| Track_Via -> 
-						( (t#getStart()) )
-				in
-				if Pts2.distance d e < (fudge *. (t#getWidth()) *. 0.5 
-					+. m_clearance +. 0.5 *. m_minthick) 
-				then good := false
+				if !good then (
+					let e = match t#getType() with
+						| Track_Track ->
+							( Pts2.closestpointonline (t#getStart()) (t#getEnd()) d true )
+						| Track_Via -> 
+							( (t#getStart()) )
+					in
+					if Pts2.distance d e < (fudge *. (t#getWidth()) *. 0.5 
+						+. m_clearance +. 0.5 *. m_minthick) 
+					then good := false
+				); 
 			) tracks ; 
 			(* do the same for the modules *)
 			List.iter (fun m -> 
-				List.iter (fun p -> 
-					if p#hasLayer m_layer (* && p#getNet() != m_net *) then (
-						let bbx = p#getBBX() in
-						let x,y = bbxCenter bbx in (* may have rotation applied *)
-						let w,h = bbxWH bbx in
-						let sx = (fudge *. w +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
-						let sy = (fudge *. h +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
-						let bad = 
-						match p#getShape() with 
-							| Pad_Circle -> 
-								Pts2.distance (x,y) d < sx 
-							| Pad_Rect -> 
-								(fst d) > x -. sx && (fst d) < x +. sx &&
-								(snd d) > y -. sy && (snd d) < y +. sy
-							| Pad_Oval ->  
-								let e,t = if sx > sy then (
-									let cw = (sx -. sy) in
-									Pts2.closestpointonline 
-										(Pts2.add (x,y) (-1.0 *. cw, 0.0))
-										(Pts2.add (x,y) (1.0 *. cw, 0.0))
-										d true , sy
-								) else (
-									let ch = (sy -. sx) in
-									Pts2.closestpointonline 
-										(Pts2.add (x,y) (0.0,-1.0 *. ch))
-										(Pts2.add (x,y) (0.0, 1.0 *. ch))
-										d true , sx
-								) in
-								Pts2.distance d e < t
-							| _ -> false;
-						in
-						(* if bad then ( --debug code.
-							match p#getShape() with
+				if !good then (
+					List.iter (fun p -> 
+						if p#hasLayer m_layer (* && p#getNet() != m_net *) then ( (* pads not in zone! *)
+							let bbx = p#getBBX() in
+							let x,y = bbxCenter bbx in (* may have rotation applied *)
+							let w,h = bbxWH bbx in
+							let sx = (fudge *. w +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
+							let sy = (fudge *. h +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
+							let bad = 
+							match p#getShape() with 
 								| Pad_Circle -> 
-									printf "triangle %f,%f intersect circle @ %f,%f , %f \n%!"
-									(fst d) (snd d) x y sx ; 
+									Pts2.distance (x,y) d < sx 
 								| Pad_Rect -> 
-									printf "triangle %f,%f intersect rect @ %f,%f , %f x %f\n%!"
-									(fst d) (snd d) x y sx sy; 
-								| Pad_Oval -> 
-									printf "triangle %f,%f intersect oval @ %f,%f , %f x %f\n%!"
-									(fst d) (snd d) x y sx sy; 
-								| _ -> (); 
-						) ;  *)
-						good := !good && not bad ; 
-					) ; 
-				) (m#getPads()); 
+									(fst d) > x -. sx && (fst d) < x +. sx &&
+									(snd d) > y -. sy && (snd d) < y +. sy
+								| Pad_Oval ->  
+									let e,t = if sx > sy then (
+										let cw = (sx -. sy) in
+										Pts2.closestpointonline 
+											(Pts2.add (x,y) (-1.0 *. cw, 0.0))
+											(Pts2.add (x,y) (1.0 *. cw, 0.0))
+											d true , sy
+									) else (
+										let ch = (sy -. sx) in
+										Pts2.closestpointonline 
+											(Pts2.add (x,y) (0.0,-1.0 *. ch))
+											(Pts2.add (x,y) (0.0, 1.0 *. ch))
+											d true , sx
+									) in
+									Pts2.distance d e < t
+								| _ -> false;
+							in
+							(* if bad then ( --debug code.
+								match p#getShape() with
+									| Pad_Circle -> 
+										printf "triangle %f,%f intersect circle @ %f,%f , %f \n%!"
+										(fst d) (snd d) x y sx ; 
+									| Pad_Rect -> 
+										printf "triangle %f,%f intersect rect @ %f,%f , %f x %f\n%!"
+										(fst d) (snd d) x y sx sy; 
+									| Pad_Oval -> 
+										printf "triangle %f,%f intersect oval @ %f,%f , %f x %f\n%!"
+										(fst d) (snd d) x y sx sy; 
+									| _ -> (); 
+							) ;  *)
+							good := !good && not bad ; 
+						) ; 
+					) (m#getPads()); 
+				);
 			) mods ; 
 			!good
 		in
 		(* attempt to limit really tiny triangles by spanning the space with extra points *)
 		(* assume that we want 20 along the larger dim *)
 		let dx,dy = maxx -. minx,maxy -. miny in
+		let n = 20 in
 		let nx,ny = if dx > dy then (
-			20, iof (floor 20.0 *. dy /. dx)
+			n, iof (floor (foi n) *. dy /. dx)
 		)else(
-			iof (floor 20.0 *. dx /. dy) , 20
+			iof (floor (foi n) *. dx /. dy) , n
 		)in
 		let sx,sy = dx /. (foi (nx-1)), dy /.(foi (ny-1)) in
 		for kx = 0 to nx do (
@@ -439,17 +445,12 @@ object (self)
 					let siz = (Pts2.distance (ax,ay) (bx,by)) *. r in
 					if Pts2.tracktouch (ax,ay) (bx,by) (px,py) (r/. 2.0) then k,siz else n,s
 				in
-				let xprobe () = 
-					!ginfodisp ("zone, layer:" ^ (layer_to_string m_layer) ^ 
-						"\nnet:" ^ (soi m_net) ^ " netname:" ^ (!glookupnet m_net)) ; 
-				in
 				if !found then (
 					m_hitN <- !n ; 
 					m_hitEdge <- -1 ; 
 					let ms = 3.1415926 *. r *. r in
 					if m_Z > hitz || (m_Z = hitz && ms < hitsize) then (
 						m_hit <- true ; 
-						xprobe (); 
 						List.iter (fun f -> f ()) hitclear; 
 						(m_net,ms,(m_Z-. 0.01),[self#hitclear])
 					) else (netnum,hitsize,hitz,hitclear)
@@ -463,7 +464,6 @@ object (self)
 (* 					if hitedge >= 0 then printf "hit an edge in zone!\n%!" ;  *)
 					if hitedge >= 0 && (m_Z > hitz || (m_Z = hitz && edgesize < hitsize)) then (
 						m_hit <- true; 
-						xprobe ();
 						m_hitEdge <- hitedge; 
 						m_hitN <- -1 ; 
 						List.iter (fun f -> f ()) hitclear; 
@@ -630,6 +630,9 @@ object (self)
 		let alpha = if !gcurnet = m_net then 0.78 else 0.5 in
 		m_g#setAlpha alpha ; 
 		if m_g#draw bbox ~hit:m_hit then ( (* there shouldn't be anything outside the corners, right? *)
+			(* probe *)
+			if m_hit then !ginfodisp ("zone, layer:" ^ (layer_to_string m_layer) ^ 
+					"\nnet:" ^ (soi m_net) ^ " netname:" ^ (!glookupnet m_net)) ; 
 			(* if we hit an edge, highlight that *)
 			let clen = Array.length (m_corners.(0)) in
 			if m_hit && m_hitEdge >= 0 && m_hitEdge < clen then (

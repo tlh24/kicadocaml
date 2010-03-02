@@ -16,45 +16,6 @@ type t_triangle = {
 	mutable can: int ; (* triangle off edge ca *)
 } ;;
 
-let triangleCenter a b c = 
-	(* finds the center (centroid, really) of a triangle *)
-	let ac2 = Pts2.scl (Pts2.add a c) 0.5 in
-	let bc2 = Pts2.scl (Pts2.add b c) 0.5 in
-	Pts2.intersectPt a bc2 b ac2
-	;;
-let triCenter t = triangleCenter t.a t.b t.c 
-let triMean t = Pts2.scl (Pts2.add t.a (Pts2.add t.b t.c)) 0.33333 
-;;
-
-let insidetri2 (x1,y1) (x2,y2) (x3,y3) (x,y) = 
-	(* use barycentric coordinates *)
-	let a = x1 -. x3 in
-	let b = x2 -. x3 in
-	let c = y1 -. y3 in
-	let d = y2 -. y3 in
-	let det = (a*.d -. b*.c) in
-	if abs_float det > 0.0001 then (
-		let e = x -. x3 in
-		let f = y -. y3 in
-		let b1,b2 = (d*.e -. b*.f) /. det , (a*.f -. c*.e) /. det in
-		b1 > 0.0 && b1 < 1.0 && b2 > 0.0 && b2 < 1.0
-		(* the equality is for when the vertex is on an edge of the triangle. *)
-	) else false
-;;
-let insidetri3 a b c (x,y) = 
-	(* determine if the point (x,y) is within the triangle *)
-	(* basically, if it is left of only one of the segments, then it is *)
-	let inside (x0,y0) (x1,y1) = 
-		if abs_float (y1 -. y0) > 0.00001 then (
-			let u = (y -. y0) /. (y1 -. y0) in
-			if u >= 0.0 && u < 1.0 then ( 
-				let xx = x0 +. (x1 -. x0) *. u in
-				if xx >= x then 1 else 0
-			) else 0
-		) else 0
-	in
-	if (inside a b) + (inside b c) + (inside c a) = 1 then true else false
-	;;
 let add (ax,ay) (bx,by) = 
 	ax +. bx, ay +. by
 	;; 
@@ -67,28 +28,56 @@ let scl a b =
 let cross (ax,ay) (bx,by) = 
 	(ax *. by) -. (ay *. bx)
 	;;
-let insidetri a b c d = 
+let dot (ax,ay) (bx,by) = 
+	ax *. bx +. ay *. by
+	;;
+let norm (x,y) = 
+	let sz = sqrt(x *. x +. y *. y ) in
+	x /. sz , y /. sz
+	;;
+let length (x,y) = 
+	sqrt(x *. x +. y *. y )
+	;;
+let distance2 a b = 
+	let x,y = sub a b in
+	x *. x +. y *. y
+	;;
+let crossnorm a b = 
+	cross (norm a) (norm b)
+	;;
+let insidetri a b c d = (* seems to be the most robust and efficient method *)
 	cross (sub b a) (sub d a) > 0.0 &&
 	cross (sub c b) (sub d b) > 0.0 &&
 	cross (sub a c) (sub d c) > 0.0 
+	;; 
+let ccw r = 
+	let ba = sub r.b r.a in
+	let cb = sub r.c r.b in
+	let ac = sub r.a r.c in
+	cross ba cb > 0.0 && cross cb ac > 0.0 && cross ac ba > 0.0
+	;;
+let angle a b c = abs_float (crossnorm (sub b a) (sub c b) ) 
+	;;
+let minangle j = 
+	let e = angle j.a j.b j.c in
+	let f = angle j.b j.c j.a in
+	let g = angle j.c j.a j.b in
+	min e (min f g)
+	;;
+let minangle2 j k = min (minangle j) (minangle k)
 	;;
 let ptonline a b c = 
-	let d = (Pts2.sub b a) in
-	let e = (Pts2.sub c a) in
-	let f = abs_float (Pts2.crossnorm d e )in
+	let d = sub b a in
+	let e = sub c a in
+	let f = abs_float (crossnorm d e )in
 	if f < 0.00001 then (
-		let g = add (scl d ((Pts2.length e)/.(Pts2.length d))) a in
-		if Pts2.length d >= Pts2.length e then true,g else false,g
+		let g = add (scl d ((length e)/.(length d))) a in
+		if length d >= length e then true,g else false,g
 	) else false, (0.0,0.0)
 	;;
-let ccw r = 
-		List.fold_left (fun ss (a,b,c) -> 
-			min ss (Pts2.cross (Pts2.sub a b) (Pts2.sub b c))
-		) 2.0 [(r.a,r.b,r.c);(r.b,r.c,r.a);(r.c,r.a,r.b)] 
-	;;
+	
 let printtri t = 
-	let w = ccw t in
-	let s = if w < 0.0 then "CW" else "CCW" in
+	let s = if ccw t then "CCW" else "CW" in
 	printf " a=(%f,%f) b=(%f,%f) c=(%f,%f) abn=%d bcn=%d can=%d %s\n%!"
 		(fst (t.a)) (snd (t.a)) (fst (t.b)) (snd (t.b)) (fst (t.c)) (snd (t.c))
 		t.abn t.bcn t.can s; 
@@ -116,7 +105,7 @@ let glwind = new glwindow
 let tcnt = ref 0 (* number of triangles *)
 let grun = ref 0
 	
-let render togl = 
+let render togl = (
 	Togl.make_current togl ; 
 	GlMat.push (); 
 	GlMat.scale ~x:1.0 ~y:(-1.0 ) ~z:1.0 () ; 
@@ -195,9 +184,9 @@ let render togl =
 	Togl.swap_buffers togl ; 
 	!delayfunc (); 
 	gselected := -1 ; 
-	;;
+	);;
 		
-let makewindow top = 
+let makewindow top = (
 	let wind = Toplevel.create top  in
 	Wm.title_set wind "mesh view";
 	let togl = Togl.create ~width:1000 ~height:1000 
@@ -206,7 +195,7 @@ let makewindow top =
 	glwind#reshape togl ; 
 	glwind#setRenderCB (fun () -> render togl );
 	renderfunc := (fun () -> glwind#render togl) ; 
-	;;
+	);;
 	
 let mesh pts segs filter = 
 	(* if we have n points, then we need at most 2n (or so) triangles - 
@@ -220,10 +209,9 @@ let mesh pts segs filter =
 		{a=origin; b=origin; c=origin; abn=(-1); bcn=(-1); can=(-1)} in
 	gtris := tt ; 
 	let tlast = ref 0 in (* the last insertion point *)
-	
 	let rotate tn d = 
 		(* given triangle index tn, rotate by d sides, this used for
-		aligning triangles for the flip-test operation mantain CCW orientation *)
+		aligning triangles for the flip-test operation. mantains CCW orientation *)
 		let t = tt.(tn) in (* make a copy *)
 		match d with 
 			| 1 -> ( (* bc -> ab etc *)
@@ -232,7 +220,6 @@ let mesh pts segs filter =
 				{a=t.c; b=t.a; c=t.b; abn=t.can; bcn=t.abn; can=t.bcn})
 			| _ -> (t)
 	in
-	
 	let connect ts old nu = 
 		if ts >= 0 && ts < ntri then (
 			let s = tt.(ts) in
@@ -240,15 +227,6 @@ let mesh pts segs filter =
 			if s.bcn = old then (tt.(ts)).bcn <- nu ; 
 			if s.can = old then (tt.(ts)).can <- nu ; 
 		)
-	in
-	
-	let angle a b c = abs_float (Pts2.crossnorm 
-		(Pts2.sub b a) 
-		(Pts2.sub c b) ) in
-	let minangle2 j k = (* minimum angle of two triangles *)
-		List.fold_left min 2.0 
-			[(angle j.a j.b j.c);(angle j.b j.c j.a);(angle j.c j.a j.b);
-			(angle k.a k.b k.c);(angle k.b k.c k.a);(angle k.c k.a k.b)]
 	in
 	let orient fn frot = 
 		(* common edge is supplied in com wrt f : 0=ab 1=bc 2=ca *)
@@ -271,22 +249,14 @@ let mesh pts segs filter =
 			let f,g = orient fn frot in
 			(* see if there are any angles > 180 - if so, cannot flip
 			since the corresponding quadralateral is concave *)
-			(* printf "trying flip f, g :\n%!"; printtri f ; printtri g; *)
 			(* generate two suggestion triangles *)
 			let fp = {a=f.a; b=g.c; c=f.c; abn=g.bcn; bcn=gn; can=f.can} in
 			let gp = {a=g.a; b=f.c; c=g.c; abn=f.bcn; bcn=fn; can=g.can} in
 			(* printf "-- to fp, gp : \n%!"; printtri fp ; printtri gp; *)
 			(* test to see if the two proposed triangles remain CCW *)
 			(* if not, then the quad perimeter has changed *)
-			if ccw fp > 0.0 && ccw gp > 0.0 then ( 
-			(* 
-			let angtest (a,b,c) = (Pts2.crossnorm (Pts2.sub a b) (Pts2.sub b c)) < 0.0 in
-			if not (List.exists angtest 
-					[(f.c,f.a,g.c);(f.a,g.c,f.b);(g.c,f.b,f.c);(f.b,f.c,f.a)]) then (
-					*)
+			if ccw fp && ccw gp then ( 
 				(* measure the mininum internal angle *)
-				(* abs so it is independent of the order of vertices 
-				(even though we always create them in a ccw way *)
 				let fpgpa = minangle2 fp gp in
 				let fga = minangle2 f g in
 				if fpgpa > fga then (
@@ -297,7 +267,7 @@ let mesh pts segs filter =
 					connect g.bcn gn fn ; 
 					gselected := fn ; 
 					gselecthot := true ; 
-					if !tcnt mod 20 = 0 then (!renderfunc) (); 
+					if !tcnt mod 45 = 0 then (!renderfunc) (); 
 					(*gselected := gn ; 
 					(!renderfunc) (); *)
 					(* printf "flipping!\n%!"; *)
@@ -306,17 +276,17 @@ let mesh pts segs filter =
 		)
 	in
 	let distt a d =
-		let x,y = Pts2.abs (Pts2.sub a d) in
-		if x > 0.00002 || y > 0.00002 then true 
-		else false
+		let x,y = (sub a d) in
+		abs_float x > 0.00002 || abs_float y > 0.00002
 	in
 	let distok t d = 
 		(distt t.a d) && (distt t.b d) && (distt t.c d)
 	in
-	let rec subdivide tn d = 
+	let subdivide tn d = 
 		(* given point d in triangle tn (index#), subdivide, and update the edge-links *)
 		(* have to introduce three new triangles here*)
 		(* first test to make sure it is not close to the vertices *)
+(* 		printf "subdivide (%f,%f)\n" (fst d) (snd d);  *)
 		let t = tt.(tn) in (* make a copy *)
 		if distok t d then (
 			let abdn = tn in (* reuse this spot *)
@@ -335,74 +305,47 @@ let mesh pts segs filter =
 			flip abdn t.abn 0 ; 
 			flip bcdn t.bcn 0 ; 
 			flip cadn t.can 0 ; (* all these have edge AB aligned with the edges of the former large triangle *)
-		) (* else (
-			printf "subdivide point (%f , %f) rejected, too close to existing point\n%!" (fst d) (snd d) ;
-		) *)
+		)
 	in
-
-	let findcontaining d = 
-		(* given a point, find the index of the triangle contains it *)
-		(* if it is not found, return -1 *)
-		(* this is for inserting points, not edges *)
+	let findcontaining2 d vertsOK = (
+		(* search for the triangle which contains point d  *)
+		(* this is used for insertion *)
 		let n = ref (!tlast) in
-		let g = ref d in (* snapped point *)
 		let found = ref false in
 		let prev = ref (-1) in
 		let prev2 = ref (-1) in
-		(* printf "findcontaining with (%f,%f)\n%!" (fst d) (snd d) ; *)
 		while !n >= 0 && !n < ntri && not !found do (
 			let t = tt.(!n) in
-			(* printf "(%f,%f) looking at " (fst d) (snd d); printtri t ;
+(* 			printf "(%f,%f) looking at " (fst d) (snd d); printtri t ; 
 			gselected := !n ; 
 			gselecthot := false; 
-			(!renderfunc) ();  *)
-			found := insidetri t.a t.b t.c d ; 
-			if not !found then (
-				if distok t d then (
-					(* find a point within this triangle *)
-					let e = Pts2.scl (Pts2.add (Pts2.add t.a t.b) t.c) 0.333333333 in
-					(* see which side this intersects with, and move to that triangle *)
-					if fst (Pts2.intersectBool t.a t.b d e) then( n := t.abn ; )
-					else if fst (Pts2.intersectBool t.b t.c d e) then( n := t.bcn ; )
-					else if fst (Pts2.intersectBool t.c t.a d e) then( n := t.can ; )
-					else(
-						if distok t d then (
-							let testseg a b = 
-								(* this snaps to an edge, to prevent CW triangles *)
-								let fnd,h = ptonline a b d in
-								if fnd then g := h ; 
-								fnd
-							in
-							if testseg t.a t.b || testseg t.b t.c || testseg t.c t.a then (
-								(* it is on an edge *)
-								found := true ; 
-							) else (
-								printf "does not intersect and point not on an edge\n%!" ; 
-								n := -1 ;
-							)
-						) else ( (* this point is already in the mesh *) 
-							(* printf "find point (%f , %f) rejected, too close to existing point\n%!" 
-								(fst d) (snd d) ; *)
-							n := -1 ; 
-						);
-					)
-				) else ( (* this point is already in the mesh *) 
-					(* printf "find point (%f , %f) rejected, too close to existing point\n%!" 
-						(fst d) (snd d) ; *)
-					n := -1 ; 
-				); 
+			(!renderfunc) (); *)
+			if distok t d then (
+				let e = cross (sub t.b t.a) (sub d t.a) in
+				let f = cross (sub t.c t.b) (sub d t.b) in
+				let g = cross (sub t.a t.c) (sub d t.c) in
+				if e >= 0.0 && f >= 0.0 && g >= 0.0 then (found := true)
+				else if e < 0.0 then n := t.abn (* off segment ba *)
+				else if f < 0.0 then n := t.bcn
+				else if g < 0.0 then n := t.can
+				else (n := !n+1; n := !n mod ntri;)
+			) else (
+				if vertsOK then (found := true)
+				else n := -1 ; 
 			); 
-			(* see if we have a loop - 
-			this means we are oscillating, and either triangle is good*)
-			if !n = !prev2 then found := true ; 
-			prev2 := !prev;
-			prev := !n
+			(* see if we have a loop - this means we are oscillating, and either triangle is good*)
+			if !n = !prev2 then (found := true);
+			prev2 := !prev; prev := !n
 		) done ; 
 		(* update for next time *)
 		if !n >= 0 && !n < ntri then tlast := !n ;
-		!n, !g
+		!n
+	) in
+	let insert d = 
+(* 		printf "inserting (%f,%f)\n%!" (fst d) (snd d) ; *)
+		let tn = findcontaining2 d false in
+		if tn >= 0 && tn < ntri then subdivide tn d
 	in
-	
 	let rec edgefind d e = (
 		(* look for intersections between triangle edges and segment d e *)
 		(* first find the triangle that d is in *)
@@ -411,64 +354,16 @@ let mesh pts segs filter =
 		let addseg = ref false in
 		let found = ref false in
 		let g =  ref (0.0, 0.0) in
-		(* original algorithm: use the links between the triangles to move toward 
-		the best triangle ; 
-		present more brute-force algorithm: just choose the triangle that has a vertex
-		closest to d, and return that  *)
-		let mindist = ref 1e60 in
-		let d2 = ref d in
-		let dist (x,y) (w,z) = (x -. w)*.(x -. w)+.(y -. z)*.(y -. z) in (* squared distance *)
-		for i = 0 to (Array.length tt)-1 do (
-			let dista = dist (tt.(i)).a d in
-			let distb = dist (tt.(i)).b d in
-			let distc = dist (tt.(i)).c d in
-			if dista < distb && dista < distc && dista < !mindist then (
-				n := i; 
-				d2 := (tt.(i)).a; 
-				mindist := dista; 
-			)else if distb < dista && distb < distc && distb < !mindist then (
-				n := i; 
-				d2 := (tt.(i)).b; 
-				mindist := distb; 
-			)else if distc < dista && distc < distb && distc < !mindist then (
-				n := i; 
-				d2 := (tt.(i)).c; 
-				mindist := distc; 
-			)
-		) done; 
-		(* while !n >= 0 && !n < ntri && not !found do (
-			(* this search will be different from above - the point must be 
-			a vertex of the triangle *)
-			let t = tt.(!n) in
-			gselected := !n ; 
-			(!renderfunc) (); 
-			printf "%% looking for a triangle which contains this point as a vertex\n%!"; 
-			debugTris t d e;
-			debugTris tt.(t.abn) d e;
-			debugTris tt.(t.bcn) d e; 
-			debugTris tt.(t.can) d e; 
-			if not (distok t d) then (
-				found := true ; (* a vertex!*)
-			) else (
-				(* start from center of triangle, project, move. *)
-				let f = scl (add (add t.a t.b) t.c) 0.33333333 in
-				if fst (Pts2.intersectBool t.a t.b f d) then( n := t.abn ; )
-				else if fst (Pts2.intersectBool t.b t.c f d) then( n := t.bcn ; )
-				else if fst (Pts2.intersectBool t.c t.a f d) then( n := t.can ; )
-				else( (* must be close to one of the vertices *)
-					let da = Pts2.distance t.a f in
-					let db = Pts2.distance t.b f in
-					let dc = Pts2.distance t.c f in
-					if da < db && da < dc then n := t.abn ; 
-					if db < da && db < dc then n := t.bcn ; 
-					if dc < da && dc < db then n := t.can ; 
-				) ; 
-			) ; 
-		) done ; *)
-		(* update for next time *)
-		if !n >= 0 && !n < ntri then tlast := !n ;
-		found := false ;
-		let f = !d2 in
+		
+		n := findcontaining2 d true;
+		let t = tt.(!n) in
+		(* snap point d to a vertex *)
+		let da = distance2 t.a d in
+		let db = distance2 t.b d in
+		let dc = distance2 t.c d in
+		let f = if da < db && da < dc then t.a
+			else if db < da && db < dc then t.b
+			else t.c in
 		ghotseg := (d,e) ; 
 		while !n >= 0 && !n < ntri && not !found do (
 			let v = tt.(!n) in
@@ -486,13 +381,13 @@ let mesh pts segs filter =
 				in
 				(* printf "looking for intersection with edges of triangle\n%!";
 				debugTris u f e; *)
-				let ab = Pts2.norm (sub u.b u.a) in
-				let ac = Pts2.norm (sub u.c u.a) in
-				let ae = Pts2.norm (sub e u.a) in
-				let x = Pts2.cross ab ae in
-				let xd = Pts2.dot ab ae in
-				let y = Pts2.cross ac ae in
-				let yd = Pts2.dot ac ae in
+				let ab = norm (sub u.b u.a) in
+				let ac = norm (sub u.c u.a) in
+				let ae = norm (sub e u.a) in
+				let x = cross ab ae in
+				let xd = dot ab ae in
+				let y = cross ac ae in
+				let yd = dot ac ae in
 				if abs_float x < 0.00001 then (
 					(* segments ab and de are parallel - check the dot product. *)
 					if xd > 0.0 then (
@@ -555,13 +450,7 @@ let mesh pts segs filter =
 		!addpoint, !addseg, !g , e (* never update the far endpoint - only the closer *)
 	) in
 	
-	let insert d = 
-		(* printf "inserting (%f,%f)\n%!" (fst d) (snd d) ; *)
-		let tn,e = findcontaining d in
-		if tn >= 0 && tn < ntri then subdivide tn e
-	in
-	
-	(* ok, we start with two triangles which are slightly larger than the bounding box
+	(* we start with two triangles which are slightly larger than the bounding box
 	and subdivide them *)
 	let (minx,miny) = 
 		List.fold_left (fun (mx,my) (x,y)  -> (min mx x),(min my y)) 
@@ -569,12 +458,12 @@ let mesh pts segs filter =
 	let (maxx,maxy) = 
 		List.fold_left (fun (mx,my) (x,y)  -> (max mx x),(max my y))
 		(List.hd pts) pts in
-	let (ex,ey) = Pts2.scl (Pts2.sub (maxx,maxy) (minx,miny)) 0.25 in
+	let (ex,ey) = scl (sub (maxx,maxy) (minx,miny)) 0.25 in
 	let ba = (minx -. ex, miny -. ey) in
 	let bb = (minx -. ex, maxy +. ey) in
 	let bc = (maxx +. ex, maxy +. ey) in
 	let bd = (maxx +. ex, miny -. ey) in
-	gcenter := Pts2.scl (Pts2.add ba bc) 0.5 ; 
+	gcenter := scl (add ba bc) 0.5 ; 
 	gzoom := 1.9 /. (max (maxx -. minx) (maxy -. miny)); 
 	glwind#setZoom (!gzoom,!gzoom,!gzoom) ; 
 	glwind#setPan (((fst !gcenter) *. -1.0), (snd !gcenter)) ;
@@ -584,6 +473,7 @@ let mesh pts segs filter =
 	tt.(1) <- {a=bd; b=bc; c=ba; abn=(-1); bcn=0; can=(-1)};
 	incr tcnt; 
 	gannosegs := segs ; 
+	printf "inserting all points into mesh..\n%!"; 
 	List.iter insert pts ; 
 	
 	let opt () = 
@@ -601,7 +491,7 @@ let mesh pts segs filter =
 		) done ; 
 		gselected := 0 ; 
 	in
-	(* ok, need to make sure no triangles span segments *)
+	(* need to make sure no triangles span segments *)
 	(* if they do, we simply insert a new point until no segments are left w/ intersections *)
 	let rec eliminate ss w dopt chthr = 
 		(* ss = list of segments; w= recursion counter *)
@@ -617,7 +507,7 @@ let mesh pts segs filter =
 				if addpoint then ( morpts := g :: (!morpts); ); 
 				if addseg then ( morsegs := (e,g) :: (!morsegs); ); 
 			) ss ; 
-			printf "eliminate segments:  %d points\n%!" (List.length !morpts) ;
+(* 			printf "eliminate segments:  %d points\n%!" (List.length !morpts) ; *)
 			gannopts := !morpts ; 
 			gannosegs := !morsegs ; 
 			List.iter insert !morpts ; 
@@ -626,7 +516,7 @@ let mesh pts segs filter =
 			eliminate !morsegs (w+1) dopt newthr; 
 		) ; 
 	in
-	
+	printf "checking that all segments are in mesh..\n%!"; 
 	eliminate segs 0 true (List.length segs + 10); 
 	(* second pass to make sure all segments are there  - 
 	optimization may have caused a segment to be crossed after the 

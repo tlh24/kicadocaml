@@ -12,10 +12,9 @@ let div a b =
 	;;
 let abs (x,y) = (abs_float x, abs_float y)
 	;;
-let norm (x,y) = (*normalize the length of a vector *) 
-	let sq w = w*.w in
-	let sz = sqrt( (sq x) +. (sq y) ) in
-	scl (x,y) (1. /. sz )
+let norm (x,y) = 
+	let sz = sqrt(x *. x +. y *. y ) in
+	x /. sz , y /. sz
 	;;
 let dot a b = 
 	(fst a) *. (fst b) +. (snd a) *. (snd b) 

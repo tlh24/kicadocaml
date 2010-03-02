@@ -7,20 +7,15 @@ http://m8ta.com/images/812_1.jpg
 
 (from the source code, see 'about' in the program)
 
-"Kicad PCB editor\n" ^
-"written in Ocaml (yay) \n" ^
-"by Tim Hanson, sideskate@gmail.com \n" ^
-"for use with the Kicad suite of programs.\n" ^
-"   (not meant to work wholly by itself -- netlist/lib load incomplete) \n\n" ^
-"Relevant hotkeys / commands: \n" ^ 
-" right mouse button --- pan \n" ^ 
-" scroll wheel --- zoom \n" ^
-" middle mouse button --- \n" ^
-"    * in move module & move text mode, rotate; \n" ^
-"    * in add or move track mode, select layer and update width\n"^
-"       (based on the track currently under the cursor).\n"^
-" .... \n" ^
-" a - add track \n" ^
+right mouse button --- pan
+
+scroll wheel --- zoom
+middle mouse button --- 
+* in move module & move text mode, rotate;
+* in add or move track mode, select layer and update width
+"       (based on the track currently under the cursor).
+
+a - add track \n 
 " Ctrl-T - select track width \n" ^ 
 " b - break track or zone edge under cursor \n" ^
 " e - edit (only text edit mplemented srry)\n" ^

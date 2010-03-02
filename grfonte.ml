@@ -1,4 +1,7 @@
-	(*  grfonte.h : codage de la fonte de caracteres utilisee en trace de
+(* This file is derived from grfonte.h in the Kicad project, 
+	and follows the same copyright.  *)
+
+(*  grfonte.h : codage de la fonte de caracteres utilisee en trace de
 		textes graphiques  *)
 (* 
 formes des caracteres : definies sur matrice 10 x 13 sour forme de vecteurs

@@ -1,0 +1,49 @@
+#summary Placeholder for the full wiki.
+= Introduction =
+
+http://m8ta.com/images/812_1.jpg
+
+= Commands = 
+
+(from the source code, see 'about' in the program)
+
+"Kicad PCB editor\n" ^
+"written in Ocaml (yay) \n" ^
+"by Tim Hanson, sideskate@gmail.com \n" ^
+"for use with the Kicad suite of programs.\n" ^
+"   (not meant to work wholly by itself -- netlist/lib load incomplete) \n\n" ^
+"Relevant hotkeys / commands: \n" ^ 
+" right mouse button --- pan \n" ^ 
+" scroll wheel --- zoom \n" ^
+" middle mouse button --- \n" ^
+"    * in move module & move text mode, rotate; \n" ^
+"    * in add or move track mode, select layer and update width\n"^
+"       (based on the track currently under the cursor).\n"^
+" .... \n" ^
+" a - add track \n" ^
+" Ctrl-T - select track width \n" ^ 
+" b - break track or zone edge under cursor \n" ^
+" e - edit (only text edit mplemented srry)\n" ^
+" f - In track editing/adding mode:\n\tfuse (join) tracks - two tracks must be highlighted \n" ^
+"     In module moving mode:\n\tflip a module from the top to the bottom of the board, and vice-versa\n"^
+" h - hide / unhide selected text in move text mode\n" ^
+" m - move module \n" ^
+" t - move track \n" ^
+" v - insert a via (in add tracks mode) \n" ^
+" v - edit module value (in move module mode)\n"^
+" Ctrl-V - select via size \n" ^
+" .... \n" ^
+" page up - select copper layer \n" ^
+" page down - select component layer \n" ^
+" F5 - select inner layer 1\n" ^
+" F6 - select inner layer 2\n" ^
+" F7 - select inner layer 3\n" ^
+" F8 - select inner layer 4 (but you should use the middle mouse button usually)\n"  ^
+" .... \n" ^
+" Shift - select multiple modules for moving \n" ^
+"         (somewhat incomplete feature) \n" ^
+" Enter - cross probe transmit to eeschema\n" ^
+" Backspace - remove highlighted track\n" ^
+" Delete - remove highlighted track & all connected tracks\n" ^
+" Ctrl-F - find \n" ^
+" F3 - find next \n"

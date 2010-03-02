@@ -27,8 +27,8 @@ let linenum = ref 0
 let gfilereadname = ref ""
 let input_line2 ic = 
 	let line = input_line ic in
-	(* linenum := !linenum + 1 ; 
-	print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
+	linenum := !linenum + 1 ; 
+	(* print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
 	line ;;
 let nothingxy (_:float) (_:float) = () ;;
 let nothingsxy (_:string) (_:float) (_:float) = () ; 
@@ -90,29 +90,29 @@ let update_layer_z () =
 	;;
 let layer_to_string layer = 
 	match layer with 
-		| 0 -> "Cop"
+		| 0 -> "Bot"
 		| 1 -> "L1"
 		| 2 -> "L2"
 		| 3 -> "L3"
 		| 4 -> "L4"
 		| 5 -> "L5"
-		| 15 -> "Cmp"
-		| 20 -> "SS_Cop"
-		| 21 -> "SS_Cmp"
+		| 15 -> "Top"
+		| 20 -> "SS_Bot"
+		| 21 -> "SS_Top"
 		| 24 -> "Drawings"
 		| _ -> ""
 
 let string_to_layer s = 
 	match s with 
-		| "Cop" -> 0
+		| "Bot" -> 0
 		| "L1" -> 1
 		| "L2" -> 2
 		| "L3" -> 3
 		| "L4" -> 4
 		| "L5" -> 5
-		| "Cmp" -> 15
-		| "SS_Cop" -> 20
-		| "SS_Cmp" -> 21
+		| "Top" -> 15
+		| "SS_Bot" -> 20
+		| "SS_Top" -> 21
 		| "Drawings" -> 24
 		| _ -> 31
 

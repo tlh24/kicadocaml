@@ -7,7 +7,7 @@ LINKER = ocamlfind ocamlc -g
 ifeq ($(strip $(PROFILE)),TRUE)
 OCAMOPT = ocamlfind ocamlopt -p -g -c -w x -w Z
 else 
-OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 3
+OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 30
 endif
 OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
@@ -44,7 +44,7 @@ kicadocaml: $(OBJS)
 	$(LINKER) -linkpkg $(OPTIONS) $(OBJS) -o kicadocaml
 	
 kicadocaml.opt: $(OPTOBJS)
-	ocamlfind ocamlopt -o kicadocaml.opt -inline 3 -linkpkg $(OPTIONS) $(OPTOBJS)
+	ocamlfind ocamlopt -o kicadocaml.opt -inline 30 -linkpkg $(OPTIONS) $(OPTOBJS)
 	
 dump.odoc : $(SRC)
 	ocamlfind ocamldoc $(OPTIONS) $(SRC) -dump dump.odoc

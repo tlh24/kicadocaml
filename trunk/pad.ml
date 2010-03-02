@@ -353,8 +353,9 @@ object (self)
 				| Pad_Oval -> "O"
 				| Pad_Trapezoid -> "T" )
 			(iofs m_sx) (iofs m_sy) m_dsx m_dsy rb ; 
-		fprintf oc "Dr %d %d %d\ %d %dn" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY)
-			(iofs m_drillSx) (iofs m_drillSy); 
+		fprintf oc "Dr %d %d %d" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY) ; 
+		if m_shape = Pad_Oval then fprintf oc " %d %d" (iofs m_drillSx) (iofs m_drillSy); 
+		fprintf oc "\n"; 
 		fprintf oc "At %s N %8.8lX\n"
 			(match m_type with
 				| Pad_STD -> "STD" 

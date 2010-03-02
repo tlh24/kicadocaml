@@ -20,10 +20,11 @@ type tt = {
 	t_track : pcb_track option ; 
 	mutable t_connected : bool ; 
 	mutable t_net : int ;
-	t_layers : int list
+	t_layers : int list ; 
+	t_via : bool ; 
 }
 
-let rec propagateNetcodes2 modules tracks doall checkpads top rendercb ratcb () = (
+let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 	(* look at all the unnumbered (0) tracks & try to set their netcode 
 	based on connectivity. *)
 	(* if doall=true, then look at all the tracks. *)
@@ -71,6 +72,7 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb ratcb () 
 				t_connected = p#getConnect ();
 				t_net = p#getNet (); 
 				t_layers = p#getLayers (); 
+				t_via = false; 
 			} in
 			objs := q :: !objs; 
 		) (m#getPads()); 
@@ -90,12 +92,11 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb ratcb () 
 			t_connected = false ; 
 			t_net = t#getNet (); 
 			t_layers = [t#getLayer()]; 
+			t_via = t#isVia();
 		} in
 		objs := q :: !objs; 
 	) !tracks ; 
-	(* thought: should sort by layer (duhh!) *)
-	for layer = 0 to 15 do (
-		let viaviaConn a b = 
+	let viaviaConn a b = 
 			let d = Pts2.distance a.t_s b.t_s in
 			d < (a.t_siz +. b.t_siz)
 		in
@@ -113,23 +114,25 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb ratcb () 
 			let h = a.t_siz +. b.t_siz in
 			d < h || e < h || f < h || g < h
 		in
-		let rec propagate unconn changed = (
+		let rec propagate unconn changed layercheck = (
 			(* each iteration conn are those that have been *changed* *)
 			printf "propagate netcodes: changed %d\n%!" (List.length changed); 
 			let newchanged = ref [] in
 			List.iter (fun o -> (* changed modules *)
 				List.iter (fun q -> (* unconnected modules *)
-					let conn = if q.t_shp = Typ_Circle then (
-						if o.t_shp = Typ_Circle then 
-							viaviaConn o q
-						else 
-							viatrackConn q o
-					) else (
-						if o.t_shp = Typ_Circle then 
-							viatrackConn o q
-						else 
-							tracktrackConn q o
-					) in
+					let conn = if layercheck o q then (
+						if q.t_shp = Typ_Circle then (
+							if o.t_shp = Typ_Circle then 
+								viaviaConn o q
+							else 
+								viatrackConn q o
+						) else (
+							if o.t_shp = Typ_Circle then 
+								viatrackConn o q
+							else 
+								tracktrackConn q o
+						) 
+					) else false in
 					if conn then (
 						q.t_connected <- true; 
 						q.t_net <- o.t_net ; 
@@ -138,29 +141,76 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb ratcb () 
 				) unconn ; 
 			) changed ; 
 			if List.length !newchanged > 0 then (
-				propagate (List.filter (fun o -> not o.t_connected) unconn) !newchanged ; 
+				propagate (List.filter (fun o -> not o.t_connected) unconn) !newchanged layercheck; 
 			) ; 
 		) in
+	(* thought: should sort by layer (duhh!) *)
+	for layer = 0 to 15 do (
 		let active = List.filter (fun o -> 
 			List.exists ((=) layer) o.t_layers
 		) !objs in
-		printf "layer %d active %d\n%!" layer (List.length active) ; 
+		printf "layer %s active %d\n%!" (layer_to_string layer) (List.length active) ; 
 		let conn,unconn = List.partition (fun o -> o.t_connected) active in
-		propagate unconn conn ; 
-		List.iter (fun o -> 
+		propagate unconn conn (fun _ _ -> true); 
+	) done; 
+	(* do all layers, as vias switch layers and by only looking at layers we may miss them *)
+	printf "checking all layers\n"; 
+	let conn,unconn = List.partition (fun o -> o.t_connected) !objs in
+	propagate unconn conn (fun a b -> 
+		if a.t_via || b.t_via then true else  
+		List.exists (fun l1 -> List.exists ((=) l1) b.t_layers) a.t_layers
+	); 
+	(* copy the attributes *)
+	List.iter (fun o -> 
+		(match o.t_pad with 
+			| Some p -> p#setConnect o.t_connected ; (* don't change the nets ! *)
+			| None -> ()
+		); 
+		(match o.t_track with 
+			| Some t -> t#setNet o.t_net ; 
+			| None -> ()
+		); 
+	) !objs ; 
+	(* see if there are any pads not connected *)
+	if checkpads then (
+		let connerr = ref [] in
+		List.iter (fun o ->
 			(match o.t_pad with 
-				| Some p -> p#setConnect o.t_connected ; (* don't change the nets ! *)
-				| None -> ()
-			); 
-			(match o.t_track with 
-				| Some t -> t#setNet o.t_net ; 
+				| Some _ -> if not o.t_connected && o.t_net > 0 then 
+					connerr :=  ( "not connected", o.t_s) :: !connerr ; 
 				| None -> ()
 			); 
 		) !objs ; 
-	) done; 
+		(* probably want to make a window with these errors in buttons so you can click on them *)
+		if List.length !connerr > 0 then (
+			let dlog = Toplevel.create top in
+			Wm.title_set dlog "Connection errors" ;
+			(* make a series of buttons -- but only the first 30 errors *)
+			let err = ref [] in
+			for i = 1 to (min 30 (List.length !connerr)) do (
+				err := ((List.nth !connerr (i-1)) :: !err) ; 
+			) done ; 
+			let cnt = ref 0 in
+			let buttons = List.map (fun (e,p) -> 
+				incr cnt ; 
+				Button.create ~text:((soi !cnt) ^ ": " ^ e)
+					~command:(fun () -> 
+						gpan := (Pts2.scl p (-1.0)); 
+						gcurspos := p; 
+						rendercb (); )
+					dlog) !err ; 
+			in
+			Tk.pack ~fill:`Both ~expand:true ~side:`Top buttons ; 
+			(* need to redo the netcodes so we can put down new tracks! *)
+			propagateNetcodes2 modules tracks doall false top rendercb ; 
+		) else (
+			print_endline "all pads were found to be connected, no errors encountered."; 
+			print_endline "good job!"; 
+		); 
+	) ; 
 )
 
-let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () = 
+let rec propagateNetcodes modules tracks doall checkpads top rendercb = 
 	(* look at all the unnumbered (0) tracks & try to set their netcode 
 	based on connectivity. *)
 	(* if doall=true, then look at all the tracks. *)
@@ -333,11 +383,10 @@ let rec propagateNetcodes modules tracks doall checkpads top rendercb ratcb () =
 			in
 			Tk.pack ~fill:`Both ~expand:true ~side:`Top buttons ; 
 			(* need to redo the netcodes so we can put down new tracks! *)
-			propagateNetcodes modules tracks doall false top rendercb ratcb () ; 
+			propagateNetcodes modules tracks doall false top rendercb ; 
 		) else (
 			print_endline "all pads were found to be connected, no errors encountered!!"; 
 		); 
 	) ; 
-	(* redo the ratsnest now. *)
-	ratcb (); 
+	(* remember, redo the ratsnest after this call *)
 	;;

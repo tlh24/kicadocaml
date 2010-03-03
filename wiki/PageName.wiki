@@ -30,7 +30,7 @@ Other useful commands/hotkeys:
 
 DRC is online and robust, and tracks push/exclude eachother. There is push routing, and it works well, but you need to push slowly/gently.  I'll get around to making it more robust, I promise!  
 
-Zone fill is with a custom triangularization algorithm (used Options->Zones->Show zone fill algorithm window to see it in action), comparable performance to Pcbnew Kbool, with the added benefit that the generated zones render very quickly in Opengl. As Pcbnew understands polygons, which triangles are a subset of, for zone filling & gerber file generation are interoperable. 
+Zone fill is with a custom triangularization algorithm (use Options->Zones->Show zone fill algorithm window to see it in action), comparable performance to Pcbnew Kbool, with the added benefit that the generated zones render very quickly in Opengl. As Pcbnew understands polygons, which triangles are a subset of, for zone filling & gerber file generation are interoperable. 
 
 As the graphical interface is through OpenGL, you'll need a hardware-accelerated video card to use it well.  That said, it means that beautiful full-screen anti-aliasing comes 'for free' - just adjust the settings on your video card.  It also allows proper Z-sorting and alpha-blending, which makes interacting with a complicated multi-layer board much easier.  It als means that the screen refreshes whenever the cursor moves, which permits interactive net and module highlighting, and for you to see where a cursor snaps to when starting/editing a track. 
 

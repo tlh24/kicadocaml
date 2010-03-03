@@ -1,6 +1,6 @@
 #summary Simple intro page.
 
-http://m8ta.com/images/812_1.jpg
+http://m8ta.com/images/812_3_thumb_20.jpg
 
 What is kicadocaml?  It is a OpenGL-based PCB editor written in Ocaml (obviously) which reads and writes Pcbnew's board files.  It also reads Eeschema's schematic files, which are then used to understand the overall structure of a project, and do good things like hide modules based on sheet, arrange modules based on schematic location (simulated annealing is also available), and array duplicated sub-sheets (including associated tracks).  
 

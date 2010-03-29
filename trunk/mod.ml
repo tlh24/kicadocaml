@@ -426,7 +426,7 @@ object (self)
 			with Not_found -> ()  (*for modules that are inserted after schematic, AR will be blank *)
 		in
 		let parse_line5 s = (* options for auto placement *)
-			let sp = Pcre.extract ~pat:"Op ([\d/w]+) ([\d\w]+)" !s in
+			let sp = Pcre.extract ~pat:"Op ([\d\w]+) ([\d\w]+)" !s in
 			m_cntRot90 <- sp.(1) ; 
 			m_cntRot180 <- sp.(2) ;
 		in

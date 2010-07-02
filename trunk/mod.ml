@@ -160,7 +160,7 @@ object (self)
 	method hit p hithold onlyworknet netnum hitsize hitz clearhit = (
 		(* if any of the pads are hit, then this module is hit *)
 		(* pads can only be hit if you are on the right layer *)
-		(* modules can be hit from any layer fi you are in mod-move mode*)
+		(* modules can be hit from any layer if you are in mod-move mode*)
 		if not m_moving && m_visible then (
 			(* texts can be moved semi-independently from the module, 
 			hence need to check these independently. *)
@@ -181,8 +181,9 @@ object (self)
 			in
 			let ms = m_g#getBBXSize () in
 			let mz = glayerZ.(m_layer) in
+			(* hit if we are about the same size and on a higher layer -- heuristic! *)
 			let hitself = m_g#hit p && 
-				( ms < hitsize3 ) &&
+				( ms < hitsize3  || ((fabs(ms -. hitsize3)/.ms < 0.1) && (mz -. 1.0) > hitz3)) &&
 				!gmode <> Mode_MoveText && 
 				glayerEn.(m_layer) in
 			(* hold the hit signal if shift is depressed *)

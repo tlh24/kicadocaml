@@ -57,7 +57,7 @@ type token =
 yea, I wish it could be simpler too! ..but it works.
 I could have done this with Pcre etc, but I wanted to try
 out lexing / parsing & learn how it works.  This may be a 
-bit faster, too! (have not tested ..) *)
+bit faster! (have not tested ..) *)
 
 (* The string buffering machinery *)
 let initial_buffer = String.create 32 ;;
@@ -226,6 +226,8 @@ let read_netlist fname (boardmods:pcb_module list ref) =
 		| [] -> ()
 	in
 	get_nets modlist ;
+	(* add in the default - '?' maps to 0. *)
+	nets := (0,"?"):: !nets ; 
 	Printf.printf "----------\n%!"; 
 	(* now stick these into a hashtable to map name to number. *)
 	(* also make a list of pcb_nets to update gnets - 

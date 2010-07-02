@@ -32,7 +32,9 @@ object (self)
 		val mutable m_layer = 0
 		val mutable m_type = Track_Track
 		val mutable m_net = 0
-		val mutable m_status = "0"
+		val mutable m_status = "0" 
+		val mutable	m_drawsegment = false (*for drawsegments*)
+		val mutable	m_angle = 0
 		val mutable m_g = new grfx
 		val mutable m_hit = false
 		val mutable m_washit = false
@@ -363,15 +365,47 @@ object (self)
 			m_status <- sp.(4) ; 
 		)
 		method save oc = (
-			fprintf oc "Po %d %d %d %d %d %d %d\n"
-				m_shape (iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) 
-				(iofs m_width) (iofs m_drill);
-			(* pcbnew expects vias to be on layer 15 (component) *)
-			let layer = if m_type = Track_Via then 15 else m_layer in
-			fprintf oc "De %d %d %d 0 %s\n" layer 
-				(match m_type with
-					| Track_Via -> 1
-					| Track_Track -> 0 ) m_net m_status; 
-			flush oc ; 
+			if not m_drawsegment then (
+				fprintf oc "Po %d %d %d %d %d %d %d\n"
+					m_shape (iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) 
+					(iofs m_width) (iofs m_drill);
+				(* pcbnew expects vias to be on layer 15 (component) *)
+				let layer = if m_type = Track_Via then 15 else m_layer in
+				fprintf oc "De %d %d %d 0 %s\n" layer 
+					(match m_type with
+						| Track_Via -> 1
+						| Track_Track -> 0 ) m_net m_status; 
+				flush oc ; 
+			) else (
+				fprintf oc "$DRAWSEGMENT\n" ; 
+				fprintf oc "Po %d %d %d %d %d %d\n" 
+					m_shape (iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) (iofs m_width) ; 
+				fprintf oc "De %d %d %d 0 0\n" 
+					m_layer 0 m_angle ; 
+				fprintf oc "$EndDRAWSEGMENT\n" ; 
+			)
+		)
+		(* treat drawsegments as tracks, too - this allows easier editing! *)
+		method is_drawsegment () = m_drawsegment
+		
+		method read_drawsegment ic = (
+			let line = input_line2 ic in
+			let sp = Pcre.extract ~pat:"Po (\d+) ([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+) (\d+)" line in
+			m_shape <- ios sp.(1) ; 
+			m_stx <- fois (ios sp.(2)) ; 
+			m_sty <- fois (ios sp.(3)) ; 
+			m_enx <- fois (ios sp.(4)) ; 
+			m_eny <- fois (ios sp.(5)) ; 
+			m_width <- fois (ios sp.(6)) ; 
+			let line2 = input_line2 ic in
+			let sp2 = Pcre.extract ~pat:"De (\d+) (\d+) (\d+)" line2 in
+			m_layer <- ios sp2.(1) ;
+			m_type <- Track_Track ;
+			m_angle <- ios sp2.(3) ;
+			(*read the $EndDRAWSEGMENT line *)
+			let d = ref "" in
+			d := input_line2 ic ; 
+			m_net <- 0;
+			m_drawsegment <- true; 
 		)
 end

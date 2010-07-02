@@ -51,7 +51,7 @@ object (self)
 	val mutable m_rawv_fill = Raw.create_static `float 1 
 	val mutable m_g = new grfx (* used to store/compute color and Z-pos *)
 	
-	val mutable m_timestamp = ""
+	val mutable m_timestamp = random_timestamp ()
 	val mutable m_aux = "" 
 	val mutable m_options = ""
 	
@@ -630,9 +630,12 @@ object (self)
 		m_corners <- [||] ; 
 		let acorners = ref [] in
 		let dcorners = ref [] in 
+		let cnt = ref 0 in
+		let lenlen = List.length !corners in
 		List.iter (fun (a,b,c) -> 
 			dcorners := (a,b,c) :: !dcorners ; 
-			if c > 0 then (
+			incr cnt; 
+			if c > 0 || !cnt = lenlen then ( (* the last corner may not be terminated.. beh *)
 				acorners := (!dcorners) :: !acorners ; 
 				dcorners := [] ; (* empty so can be filled again *)
 			)
@@ -690,9 +693,10 @@ object (self)
 		fprintf oc "ZMinThickness %d\n" (iofs m_minthick) ; 
 		fprintf oc "%s\n%!" m_options ; 
 		Array.iter (fun corn -> 
-			Array.iter (fun (x,y,z) -> 
+			let l = (Array.length corn)-1 in
+			Array.iteri (fun i (x,y,z) -> 
 				fprintf oc "ZCorner %d %d %d\n" 
-				(iofs x) (iofs y) z ; 
+				(iofs x) (iofs y) (if i=l then 1 else z) ; 
 			) corn ; 
 		) m_corners ;
 		(* if there are triangle, save them - otherwise, try to save the poly *)
@@ -716,5 +720,67 @@ object (self)
 			fprintf oc "$endPOLYSCORNERS\n%!" ; 
 		) ; 
 		fprintf oc "$endCZONE_OUTLINE\n" ; 
+	)
+	method edit (top:Widget.toplevel Widget.widget) = (
+		(* dialog to aid in adding a zone *)
+		(* just makes a small editable zone in the center of the screen; edit later *)
+		(* things we need: layer, net, clearance, minimum width *)
+		let fs = Toplevel.create top in
+		Wm.title_set fs "edit zone" ; 
+		(* radiobuttons for show/hide *)
+		let layerframe = Frame.create fs in
+		let layervar = Textvariable.create ~on:layerframe () in
+		Textvariable.set layervar (layer_to_string m_layer); 
+		let mkradio label = 
+			Radiobutton.create ~indicatoron:true ~text:label 
+			~value:label ~variable:layervar 
+			~command:(fun _ -> 
+				m_layer <- string_to_layer (Textvariable.get layervar); 
+				m_g#updateLayer m_layer)
+			layerframe
+		in
+		let radios = List.map (fun l -> 
+			mkradio (layer_to_string l)
+		) [0;1;2;3;4;15;20;21] in
+		Tk.pack ~side:`Left ~fill:`Y radios ; 
+		let makeEntry iv label = 
+			(* iv in s initial value *)
+			let frm = Frame.create fs in
+			let msg = Message.create ~text:label  ~width:100 frm in
+			let entry = Entry.create ~width:20 frm in
+			Entry.insert ~index:(`Num 0) ~text:iv entry ; 
+			Tk.pack ~side:`Left ~fill:`X [Tk.coe msg ; Tk.coe entry] ; 
+			(* return the frame and a function that can get the 
+			update value *)
+			(frm, (fun() -> Entry.get entry) )
+		in
+		let netframe, netcb = makeEntry (!glookupnet m_net) "net" in
+		let clearance, clearcb = makeEntry (sof m_clearance) "clearance, in" in
+		let minthick, mintcb = makeEntry (sof m_minthick) "minimum thickness, in" in
+		(* apply button *)
+		let applyframe = Frame.create fs in
+		let cancel = Button.create applyframe ~text:"Cancel"
+			~command:(fun () -> Tk.destroy fs ; ) in
+		let apply = Button.create applyframe ~text:"Apply" 
+			~command:(fun () -> 
+				(* radio applcation is immediate *)
+				m_net <- !gInvLookupNet (netcb ()); 
+ 				m_netname <- netcb ();
+				m_clearance <- fos (clearcb ()); 
+				m_minthick <- fos (mintcb ()) ; 
+				self#empty(); 
+				if m_net = 0 then (
+					(* pop up a warning ? *)
+					ignore( Dialog.create ~parent:top ~title:"Net not found" 
+						~message:("net" ^(netcb ())^" not found!!")
+						~buttons:["Ok"] () ); 
+				) else (
+					Tk.destroy fs
+				); 
+				
+			) in
+		Tk.pack ~side:`Left ~fill:`X [cancel ; apply] ; 
+		Tk.pack ~side:`Top ~fill:`Y 
+			[layerframe; netframe ; clearance ; minthick; applyframe] ; 
 	)
 end

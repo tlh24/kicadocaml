@@ -148,7 +148,6 @@ let gnets = ref [] (*this must be a reference, as we are updating! *)
 let gtracks = ref []
 let gmodules = ref []
 let gzones = ref []
-let gdrawsegments = ref []
 let ggeneric = ref []
 let gzoom = ref 1.0
 let gdrag = ref (0.0, 0.0)
@@ -183,7 +182,6 @@ let readlines ic =
 	(*remove the old modules *)
 	gnets := [] ; 
 	gmodules := [] ; 
-	gdrawsegments := [] ; 
 	gtracks := [] ; 
 	gzones := [] ; 
 	ggeneric := [] ; 
@@ -227,9 +225,9 @@ let readlines ic =
 					gmodules := m :: !gmodules; 
 				)
 				| "$DRAWSEGMENT" -> (
-					let drawseg = new pcb_drawsegment in
-					drawseg#read ic; 
-					gdrawsegments := drawseg :: !gdrawsegments; 
+					let t = new pcb_track in
+					t#read_drawsegment ic; 
+					gtracks := (t :: !gtracks) ; 
 				)
 				| "$TRACK" -> (
 					readtracks ic ; 
@@ -254,8 +252,10 @@ let readlines ic =
 	close_in_noerr ic ; 
 	print_endline ( "number of nets:" ^ string_of_int(List.length !gnets) ) ; 
 	print_endline ( "number of modules:" ^ string_of_int(List.length !gmodules) ) ; 
-	print_endline ( "number of tracks:" ^ string_of_int(List.length !gtracks) ) ; 
-	print_endline ( "number of drawsegments:" ^ string_of_int(List.length !gdrawsegments) ) ; 
+	print_endline ( "number of tracks:" ^ string_of_int(
+		List.length (List.filter (fun t-> not(t#is_drawsegment())) !gtracks) )) ; 
+	print_endline ( "number of drawsegments:" ^ string_of_int(
+		List.length (List.filter (fun t-> t#is_drawsegment()) !gtracks) )) ; 
 ;;
 
 let addToFilelist fil schem = 
@@ -274,9 +274,10 @@ let saveall filename =
 	List.iter sv others;(*reverse b/c they are read in backwards. *)
 	List.iter sv (List.rev !gnets ); 
 	List.iter sv (List.rev !gmodules ); 
-	List.iter sv (List.rev !gdrawsegments ); 
+	let segments, tracks = List.partition (fun t-> t#is_drawsegment()) !gtracks in
+	List.iter sv (List.rev segments ); 
 	fprintf oc "$TRACK\n" ;
-	List.iter sv (List.rev  !gtracks ); 
+	List.iter sv (List.rev  tracks ); 
 	fprintf oc "$EndTRACK\n" ;
 	List.iter sv zones;
 	List.iter sv (List.rev !gzones ); 
@@ -300,7 +301,7 @@ let abouttext =
 "    * in add or move track mode, select layer and update width\n"^
 "       (based on the track currently under the cursor).\n"^
 " .... \n" ^
-" a - add track \n" ^
+" a - add track mode\n" ^
 " Ctrl-T - select track width \n" ^ 
 " b - break track under cursor \n" ^
 " e - edit (only text edit mplemented srry)\n" ^
@@ -308,7 +309,8 @@ let abouttext =
 "     In module moving mode:\n\tflip a module from the top to the bottom of the board, and vice-versa\n"^
 " h - hide / unhide selected text in move text mode\n" ^
 " m - move module \n" ^
-" t - move track \n" ^
+" <space> - toggle between add and move track modes\n" ^
+" t - move track mode\n" ^
 " v - insert a via (in add tracks mode) \n" ^
 " v - edit module value (in move module mode)\n"^
 " Ctrl-V - select via size \n" ^
@@ -401,12 +403,6 @@ let render togl cb =
 					); 
 				) !gzones ;
 			) ; 
-			(* and for the drawsegments *)
-			List.iter (fun seg -> 
-				if seg#getLayer() = lay then (
-					seg#draw screenbbx; 
-				); 
-			) !gdrawsegments ;
 			GlMat.pop () ; 
 		) layerZlist ; 
 		
@@ -639,7 +635,6 @@ let openFile top fname =
 	List.iter (fun m -> m#update()) !gmodules ; 
 	List.iter (fun m -> m#update()) !gtracks ; 
 	List.iter (fun z -> z#update ()) !gzones ; 
-	List.iter (fun s -> s#update ()) !gdrawsegments ; 
 	updateLayers 15 true ; (* default to component layer *)
 	(* if the board was saved in pcbnew, then we need to propagate the netcodes to all tracks. *)
 	(* otherwise, adding tracks to existing ones becomes impossible ... *)
@@ -1242,7 +1237,7 @@ let makemenu top togl filelist =
 			~command:(fun () -> checkcallback choice ((Textvariable.get v)="On")  )
 			) layerlist in
 		Tk.pack ~side:`Left ~fill:`X clist;
-		let curlayer = Message.create ~width:60 ~text:"Current L." frame0 in
+		let curlayer = Message.create ~width:70 ~text:"Current L." frame0 in
 		let enlayer = Message.create ~width:70 ~text:"Enabled L." frame0 in
 		Tk.pack ~side:`Left ~fill:`X 
 			[Tk.coe curlayer; Tk.coe bframe; Tk.coe enlayer; Tk.coe cframe];
@@ -1266,9 +1261,10 @@ let makemenu top togl filelist =
 			render togl nulfun
 		) else ( print_endline "layer not present in board"; ) ; 
 	in
+	let laylist = ["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot";"Drawings"] in
 	let (layerframe,changelayercallback) = makeLayerFrame 
-		["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot"]
-		["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot";"Drawings"]
+		laylist
+		laylist
 		(fun s -> raiseLayer (string_to_layer s) )
 		(fun s b ->
 			let lay = string_to_layer s in
@@ -1330,6 +1326,16 @@ let makemenu top togl filelist =
 		!gcursordisp "cursor" (fst !gcurspos) (snd !gcurspos) ; 
 		render togl nulfun;
 	in
+	let modfind cb = (
+		let m = try Some
+			( List.find (fun t -> t#getHit ()) !gmodules )
+			with Not_found -> None
+		in
+		(match m with
+			| Some mm -> cb mm
+			| None -> ()
+		)
+	)in
 	let bindVtoVia () = 
 		bind ~events:[`KeyPressDetail("v")] ~fields:[`MouseX; `MouseY] ~action:(fun ev -> 
 			(* try inserting a via. if it does not fit, 
@@ -1670,7 +1676,18 @@ let makemenu top togl filelist =
 				!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 				(* simple method: try moving the tracks; if there is an error, 
 				snap back to last safe position *)
-				List.iter (fun t -> t#move !gdrag ) !tracks ; 
+				if !gsnapTracksToGrid then (
+					let grd = ggrid.(0) in
+					let p = (snap cx grd), (snap cy grd) in
+					List.iter (fun t -> 
+						let u = t#getU () in
+						t#move (0.0,0.0); 
+						let p2 = if u < 1.0 then t#getStart () else t#getEnd () in
+						t#move (Pts2.sub p p2) ;
+					) !tracks
+				) else (
+					List.iter (fun t -> t#move !gdrag ) !tracks ; 
+				); 
 				List.iter (fun t -> t#setDirty true ) !tracks ; 
 				(* try drcpush before drctest *)
 				let tab = ref 0 in
@@ -1712,7 +1729,19 @@ let makemenu top togl filelist =
 			List.iter (fun t -> t#clearConstraint (); t#update () ) !tracks ; 
 			gratsnest#updateTracks !workingnet !gtracks ; 
 			updatecurspos ev ; 
-		) ; 
+		) ;
+		let zonefind cb = (
+			let m = try Some
+				( List.find (fun t -> t#getHit ()) !gzones )
+				with Not_found -> None
+			in
+			(match m with
+				| Some mm -> cb mm
+				| None -> ()
+			)
+		)in
+		bind ~events:[`KeyPressDetail("e")] ~action:
+			(fun _ -> zonefind (fun z-> z#edit top)) top; 
 	)in
 	
 	let bindMouseMoveText () = (
@@ -1748,6 +1777,8 @@ let makemenu top togl filelist =
 		) ; 
 		(* unbind the v-key *)
 		bind ~events:[`KeyPressDetail("v")] ~action:(fun _ -> ()) top; 
+		bind ~events:[`KeyPressDetail("e")] ~action:
+			(fun _ -> modfind (fun m-> m#edit top)) top; 
 	)in	
 	
 	let bindMouseMoveModule () = (
@@ -1849,16 +1880,6 @@ let makemenu top togl filelist =
 			updatecurspos evinf ; 
 		) ; 
 		(* bind the v and e keys. *)
-		let modfind cb = (
-			let m = try Some
-				( List.find (fun t -> t#getHit ()) !gmodules )
-				with Not_found -> None
-			in
-			(match m with
-				| Some mm -> cb mm
-				| None -> ()
-			)
-		)in
 		bind ~events:[`KeyPressDetail("e")] ~action:
 			(fun _ -> modfind (fun m-> m#edit top)) top; 
 		bind ~events:[`KeyPressDetail("v")] ~action:
@@ -2194,6 +2215,7 @@ let makemenu top togl filelist =
 		) !groute135 ; 
 	addOption tracksSub "when dragging tracks mantain slope" (fun b -> gtrackKeepSlope := b) !gtrackKeepSlope ; 
 	addOption tracksSub "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
+	addOption tracksSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid; 
 	
 	Menu.add_command viasSub ~label:"Vias dialog (Ctrl-V)" ~command:viasFun ;
 	Menu.add_command viasSub ~label:"Adjust via drill sizes" ~command:viaDrillAdjust ; 
@@ -2212,6 +2234,17 @@ let makemenu top togl filelist =
 	Menu.add_command textsSub ~label:"Adjust text position from template" ~command:textPositionAdjust ; 
 	
 	addOption zonesSub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
+	Menu.add_command zonesSub ~label:"Add zone" 
+		~command:(fun () -> 
+			let z = new zone in
+			z#set_corners (List.map (fun (x,y) -> 
+				let cx, cy = !gpan in
+				let gz = 2.0 *. !gzoom in
+				(x/. gz) -. cx, (y /. gz) -. cy
+			) [(1.0,1.0);(-1.0,1.0);(-1.0,-1.0);(1.0,-1.0);]); 
+			z#update (); 
+			gzones := z :: !gzones; 
+			z#edit top ); 
 	Menu.add_command zonesSub ~label:"Refill all zones"
 		~command: (fun () -> List.iter (fun z -> z#fill !gtracks !gmodules) !gzones) ; 
 	Menu.add_command zonesSub ~label:"Empty all zones"
@@ -2223,6 +2256,7 @@ let makemenu top togl filelist =
 		~command:(fun _ -> Grid.dialog top (fun () -> render togl nulfun) );
 	addOption gridsSub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption gridsSub "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
+	addOption gridsSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid; 
 	
 	Menu.add_command ratsnestSub ~label:"Propagate netcodes to unconn. (nn=0) tracks" 
 		~command:(fun () -> 
@@ -2568,6 +2602,9 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("t")] ~action:(fun _ -> updateMode "move track";) top; 
 	bind ~events:[`KeyPressDetail("a")] ~action:(fun _ -> updateMode "add track";) top; 
 	bind ~events:[`KeyPressDetail("x")] ~action:(fun _ -> updateMode "move text";) top; 
+	bind ~events:[`KeyPressDetail("space")] ~action:(fun _ -> 
+		if !gmode <> Mode_MoveTrack then (updateMode "move track")
+		else(if !gmode = Mode_MoveTrack then (updateMode "add track"))) top; 
 	(*bind ~events:[`KeyPressDetail(" ")] ~fields:[`MouseX; `MouseY] ~action:switchSelectTrack top; this is bad, control toggles it too.*)
 	bind ~events:[`Modified([`Control], `KeyPressDetail"t")] ~action:tracksFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"v")] ~action:viasFun top; 
@@ -2835,7 +2872,12 @@ let _ =
 		try (List.find (fun nn -> nn#getNet() = n) !gnets)#getName()
 		with Not_found -> "unkown"
 	in
+	let invNetLookup n =
+		try (List.find (fun nn -> nn#getName () = n) !gnets)#getNet()
+		with Not_found -> 0
+	in
 	glookupnet := netlookup ; 
+	gInvLookupNet := invNetLookup ; 
 	
 	(*set up the layer stack *)
 	for i = 0 to 31 do (
@@ -2962,7 +3004,7 @@ let _ =
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace... *) 
-	(* openFile top "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.brd"; *)
+	(* openFile top "/home/tlh24/svn/myopen/emg_dsp/stage5/stage5.brd"; *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/ecc83/ecc83-pp_v2.brd";  *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/pic_programmer/pic_programmer.brd"; 
 	List.iter (fun z -> z#empty ()) !gzones ; *)
@@ -2974,8 +3016,8 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
-(* 	Printexc.record_backtrace true ; (* ocaml 3.11 *) *)
-	Printexc.print mainLoop () ;
+ 	(* Printexc.record_backtrace true ; (* ocaml 3.11 *) *)
+ 	Printexc.print mainLoop () ; 
 	;;
 		
 	

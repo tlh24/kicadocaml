@@ -44,7 +44,7 @@ let gfilereadname = ref ""
 let input_line2 ic = 
 	let line = input_line ic in
 	linenum := !linenum + 1 ; 
-	(* print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
+	(* print_endline ( (string_of_int !linenum) ^ " : " ^ line) ;*)
 	line ;;
 let nothingxy (_:float) (_:float) = () ;;
 let nothingsxy (_:string) (_:float) (_:float) = () ; 
@@ -75,6 +75,7 @@ let gsnapped = ref (0. , 0.)
 let gclearance = ref 0.0098  (* 0.125mm *)
 let gcurnet = ref 0 
 let glookupnet = ref (fun (_:int) -> "unkown")
+let gInvLookupNet = ref (fun (_:string) -> 0)
 let gviaColor = ref (1., 1., 1.)
 let gshowPadNumbers = ref true
 let gshowHiddenText = ref true
@@ -82,7 +83,10 @@ let gselectRect = ref (1e99, 1e99, 1e99, 1e99)
 let ggrid = [| 0.01; 0.05; 0.1; 0.5; 1.0 |]
 let ggridDraw = ref false 
 let ggridSnap = ref true 
+let gsnapTracksToGrid = ref false
 let gdrawText= ref true 
+
+let random_timestamp () = Printf.sprintf "%x" (Int32.to_int(Random.int32 (Int32.max_int))) ;;
 
 let convert_units x y w h = 
 	let fx = fois x in

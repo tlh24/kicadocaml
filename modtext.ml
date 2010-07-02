@@ -200,9 +200,8 @@ object (self)
 		let hide = mkradio "hide" in
 		Tk.pack ~side:`Left ~fill:`X [show ; hide] ; 
 		let makeEntry container iv label = 
-			(* cb is a function that should take one string argument *)
 			let frm = Frame.create container in
-			let msg = Message.create ~text:label  ~width:20 frm in
+			let msg = Message.create ~text:label  ~width:65 frm in
 			let entry = Entry.create ~width:20 frm in
 			Entry.insert ~index:(`Num 0) ~text:iv entry ; 
 			Tk.pack ~side:`Left ~fill:`X [Tk.coe msg ; Tk.coe entry] ; 

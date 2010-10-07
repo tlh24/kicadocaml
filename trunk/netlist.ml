@@ -133,7 +133,7 @@ let make_lexer () =
 		| _ -> raise Stream.Failure
 	and path (strm__ : _ Stream.t) = 
 		match Stream.peek strm__ with
-		Some ('A'..'Z' | 'a'..'z' | '_' | '-' | '+' |'0'..'9' | '/' as c) -> 
+		Some ('A'..'Z' | 'a'..'z' | '_' | '-' | '+' |'0'..'9' | '/' | '.' as c) -> 
 			Stream.junk strm__; let s = strm__ in store c; path s
 		| _ -> get_string ()
 	in

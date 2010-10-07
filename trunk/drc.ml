@@ -94,7 +94,7 @@ let testdrcAll tracks modules top rendercb () =
 		trac := List.tl !trac ; (* we have already tested one against all, no need to do it again*)
 	) !tracks ; 
 	if List.length !drcerr > 0 then (
-	let dlog = Toplevel.create top in
+		let dlog = Toplevel.create top in
 		Wm.title_set dlog "DRC errors" ;
 		(* make a series of buttons -- but only the first 30 errors *)
 		let err = ref [] in

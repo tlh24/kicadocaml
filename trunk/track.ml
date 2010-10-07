@@ -244,7 +244,7 @@ object (self)
 						| Track_Via -> gsnapped := st ;
 					); 
 					(* manage the return data *)
-					if mz <> hitz then (
+					if mz <> hitz && not hithold then (
 						(* clear all the old hit *)
 						(* printf "clearing all old hit in track#hit z=%f\n%!" mz;*)
 						List.iter (fun f -> f ()) hitclear; 

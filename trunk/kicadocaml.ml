@@ -1152,8 +1152,14 @@ let makemenu top togl filelist =
 		(* need to update the zone nets *)
 		List.iter (fun z -> 
 			let name = z#getNetName() in
-			let nn = List.find (fun n -> n#getName() = name) !gnets in
-			z#setNetNum (nn#getNet ()); 
+			let nn = try Some (List.find (fun n -> n#getName() = name) !gnets) 
+				with _ -> ignore( Dialog.create ~parent:top ~title:"Zone netname changed" 
+				~message:("Zone netname "^ name ^" not found!\n"^"Layer "^(layer_to_string (z#getLayer())) )
+				~buttons:["Ok"] () ); None in
+			(match nn with 
+				| Some n2 -> z#setNetNum (n2#getNet ()); 
+				| None -> ()
+			)
 		) !gzones ; 
 		(* redo the rat's nest. *)
 		propagateNetcodes2 gmodules gtracks true false top 
@@ -1923,15 +1929,15 @@ let makemenu top togl filelist =
 			)
 			~onRelease: 
 			(fun evinf -> 
+				let modules = List.filter (fun m-> m#getHit ()) !gmodules in
+				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
+				let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 				gselectRect := (1e99,1e99,1e99,1e99) ; 
 				Mouse.releaseMove top; 
 				updatecurspos evinf ; 
 				
 				printf "please drag the selected modules .. (or release shift) \n%!" ; 
 				printf "known bug: do not rotate and drag at the same time!\n%!" ; 
-				let modules = List.filter (fun m-> m#getHit ()) !gmodules in
-				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
-				let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 				(* release the old press .. yes this is confusing now *)
 				Mouse.releasePress top ; (* unbind this function even though it is executing! *)
 				Mouse.bindPress top ~onPress:
@@ -1998,6 +2004,9 @@ let makemenu top togl filelist =
 	let mvar = Textvariable.create ~on:mframe () in
 	Textvariable.set mvar (List.hd modelist);
 	let setMode s = 
+		(* unselect all when changing mode -- 
+		otherwise, text can get 'stuck on' *)
+		List.iter (fun m -> m#setHit false) !gmodules; 
 		match (String.lowercase s) with 
 			| "move module" -> bindMouseMoveModule () ; 
 			| "move text" -> bindMouseMoveText () ; 
@@ -2295,6 +2304,57 @@ let makemenu top togl filelist =
 			redoRatNest () ); 
 	Menu.add_command checkSub ~label:"Check DRC (track/pad copper spacing)"
 		~command:(testdrcAll gtracks gmodules top (fun () -> render togl nulfun)); 
+	Menu.add_command checkSub ~label:"Check for component overlaps"
+		~command:(fun _ -> 
+		let drcerr = ref [] in
+		let rec checkmod mlist = 
+			(match mlist with 
+				| hd :: tl -> (
+					let bbx = hd#getBBX false in
+					let lay = hd#getLayer () in
+					List.iter (fun m -> 
+						let bbx2 = m#getBBX false in
+						let lay2 = m#getLayer () in
+						if lay = lay2 && bbxIntersect bbx bbx2 then (
+							(* pick whichever is the smaller *)
+							let bbx3 = if (bbxSize bbx) < (bbxSize bbx2) then bbx else bbx2 in
+							drcerr := ((bbxCenter bbx3),hd,m) :: !drcerr; 
+						)
+					) tl ; 
+					checkmod tl; 
+				)
+				| [] -> ()
+			)
+		in
+		checkmod !gmodules; 
+		if List.length !drcerr > 0 then (
+			(* make a dialog *)
+			let dlog = Toplevel.create top in
+			Wm.title_set dlog "Overlaps" ;
+			let err = ref [] in
+			let min a b = if a < b then a else b in
+			for i = 1 to (min 30 (List.length !drcerr)) do (
+				err := ((List.nth !drcerr (i-1)) :: !err) ; 
+			) done ; 
+			let cnt = ref 0 in
+			let buttons = List.map (fun (p,m1,m2) -> 
+				incr cnt ; 
+				let gettxt m = try (List.hd (m#getTexts ()))#getText () with _ -> "?" in
+				let txt1 = gettxt m1 in
+				let txt2 = gettxt m2 in
+				Button.create ~text:((soi !cnt) ^ ": " ^ (sof (fst p))^", "^(sof (snd p))^" "^txt1^" & "^txt2)
+					~command:(fun () -> 
+						gpan := (Pts2.scl p (-1.0)); 
+						m1#setHit true;
+						m2#setHit true; 
+						render togl nulfun )
+					dlog) !err ; 
+			in
+			Tk.pack ~fill:`Both ~expand:true ~side:`Top buttons ; 
+		) else (
+			printf "No overlaps found!\n"; 
+		)
+	); 
 
 	addOption miscSub "cross probe transmit" (fun b -> gcrossProbeTX := b) !gcrossProbeTX ; 
 	addOption miscSub "cross probe recieve" (fun b -> gcrossProbeRX := b) !gcrossProbeRX ; 
@@ -3016,8 +3076,8 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
- 	(* Printexc.record_backtrace true ; (* ocaml 3.11 *) *)
- 	Printexc.print mainLoop () ; 
+ 	Printexc.record_backtrace true ; (* ocaml 3.11 *)
+ 	Printexc.print mainLoop () ;
 	;;
 		
 	

@@ -198,11 +198,16 @@ object (self)
 		) else (netnum, hitsize, hitz, clearhit)
 	)
 	method getHit () = m_hit 
-	method setHit b = m_hit <- b ; 
+	method setHit b = ( 
+		m_hit <- b ; 
+		if not b then (
+			List.iter (fun t -> t#clearHit ()) m_texts; 
+		)
+	)
 	method txthit () =  (
 		if m_visible then 
 			try (List.find (fun t -> t#getHit() ) m_texts), true 
-			with Not_found -> (List.hd m_texts), false
+			with _ -> (List.hd m_texts), false
 		else  (List.hd m_texts), false
 	)
 	method toggleTextShow () = (

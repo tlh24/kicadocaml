@@ -44,7 +44,7 @@ let gfilereadname = ref ""
 let input_line2 ic = 
 	let line = input_line ic in
 	linenum := !linenum + 1 ; 
-	(* print_endline ( (string_of_int !linenum) ^ " : " ^ line) ;*)
+(* 	print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
 	line ;;
 let nothingxy (_:float) (_:float) = () ;;
 let nothingsxy (_:string) (_:float) (_:float) = () ; 
@@ -243,6 +243,7 @@ let layers_to_int32 layers =
 
 (* should re-write the bbxIntersect to be as fast as possible, since we use it for online
 DRC (no 'let' statements)*)
+
 let bbxIntersect (xl1,yl1,xh1,yh1) (xl2,yl2,xh2,yh2) = 
 	((xl1 <= xl2 && xl2 <= xh1) || (xl1 <= xh2 && xh2 <= xh1) ||
 	 (xl2 <= xl1 && xl1 <= xh2) || (xl2 <= xh1 && xh1 <= xh2)) &&

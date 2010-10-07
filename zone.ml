@@ -595,7 +595,7 @@ object (self)
 				| Some tpp -> (
 					match tpp with 
 					| "ZInfo" -> (
-						let sp = Pcre.extract ~pat:"^\w+ (\w+) (\d+) \"([^\"]+)\"" !line in
+						let sp = Pcre.extract ~pat:"^\w+ (\w+) ([\d-]+) \"([^\"]+)\"" !line in
 						m_timestamp <- sp.(1) ; 
 						m_net <- ios (sp.(2)) ; 
 						m_netname <- sp.(3) ; 

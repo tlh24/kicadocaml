@@ -40,6 +40,22 @@ type tt = {
 	t_via : bool ; 
 }
 
+(* this is from PLEAC, http://pleac.sourceforge.net/pleac_ocaml/arrays.html *)
+let fisher_yates_shuffle a = (
+	for i = Array.length a - 1 downto 1 do
+		let x = a.(i)
+		and r = Random.int (i+1) in
+		a.(i) <- a.(r);
+		a.(r) <- x;
+	done
+)
+
+let shuffle list = (
+	let array = Array.of_list list in
+	fisher_yates_shuffle array;
+	Array.to_list array
+)
+
 let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 	(* look at all the unnumbered (0) tracks & try to set their netcode 
 	based on connectivity. *)
@@ -64,7 +80,9 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 					pads on a net with no other pads - as connected *)
 				);
 			) (m#getPads())
-		) !modules ; 
+		) (shuffle !modules); (* not as good as if we updated the net of all pads
+		whenever another pad was added - this would allow us to detect truly unconnected things, 
+		but it requires a slightly more memory and time *)
 	) else (
 		List.iter (fun m-> 
 			List.iter (fun p->
@@ -75,6 +93,7 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 	(* convert to a more efficient data structure. *)
 	let objs = ref [] in
 	List.iter (fun m -> 
+		let flag = if m#getDeleteAttachedTracks () then -1 else 1 in
 		List.iter (fun p -> 
 			let sx,sy = bbxWH (p#getBBX ()) in
 			let siz = (min sx sy)/. 2.0 in
@@ -86,7 +105,7 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 				t_pad = Some p;
 				t_track = None ; 
 				t_connected = p#getConnect ();
-				t_net = p#getNet (); 
+				t_net = flag * (p#getNet ()); 
 				t_layers = p#getLayers (); 
 				t_via = false; 
 			} in

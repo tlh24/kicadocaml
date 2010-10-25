@@ -1079,60 +1079,70 @@ let makemenu top togl filelist =
 		(* make a xyr file, which contains the x, y, and rotation for each component, 
 		along with pin 1 absolute location. 
 		positions are in inches, decimal *)
-		printf "Warning! Only looking at the top of the board! \n%!" ; 
 		let filetyp = [ {typename="x y rotation";extensions=[".xyr"];mactypes=[]} ] in
-		let filename = (getSaveFile ~defaultextension:".xyr" ~filetypes:filetyp ~title:"save XYR" ()) in
-		let oc = open_out filename in
-		fprintf oc "#PCB parts location file\n"; 
-		fprintf oc "#refdes	value	foot	x	y	r	p1x	p1y\n"; 
-		List.iter ( fun m->
-			m#update(); (* just in case .. *)
-			let x,y = m#getCenter false in
-			let r = (foi (m#getRot())) /. 10.0 in
-			(* the pad1 stuff is used for validation *)
-			let p1x,p1y = try 
-				let pad1 = List.find( fun p -> p#getPadName() = "1" )
-				(m#getPads()) in
-				pad1#getCenter()
-			with Not_found -> 0.0, 0.0 in
-			fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
-				(m#getRef())
-				(m#getValue())
-				(m#getLibRef())
-				x y r p1x p1y ; 
-		) (List.filter (fun m -> m#getLayer() = 15) !gmodules ); 
-		(* also we should add in through-hole pads for alignment -- 
-		this because the surface mount pads will be covered in paste when actually pnp.. *)
-		let fidnum = ref 0 in
-		List.iter (fun m -> 
-			List.iter (fun p -> 
-				if p#getShape () = Pad_Circle then (
-					let x,y = p#getCenter () in
-					if p#hasLayer (string_to_layer "Bot") && 
-					   p#hasLayer (string_to_layer "Top") then (
-						let p1x,p1y = (p#getSx()),(p#getSy()) in
-						fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
-							("F"^(soi !fidnum))
-							"TH-Fiducial"
-							"F"
-							x y 0.0 p1x p1y ; 
-						incr fidnum; 
-					) else (
-						(* otherwise, see if it has a drill hole..*)
-						let size = p#getDrill () in
-						if size > 0.0 then (
+		let savexyr layer = 
+			let title = if layer = 15 then "Top XYR" else "Bottom XYR" in
+			(* assume we flip along the y-axis *)
+			let xscale = if layer=15 then 1.0 else -1.0 in
+			(* flipping also incurrs a 180deg rotation *)
+			let radd = if layer=15 then 0.0 else 180.0 in
+			let filename = (getSaveFile ~defaultextension:".xyr" ~filetypes:filetyp ~title ()) in
+			let oc = open_out filename in
+			fprintf oc "#PCB parts location file %s\n" title; 
+			fprintf oc "#refdes	value	foot	x	y	r	p1x	p1y\n"; 
+			List.iter ( fun m->
+				m#update(); (* just in case .. *)
+				let x,y = m#getCenter false in
+				let r1 = xscale *. ((foi (m#getRot())) /. 10.0) +. radd in (* xscale to do the flip..*)
+				let r = if r1 >= 360.0 then r1 -. 360.0 else (if r1 < 0.0 then 360.0 +. r1 else r1 ) in
+				(* the pad1 stuff is used for validation *)
+				let p1x,p1y = try 
+					let pad1 = List.find( fun p -> p#getPadName() = "1" )
+					(m#getPads()) in
+					pad1#getCenter()
+				with Not_found -> 0.0, 0.0 in
+				fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
+					(m#getRef())
+					(m#getValue())
+					(m#getLibRef())
+					x y r p1x p1y ; 
+			) (List.filter (fun m -> m#getLayer() = layer) !gmodules ); 
+			(* also we should add in through-hole pads for alignment -- 
+			this because the surface mount pads will be covered in paste when actually pnp.. *)
+			let fidnum = ref 0 in
+			List.iter (fun m -> 
+				List.iter (fun p -> 
+					if p#getShape () = Pad_Circle then (
+						let x1,y = p#getCenter () in
+						let x = x1 *. xscale in
+						if p#hasLayer (string_to_layer "Bot") && 
+						p#hasLayer (string_to_layer "Top") then (
+							let p1x,p1y = (p#getSx()),(p#getSy()) in
 							fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
 								("F"^(soi !fidnum))
-								"Drill-Fidcl"
+								"TH-Fiducial"
 								"F"
-								x y 0.0 size size ; 
+								x y 0.0 p1x p1y ; 
 							incr fidnum; 
+						) else (
+							(* otherwise, see if it has a drill hole..*)
+							let size = p#getDrill () in
+							if size > 0.0 then (
+								fprintf oc "%s\t%s\t%s\t%f\t%f\t%f\t%f\t%f\n"
+									("F"^(soi !fidnum))
+									"Drill-Fidcl"
+									"F"
+									x y 0.0 size size ; 
+								incr fidnum; 
+							)
 						)
-					)
-				) 
-			) (m#getPads ())
-		) (List.filter (fun m -> m#getLayer() = 15) !gmodules );
-		close_out_noerr oc; 
+					) 
+				) (m#getPads ())
+			) (List.filter (fun m -> m#getLayer() = 15) !gmodules );
+			close_out_noerr oc; 
+		in
+		savexyr 15 ; 
+		savexyr 0 ;
 	in
 	let filetyp = [ {typename="boards";extensions=[".brd"];mactypes=[]} ] in
 	(*add file menu entries *)

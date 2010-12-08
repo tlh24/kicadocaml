@@ -384,4 +384,7 @@ object (self)
 		fprintf oc "Po %d %d\n" (iofs m_x) (iofs m_y) ; 
 		fprintf oc "$EndPAD\n"
 	)
+	method save_lua = (
+		(* well, about the same as mod save_lua. *)
+	)
 end;;

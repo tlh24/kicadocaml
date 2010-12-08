@@ -268,7 +268,12 @@ let bbxMerge  (xl1,yl1,xh1,yh1) (xl2,yl2,xh2,yh2) =
 let bbxInside (xl,yl,xh,yh) (px, py) = 
 	(* is a point within a bounding box *)
 	xl <= px && px <= xh && yl <= py && py <= yh
-	
+	;;
+let bbxRotate (xl,yl,xh,yh) r = 
+	let xln,yln = Pts2.rotate (xl,yl) r in
+	let xhn,yhn = Pts2.rotate (xh,yh) r in
+	(xln,yln,xhn,yhn)
+	;;
 let fmin (a:float) (b:float) = if a < b then a else b ;;
 let fmax (a:float) (b:float) = if a > b then a else b ;;
 

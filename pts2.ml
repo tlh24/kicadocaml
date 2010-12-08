@@ -81,6 +81,10 @@ let rotateMove (ax,ay) =
 (* returns the *vector*, which when added to a, rotates it 90 deg CW *)
 	( ay -. ax , (-1.0) *. ax -. ay)
 	;;
+let rotate (x,y) r = (* rotate a vector about z *)
+	(* I honestly don't know the convention; this is CCW in normal coords*)
+	(cos(r) *. x +. sin(r) *. y),(cos(r) *. y -. sin(r) *. x)
+	;;
 let closestuonline a b c clamp = 
 	let (ax, ay) = a in 
 	let (bx, by) = b in 

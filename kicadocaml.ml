@@ -1074,6 +1074,17 @@ let makemenu top togl filelist =
 		) hash ; 
 		close_out_noerr oc; 
 	in
+
+	let save_lua () = (
+		(* iterate over all modules, creating a lua file that duplicates the structure *)
+		(* select a file to save *)
+		let filetyp = [ {typename="lua code";extensions=[".lua"];mactypes=[]} ] in
+		let filename = (getSaveFile ~defaultextension:".lua" ~filetypes:filetyp 
+			~title:"save lua module description" ()) in
+		let oc = open_out filename in
+		List.iter(fun m-> m#save_lua oc ) !gmodules; 
+		close_out_noerr oc; 
+	) in
 	
 	let make_xyr () = 
 		(* make a xyr file, which contains the x, y, and rotation for each component, 

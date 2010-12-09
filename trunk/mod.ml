@@ -533,27 +533,30 @@ object (self)
 		)
 	)
 	method save_lua oc i = (
+		(* this is effectively a data converter .. eh wells *)
 		let fp = fprintf in
 		fp oc "t = {}\n"; 
-		fp oc "t.refdes = \"%s\"\n" self#getRef (); 
-		fp oc "t.value = \"%s\"\n" self#getValue (); 
+		fp oc "t.refdes = \"%s\"\n" (self#getRef()); 
+		fp oc "t.value = \"%s\"\n" (self#getValue()); 
 		(* make a bounding box of all plads *)
-		let bbx = List.fold_left (fun a b -> bbxMerge a b#getBBX()) 
-			((List.hd m_pads)#getBBX() (List.tl m_pads) in
+		let bbx = List.fold_left (fun a b -> bbxMerge a (b#getBBX())) 
+			((List.hd m_pads)#getBBX()) (List.tl m_pads) in
 		(* and all drawings/shapes *)
-		let bbx2 = List.fold_left (fun a b -> bbxMerge a b#getBBX())
+		let bbx2 = List.fold_left (fun a b -> bbxMerge a (b#getBBX()))
 			bbx m_shapes in
-		let radians = m_rot *. 3.1415926535 /. 1800.0 in
+		let radians = (foi m_rot) *. 3.1415926535 /. 1800.0 in
 		let ctr = bbxCenter bbx2 in
 		let lx,ly,hx,hy = bbxRotate (* rotate into global coords *)
-			(bbxTranslate bbx2 (Pts2.scl ctr -1.0))
+			(bbxTranslate bbx2 (Pts2.scl ctr (-1.0)))
 			(-1.0 *. radians) in
 		fp oc "t.ctr = {%f, %f}\n" (fst ctr) (snd ctr); 
 		fp oc "t.bbx = {%f, %f, %f, %f}\n" lx ly hx hy; 
 		fp oc "t.r = %f\n" radians; 
 		let j = ref 1 in
 		(* then save each pad *)
-		List.iter (fun p -> p#save_lua oc radians j; incr j) m_pads; 
+		fp oc "pl = {}\n"; 
+		List.iter (fun p -> p#save_lua oc j; incr j) m_pads; 
+		fp oc "t.pads = pl\n"; 
 		fp oc "l[%d] = t\n" !i; 
 		incr i; 
 	)

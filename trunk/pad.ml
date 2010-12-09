@@ -25,7 +25,7 @@ class pcb_pad =
 object (self)
 	val mutable m_padname = ""
 	val mutable m_shape : 'pcb_pad_shape = Pad_Circle
-	val mutable m_x = 0.
+	val mutable m_x = 0. (* these are in local coordinates *)
 	val mutable m_y = 0.
 	val mutable m_sx = 0.
 	val mutable m_sy = 0.
@@ -357,17 +357,19 @@ object (self)
 		ignore( input_line2 ic); (*read the last line, $EndPAD *)
 		(*function should return unit *)
 	)
+	method shapeToChar () = (
+		(match m_shape with 
+				| Pad_Circle -> "C"
+				| Pad_Rect -> "R" 
+				| Pad_Oval -> "O"
+				| Pad_Trapezoid -> "T" )
+	)
 	method save oc rot = (
 		let ra = m_rot + rot in (* convert back to global coords *)
 		let rb = mod2 ra 3600 in
 		fprintf oc "$PAD\n" ; 
 		fprintf oc "Sh \"%s\" %s %d %d %d %d %d\n"
-			m_padname 
-			(match m_shape with 
-				| Pad_Circle -> "C"
-				| Pad_Rect -> "R" 
-				| Pad_Oval -> "O"
-				| Pad_Trapezoid -> "T" )
+			m_padname (self#shapeToChar())
 			(iofs m_sx) (iofs m_sy) m_dsx m_dsy rb ; 
 		fprintf oc "Dr %d %d %d" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY) ; 
 		if m_shape = Pad_Oval then fprintf oc " %d %d" (iofs m_drillSx) (iofs m_drillSy); 
@@ -384,7 +386,20 @@ object (self)
 		fprintf oc "Po %d %d\n" (iofs m_x) (iofs m_y) ; 
 		fprintf oc "$EndPAD\n"
 	)
-	method save_lua = (
+	method save_lua oc j = (
 		(* well, about the same as mod save_lua. *)
+		let fp = fprintf in
+		fp oc "p = {}\n"; 
+		fp oc "p.netnum = %d\n" m_netnum; 
+		fp oc "p.netname = \"%s\"\n" m_netname; 
+		fp oc "p.padname = \"%s\"\n" m_padname; 
+		fp oc "p.shape = \"%s\"\n" (self#shapeToChar()); 
+		fp oc "p.loc = {%f,%f}\n" m_x m_y; 
+		fp oc "p.size = {%f,%f}\n" m_sx m_sy; 
+		fp oc "p.layers = {%d" (List.hd m_layers);  
+		List.iter (fun l -> fp oc ",%d" l) (List.tl m_layers); 
+		fp oc "}\n"; 
+		fp oc "pl[%d] = p\n" !j; 
+		incr j;
 	)
 end;;

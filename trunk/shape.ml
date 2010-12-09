@@ -72,6 +72,15 @@ object
 	method draw bbox = (
 		ignore(m_g#draw ~hit:false bbox);
 	)
+	method getBBX () = (
+		let w = m_width /. 2.0 in
+		let xl = m_enx :: m_polyX in
+		let yl = m_eny :: m_polyY in
+		(List.fold_left min m_stx xl),
+		(List.fold_left min m_sty yl),
+		(List.fold_left max m_stx xl),
+		(List.fold_left max m_sty yl)
+	)
 	method read ic line shapetype = (
 		let parse_startend = 
 			let sp = Pcre.extract ~pat:"\w+ ([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+)" line in

@@ -1082,7 +1082,11 @@ let makemenu top togl filelist =
 		let filename = (getSaveFile ~defaultextension:".lua" ~filetypes:filetyp 
 			~title:"save lua module description" ()) in
 		let oc = open_out filename in
-		List.iter(fun m-> m#save_lua oc ) !gmodules; 
+		fprintf oc "-- I have no idea if this is the most efficient \n"; 
+		fprintf oc "-- way to do it.  well, gotta start somewhere. \n";
+		fprintf oc "l = {}\n"; 
+		let i = ref 1 in
+		List.iter(fun m-> m#save_lua oc i) !gmodules; 
 		close_out_noerr oc; 
 	) in
 	
@@ -2384,6 +2388,8 @@ let makemenu top togl filelist =
 		~command:makeBOM ; 
 	Menu.add_command miscSub ~label:"Save XYR (part location) file" 
 		~command:make_xyr ; 
+	Menu.add_command miscSub ~label:"Save lua file (parts & pads)" 
+		~command:save_lua ; 
 	Menu.add_command miscSub ~label:"Filter modules by schematic sheet"
 		~command:filterModulesBySheet; 
 	Menu.add_command miscSub ~label:"Move modules based on schematic position"

@@ -1087,6 +1087,7 @@ let makemenu top togl filelist =
 		fprintf oc "l = {}\n"; 
 		let i = ref 1 in
 		List.iter(fun m-> m#save_lua oc i) !gmodules; 
+		fprintf oc "return l\n"; 
 		close_out_noerr oc; 
 	) in
 	

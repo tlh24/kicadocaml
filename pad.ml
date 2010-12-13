@@ -386,7 +386,7 @@ object (self)
 		fprintf oc "Po %d %d\n" (iofs m_x) (iofs m_y) ; 
 		fprintf oc "$EndPAD\n"
 	)
-	method save_lua oc j = (
+	method save_lua oc ctr radians j = (
 		(* well, about the same as mod save_lua. *)
 		let fp = fprintf in
 		fp oc "p = {}\n"; 
@@ -394,7 +394,10 @@ object (self)
 		fp oc "p.netname = \"%s\"\n" m_netname; 
 		fp oc "p.padname = \"%s\"\n" m_padname; 
 		fp oc "p.shape = \"%s\"\n" (self#shapeToChar()); 
-		fp oc "p.loc = {%f,%f}\n" m_x m_y; 
+		let cx,cy = Pts2.rotate 
+			(Pts2.sub (self#getCenter()) ctr)
+			(-1.0 *. radians) in
+		fp oc "p.ctr = {%f,%f}\n" cx cy;
 		fp oc "p.size = {%f,%f}\n" m_sx m_sy; 
 		fp oc "p.layers = {%d" (List.hd m_layers);  
 		List.iter (fun l -> fp oc ",%d" l) (List.tl m_layers); 

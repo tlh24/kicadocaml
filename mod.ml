@@ -545,9 +545,9 @@ object (self)
 		let bbx2 = List.fold_left (fun a b -> bbxMerge a (b#getBBX()))
 			bbx m_shapes in
 		let radians = (foi m_rot) *. 3.1415926535 /. 1800.0 in
-		let ctr = bbxCenter bbx2 in
+		let ctr = bbxCenter bbx in
 		let lx,ly,hx,hy = bbxRotate (* rotate into global coords *)
-			(bbxTranslate bbx2 (Pts2.scl ctr (-1.0)))
+			(bbxTranslate bbx (Pts2.scl ctr (-1.0)))
 			(-1.0 *. radians) in
 		fp oc "t.ctr = {%f, %f}\n" (fst ctr) (snd ctr); 
 		fp oc "t.bbx = {%f, %f, %f, %f}\n" lx ly hx hy; 
@@ -555,7 +555,7 @@ object (self)
 		let j = ref 1 in
 		(* then save each pad *)
 		fp oc "pl = {}\n"; 
-		List.iter (fun p -> p#save_lua oc j; incr j) m_pads; 
+		List.iter (fun p -> p#save_lua oc ctr radians j) m_pads; 
 		fp oc "t.pads = pl\n"; 
 		fp oc "l[%d] = t\n" !i; 
 		incr i; 

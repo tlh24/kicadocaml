@@ -272,7 +272,10 @@ let bbxInside (xl,yl,xh,yh) (px, py) =
 let bbxRotate (xl,yl,xh,yh) r = 
 	let xln,yln = Pts2.rotate (xl,yl) r in
 	let xhn,yhn = Pts2.rotate (xh,yh) r in
-	(xln,yln,xhn,yhn)
+	((min xln xhn),
+	(min yln yhn),
+	(max xln xhn),
+	(max yln yhn))
 	;;
 let fmin (a:float) (b:float) = if a < b then a else b ;;
 let fmax (a:float) (b:float) = if a > b then a else b ;;

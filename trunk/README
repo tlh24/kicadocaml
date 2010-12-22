@@ -51,7 +51,7 @@ in some directory, (and install any required dependencies) and then
 
 Then you can run 
 $ make opt
-(or just 'make' if you want the bytecode executable)
+(or just 'make kicadocaml' if you want the bytecode executable)
 and everything should work!
 Once you have started the program, be sure to look at 'about'
 hidden (for now) in the 'options' menu for the keyboard commands. 

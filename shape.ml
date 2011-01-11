@@ -76,10 +76,10 @@ object
 		let w = m_width /. 2.0 in
 		let xl = m_enx :: m_polyX in
 		let yl = m_eny :: m_polyY in
-		(List.fold_left min m_stx xl),
-		(List.fold_left min m_sty yl),
-		(List.fold_left max m_stx xl),
-		(List.fold_left max m_sty yl)
+		(List.fold_left (fun a b -> min a (b-.w)) (m_stx-.w) xl),
+		(List.fold_left (fun a b -> min a (b-.w)) (m_sty-.w) yl),
+		(List.fold_left (fun a b -> max a (b+.w)) (m_stx+.w) xl),
+		(List.fold_left (fun a b -> max a (b+.w)) (m_sty+.w) yl)
 	)
 	method read ic line shapetype = (
 		let parse_startend = 

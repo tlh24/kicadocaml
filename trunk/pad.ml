@@ -50,13 +50,15 @@ object (self)
 	val mutable m_washit = false 
 	val mutable m_highlight = false 
 	val mutable m_connect = false
+	val mutable m_z = 0.0
 	method getConnect() = m_connect
 	method setConnect b = m_connect <- b
 	method setHighlight b = m_highlight <- b ;
-	method getZ () = m_g#getZ ()
+	
 	
 	method update rot x y = (
 		m_g#updateLayers m_layers ; (* this sets the color *)
+		m_z <- m_g#getZ(); 
 		(* make ground pads a little greenish *)
 		if m_netname = "GND" then (
 			let cr,cg,cb = m_g#getColor() in
@@ -99,7 +101,10 @@ object (self)
 		m_gtext#rotateTranslate rot x y ; 
 		m_moveCallback () ; 
 	)
-	method updateLayers () = m_g#updateLayers m_layers ; 
+	method updateLayers () = (
+		m_g#updateLayers m_layers ; 
+		m_z <- m_g#getZ(); 
+	)
 	method copy () = (
 		m_g <- new grfx; 
 		m_gtext <- new grfx;
@@ -110,8 +115,7 @@ object (self)
 	method hit p onlyworknet ja netnum hitsize hitz clearhitin = (
 		m_washit <- m_hit ; 
 		let ms = m_g#getBBXSize () in
-		let mz = m_g#getZ () in
-		if ( mz > hitz || (mz = hitz && ms < hitsize) ) then (
+		if ( m_z > hitz || (m_z = hitz && ms < hitsize) ) then (
 			(*don't hit if we are not displayed*)
 			let en = List.fold_left (fun b lay -> (b || glayerEn.(lay))
 			) false m_layers in
@@ -121,7 +125,7 @@ object (self)
 				(* printf "snapped to pad %s\n%!" m_padname; *)
 				clearhitin (); (*clear the previous hit record, we are smaller *)
 				gsnapped := bbxCenter ( m_g#getBBX() ) ;
-				true, m_netnum, ms, mz, self#clearHit
+				true, m_netnum, ms, m_z, self#clearHit
 			)else ja, netnum, hitsize, hitz, clearhitin
 		)else ja, netnum, hitsize, hitz, clearhitin
 	)
@@ -158,37 +162,39 @@ object (self)
 	method getLayer () = ( (* just returns the first copper layer - not useful for through-hole*)
 		List.find (fun l -> l>=0 && l<=15) m_layers
 	)
-	method draw bbox = (
-		if !gcurnet = m_netnum && !gcurnet != 0 then (
-			m_g#setAlpha 0.78 ;
-			m_gtext#setAlpha 0.68 
-		) else ( 
-			if m_netnum != 0 then (
-				m_g#setAlpha 0.55 ;
-				m_gtext#setAlpha 0.45 
+	method draw bbox zin = (
+		if zin = m_z then (
+			if !gcurnet = m_netnum && !gcurnet != 0 then (
+				m_g#setAlpha 0.78 ;
+				m_gtext#setAlpha 0.68 
+			) else ( 
+				if m_netnum != 0 then (
+					m_g#setAlpha 0.55 ;
+					m_gtext#setAlpha 0.45 
+				) else (
+					m_g#setAlpha 0.35 ;
+					m_gtext#setAlpha 0.25 
+				)
+			); 
+			ignore(if m_highlight then (
+				m_highlight <- false; 
+				m_g#draw ~hit:true ~hcolor:(0.4, 1., 1.) bbox ; (* cyan, for DRC *)
 			) else (
-				m_g#setAlpha 0.35 ;
-				m_gtext#setAlpha 0.25 
-			)
-		); 
-		ignore(if m_highlight then (
-			m_highlight <- false; 
-			m_g#draw ~hit:true ~hcolor:(0.4, 1., 1.) bbox ; (* cyan, for DRC *)
-		) else (
-			m_g#draw ~hit:m_hit bbox ; 
-		));
-		if m_hit then (
-			!ginfodispappend( "pad:" ^ m_padname ^ " net:" ^ (string_of_int m_netnum) ^ 
-			" netname:" ^ m_netname ^ "\n") ;
-		) ; 
-		if !gshowPadNumbers then (
-			(* also should push it to the foreground, in case depth buffer is on. *)
-			GlMat.push() ; 
-			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:(1.0/.80.0) (); 
-			ignore(m_gtext#draw ~hit:m_hit bbox); 
-			GlMat.pop(); 
-		); 
-		if m_hit then self#select () ; 
+				m_g#draw ~hit:m_hit bbox ; 
+			));
+			if m_hit then (
+				!ginfodispappend( "pad:" ^ m_padname ^ " net:" ^ (string_of_int m_netnum) ^ 
+				" netname:" ^ m_netname ^ "\n") ;
+			) ; 
+			if !gshowPadNumbers then (
+				(* also should push it to the foreground, in case depth buffer is on. *)
+				GlMat.push() ; 
+				GlMat.translate ~x:(0.0) ~y:(0.0) ~z:(1.0/.80.0) (); 
+				ignore(m_gtext#draw ~hit:m_hit bbox); 
+				GlMat.pop(); 
+			); 
+			if m_hit then self#select () ; 
+		)
 	)
 	method sheetNameHas sn = Pcre.pmatch ~pat:sn m_netname
 	method testdrc st en width2 net lay suggest move = (
@@ -336,8 +342,8 @@ object (self)
 					| _ -> Pad_STD
 			); 
 			m_layers <- string_to_layers sp.(2); 
-			(*print_endline ( "found pad with the following layers : " ^ sp.(2) ); *)
-			(*List.iter (fun s -> print_endline( ": " ^ (string_of_int s))) m_layers *)
+			print_endline ( "found pad with the following layers : " ^ sp.(2) );
+			List.iter (fun s -> print_endline( ": " ^ (string_of_int s))) m_layers
 		in
 		let parse_line4 = 
 			let sp = parse "Ne (\d+) \"([^\"]*)\"" in

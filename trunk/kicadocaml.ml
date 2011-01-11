@@ -48,6 +48,7 @@ object
 		m_type <- (Pcre.extract ~pat:"\$(\w+)" line).(1) ; 
 		let line = ref (input_line2 ic) in
 		let endpat = "\$End" ^ m_type in
+(* 		print_endline ("pcb_generic section " ^ m_type);  *)
 		(* note!  assumes generic sections do not have sub-sections ! *)
 		(* some of the sections end with 'End', others with 'end', hence this must be 
 		case-insensitive *)
@@ -546,7 +547,7 @@ let render togl cb =
 	GlMat.pop() ; 
 	Gl.flush ();
 	Togl.swap_buffers togl ; 
-(* 	Printexc.print_backtrace stdout (* ocaml 3.11 *) *)
+(*  	Printexc.print_backtrace stdout (* ocaml 3.11 *)  *)
   ;;
 
 let redoRatNest () =
@@ -3092,12 +3093,12 @@ let _ =
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace... *) 
-	(* openFile top "/home/tlh24/svn/myopen/emg_dsp/stage5/stage5.brd"; *)
+(* 	openFile top "/home/tlh24/svn/myopen/emg_dsp/stage8/test.brd";  *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/ecc83/ecc83-pp_v2.brd";  *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/pic_programmer/pic_programmer.brd"; 
 	List.iter (fun z -> z#empty ()) !gzones ; *)
-	(* gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage4/stage4.net" gmodules; 
-	gratsnest#clearAll (); 
+	(* gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage8/stage4.net" gmodules; *)
+	(* gratsnest#clearAll (); 
 	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
 	redoRatNest (); *)
 	(* let schema = new schematic in 

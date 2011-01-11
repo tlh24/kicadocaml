@@ -126,10 +126,7 @@ object (self)
 		List.iter (fun p -> p#updateLayers () ) m_shapes ; 
 		m_g#updateLayer m_layer ; 
 		(* update the stored Z-values  -- 
-			assumes lists are z-homogenous *)
-		m_padsZ <- if List.length m_pads > 0 then (
-				(List.hd m_pads)#getZ()
-			) else 0.0 ;
+			assumes lists are z-homogenous (not always true!)*)
 		m_textsZ <- if List.length m_texts > 0 then (
 				(List.hd m_texts)#getZ()
 			) else 0.0 ; 
@@ -352,8 +349,8 @@ object (self)
 					!ginfodisp( !s ) ; 
 				) ; 
 			) ; 
-			if m_padsZ = zin then 
-				List.iter (fun p -> p#draw bbox ) m_pads ;
+			(* pads may be on different layers - call their draw every time *)
+			List.iter (fun p -> p#draw bbox zin ) m_pads ;
 			if m_shapesZ = zin then 
 				List.iter (fun p -> p#draw bbox ) m_shapes ; 
 			if m_textsZ = zin && !gdrawText then 
@@ -542,8 +539,8 @@ object (self)
 		let bbx = List.fold_left (fun a b -> bbxMerge a (b#getBBX())) 
 			((List.hd m_pads)#getBBX()) (List.tl m_pads) in
 		(* and all drawings/shapes *)
-		let bbx2 = List.fold_left (fun a b -> bbxMerge a (b#getBBX()))
-			bbx m_shapes in
+		(* let bbx2 = List.fold_left (fun a b -> bbxMerge a (b#getBBX()))
+			bbx m_shapes in *)
 		let radians = (foi m_rot) *. 3.1415926535 /. 1800.0 in
 		let ctr = bbxCenter bbx in
 		let lx,ly,hx,hy = bbxRotate (* rotate into global coords *)

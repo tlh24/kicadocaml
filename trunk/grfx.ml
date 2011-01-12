@@ -76,7 +76,7 @@ method updateLayers layers =
 		((clamp r 0. 1.),(clamp g 0. 1.),(clamp b 0. 1.))
 	in
 	color <- saturate(rr,gg,bb); 
-	Printf.printf "updateLayers color %f %f %f z %f\n%!" rr gg bb zz; 
+(* 	Printf.printf "updateLayers color %f %f %f z %f\n%!" rr gg bb zz;  *)
 	m_z <- zz; 
 	self#updateRaw() ; 
 	

@@ -252,6 +252,7 @@ object (self)
 		(* m_moving is true even if only one of our texts are moving. *)
 	)
 	method getMoving () = m_moving ; 
+	method getMove () = m_move ;
 	method move m = (
 		let (txt, found) = self#txthit() in
 		if found then (

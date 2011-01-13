@@ -112,13 +112,67 @@ end and a_mod = object
 		) pl m_pads
 end
 
-let doAnneal mods render stemp etemp passes nlock = 
-	let k = ref 0 in
-	List.iter (fun m -> m#setMoving true) mods; 
+(* now see where they are hitting, and move them accordingly *)
+let hitAll loop amods renderLines = (
+	let mvcnt = ref 1 in
+	let onemore = ref true in
+	let hitpass = ref (if loop then (-50) else 18) in
+	while !mvcnt > 0 && !hitpass < 20 do (
+		mvcnt := 0;
+		List.iter (fun m1 -> 
+			List.iter (fun m2 -> 
+				if m1 <> m2 then (
+					let bbx1 = m1#getBBX () in
+					let bbx2 = m2#getBBX () in
+					(*printf "-------\n"; 
+					let printbbx (x,y,xx,yy) r = 
+						printf "(%f,%f %f,%f) siz %f %f r %f\n%!" 
+						x y xx yy (xx-.x) (yy-.y) r in
+					printbbx bbx1 (m1#getRot()); 
+					printbbx bbx2 (m2#getRot()); *)
+					if bbxIntersect bbx1 bbx2 then (
+						(* move the modlues accordingly *)
+						let w1,h1 = bbxWH bbx1 in
+						let w2,h2 = bbxWH bbx2 in
+						let x1,y1 = bbxCenter bbx1 in
+						let x2,y2 = bbxCenter bbx2 in
+						let dx,dy = x2 -. x1,y2 -. y1 in
+						let calcmov d w = if fabs d < w then ((0.5*.w -. (fabs d)) *. (fsign d)) else 0.0 in
+						let mx,my = (calcmov dx (w1 +. w2)),(calcmov dy (h1 +. h2)) in
+						(* note, you only need one of these moves - rectanguar objects*)
+						let move = if (fabs mx) < (fabs my) && mx <> 0.0 then mx, (0. *.my) else (0. *. mx), my in
+(* 								printf "move %f,%f\n%!" (fst move) (snd move) ; *)
+						if not (m1#getLock ()) then (
+							if not (m2#getLock ()) then (
+								m1#move (Pts2.scl move (-0.6)); (* tweak this ? *)
+								m2#move (Pts2.scl move 0.6); 
+							) else ( (* m2 locked *)
+								m1#move (Pts2.scl move (-1.2)); 
+							)
+						) else (
+							if not (m2#getLock ()) then (
+								m2#move (Pts2.scl move 1.2); 
+							)
+						);
+						incr mvcnt;
+						(* clearly, this will have to run for a while ... *)
+					)
+				)
+			) amods; 
+		) amods; 
+		incr hitpass; 
+		renderLines();
+		(* make sure we have one good pass at the end. *)
+		if !mvcnt <> 0 then onemore := true; 
+		if !mvcnt = 0 && !onemore then (
+			onemore := false; 
+			incr mvcnt; 
+		);
+	) done; 
+) ;;
 
-	(* first, copy the data structures (bad, I know, but my mind is limited.. *)
-	let maxnet = ref 0 in
-	let amods = List.map (fun m -> 
+let makeAmods mods maxnet = 
+	List.map (fun m -> 
 		let am = new a_mod in
 		am#setMod m; 
 		m#update () ;
@@ -145,15 +199,23 @@ let doAnneal mods render stemp etemp passes nlock =
 			ap
 		) (m#getPads ()) ); 
 		am
-	) (List.filter (fun m -> m#getVisible()) mods) in
+	) (List.filter (fun m -> m#getVisible()) mods)
+
+
+let doAnneal mods render stemp etemp passes nlock = (
+	let k = ref 0 in
+	List.iter (fun m -> m#setMoving true) mods; 
+	(* first, copy the data structures (bad, I know, but my mind is limited.. *)
+	let maxnet = ref 0 in
+	let amods = makeAmods mods maxnet in
 	(* now need to make an array of lists of pads connected to each net *)
-	let nets = Array.mapi (fun i j -> 
+ 	let nets = Array.mapi (fun i j -> 
 		List.fold_left (fun j1 m -> 
 			List.fold_left (fun j2 p -> 
 				if p#getNet () = i then p::j2 else j2
 			) j1 (m#getPads ())
 		) j amods; 
-	) ( Array.make (!maxnet+1) [] ) in
+	) ( Array.make (!maxnet+1) [] ) in 
 	(* ...and go back and give the pads these lists *)
 	List.iter (fun m -> 
 		List.iter (fun p -> 
@@ -197,7 +259,7 @@ let doAnneal mods render stemp etemp passes nlock =
 			true
 		in
 		render cb ;
-	in
+	in 
 	(* now make a list of modules that can be moved. *)
 	let amods2 = List.filter (fun m -> List.length (m#getPads ()) < nlock) amods in
 	List.iter (fun m -> m#setLock true) amods;
@@ -254,66 +316,10 @@ let doAnneal mods render stemp etemp passes nlock =
 		) amods2 ; 
 		renderLines (); 
 		
-		(* now see where they are hitting, and move them accordingly *)
-		let hitAll () = 
-			let mvcnt = ref 1 in
-			let onemore = ref true in
-			let hitpass = ref (if !k = passes-1 then (-50) else 18) in
-			while !mvcnt > 0 && !hitpass < 20 do (
-				mvcnt := 0;
-				List.iter (fun m1 -> 
-					List.iter (fun m2 -> 
-						if m1 <> m2 then (
-							let bbx1 = m1#getBBX () in
-							let bbx2 = m2#getBBX () in
-							(*printf "-------\n"; 
-							let printbbx (x,y,xx,yy) r = 
-								printf "(%f,%f %f,%f) siz %f %f r %f\n%!" 
-								x y xx yy (xx-.x) (yy-.y) r in
-							printbbx bbx1 (m1#getRot()); 
-							printbbx bbx2 (m2#getRot()); *)
-							if bbxIntersect bbx1 bbx2 then (
-								(* move the modlues accordingly *)
-								let w1,h1 = bbxWH bbx1 in
-								let w2,h2 = bbxWH bbx2 in
-								let x1,y1 = bbxCenter bbx1 in
-								let x2,y2 = bbxCenter bbx2 in
-								let dx,dy = x2 -. x1,y2 -. y1 in
-								let calcmov d w = if fabs d < w then ((0.5*.w -. (fabs d)) *. (fsign d)) else 0.0 in
-								let mx,my = (calcmov dx (w1 +. w2)),(calcmov dy (h1 +. h2)) in
-								(* note, you only need one of these moves - rectanguar objects*)
-								let move = if (fabs mx) < (fabs my) && mx <> 0.0 then mx, (0. *.my) else (0. *. mx), my in
-(* 								printf "move %f,%f\n%!" (fst move) (snd move) ; *)
-								if not (m1#getLock ()) then (
-									if not (m2#getLock ()) then (
-										m1#move (Pts2.scl move (-0.6)); (* tweak this ? *)
-										m2#move (Pts2.scl move 0.6); 
-									) else ( (* m2 locked *)
-										m1#move (Pts2.scl move (-1.2)); 
-									)
-								) else (
-									if not (m2#getLock ()) then (
-										m2#move (Pts2.scl move 1.2); 
-									)
-								);
-								incr mvcnt;
-								(* clearly, this will have to run for a while ... *)
-							)
-						)
-					) amods; 
-				) amods; 
-				incr hitpass; 
-				renderLines();
-				(* make sure we have one good pass at the end. *)
-				if !mvcnt <> 0 then onemore := true; 
-				if !mvcnt = 0 && !onemore then (
-					onemore := false; 
-					incr mvcnt; 
-				);
-			) done; 
-		in
-		if temp < 0.1 then hitAll(); (* doesn't make sense to do the 'hit' when 
+		
+		if temp < 0.1 then hitAll (!k = (passes-1)) amods renderLines; (* doesn't make sense to do the 'hit' when 
 			normal movement is greater than displacement movement *)
 		incr k; 
 	) done; 
-	renderAll ()
+	renderAll () 
+) ;;

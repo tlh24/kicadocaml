@@ -178,6 +178,7 @@ let gcrossProbeTX = ref true
 let gcrossProbeRX = ref true
 let gTrackAdd = ref (fun _ -> ())
 let gViaAdd = ref (fun _ _ -> ())
+let gpulling = ref true 
 
 let readlines ic =
 	(*remove the old modules *)
@@ -2879,6 +2880,37 @@ let makemenu top togl filelist =
 		~fields:[`MouseX; `MouseY] ~action:(fun ev -> doZoom ev (1. /. 1.2) ) top; 
 	bind ~events:[`ButtonPressDetail(4)] 
 		~fields:[`MouseX; `MouseY] ~action:(fun ev -> doZoom ev 1.2) top;
+	(* pull function *)
+	bind ~events:[`KeyPressDetail("Control_R")] ~fields:[`MouseX; `MouseY] ~action:
+	(fun ev -> 
+		updatecurspos ev ; 
+		if not !gpulling && !gmode = Mode_MoveModule then (
+			gpulling := true;
+			let magnets = List.filter (fun m-> m#getHit()) !gmodules in
+			if (List.length magnets) > 0 then (
+				gratsnest#clearAll (); (* no need for the ratsnest while this is going on*)
+				let modules = Pull.filtermods !gmodules !gtracks in
+				printf "Pull.filtermods: output %d\n%!" (List.length modules);
+				let rec loop () = 
+					if !gpulling then (
+						Pull.pull (List.hd magnets) modules;
+						render togl nulfun ;
+						ignore(Timer.add ~ms:20 ~callback:loop)
+					);
+				in
+				loop ()
+			); 
+		) ; 
+	) top; 
+	bind ~events:[`KeyReleaseDetail("Control_R")] ~fields:[`MouseX; `MouseY] ~action:
+	(fun ev -> 
+		printf "p release!\n%!"; 
+		updatecurspos ev ; 
+		gpulling := false; 
+		Pull.stop !gmodules ; 
+		redoRatNest (); 
+		render togl nulfun ;
+	) top; 
 	(* display them *)
 	pack ~side:`Left 
 		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 

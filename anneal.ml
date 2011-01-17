@@ -144,8 +144,11 @@ let hitAll loop amods renderLines = (
 (* 								printf "move %f,%f\n%!" (fst move) (snd move) ; *)
 						if not (m1#getLock ()) then (
 							if not (m2#getLock ()) then (
-								m1#move (Pts2.scl move (-0.6)); (* tweak this ? *)
-								m2#move (Pts2.scl move 0.6); 
+								(* larger objects move less! *)
+								let frac1 = (w1 *. h1) /. ((w1 *. h1) +. (w2 *. h2)) in
+								let frac2 = (w2 *. h2) /. ((w1 *. h1) +. (w2 *. h2)) in
+								m1#move (Pts2.scl move (-1.2 *. frac2)); (* tweak this constant ? *)
+								m2#move (Pts2.scl move (1.2 *. frac1)); 
 							) else ( (* m2 locked *)
 								m1#move (Pts2.scl move (-1.2)); 
 							)

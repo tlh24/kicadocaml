@@ -192,73 +192,77 @@ method highlight node netnum () =
 	(* printf "running ratnest#highlight\n%!"; *)
 	(* add lines for dragging & highlighting *)
 	let pos = Ratnode.getPos node in
-	if !gdragShowAllNets || !gdragShow5Smallest then (
-		let rnselAppend bnode =
-			if bnode != node then (
-				let xc = Ratnode.getx bnode in
-				let yc = Ratnode.gety bnode in
-				m_rnsel <- ( ((fst pos),(snd pos),xc,yc,netnum) :: m_rnsel ); 
-			)
-		in
-		(* add pads *)
-		List.iter (fun bnode -> rnselAppend bnode ) nodes.(netnum) ; 
-		if List.length m_rnsel < 50 then (
-			(* tracks if it does not look like too big of a problem *)
-			List.iter2 (fun bnode1 bnode2 -> 
-				rnselAppend bnode1; 
-				rnselAppend bnode2; 
-			) tracks1.(netnum) tracks2.(netnum) ; 
-		) ; 
-		let rnLength (ax1,ay1,ax2,ay2,_) = 
-			 Pts2.distance2 (ax1,ay1) (ax2,ay2)
-		in
-		if !gdragShow5Smallest then (
-			let sorted = ref [] in
-			sorted :=List.sort (fun a b -> 
-				let ad = rnLength a in
-				let bd = rnLength b in
-				if ad < bd then -1 else if ad > bd then 1 else 0
-			) m_rnsel ; 
-			(* select the top 5 *)
-			m_rnsel <- [] ; 
-			if List.length !sorted > 4 then (
-				for i = 0 to 4 do (
-					try (
-						m_rnsel <- (List.hd !sorted :: m_rnsel); 
-						sorted := List.tl !sorted ;
-					) with Failure("hd") -> () ; 
-				) done; 
-			)
-		); 
-	) else (
-		let (cnode,cdist) = 
-			List.fold_left (fun (cnode1,cdist1) bnode -> 
-				let d = Pts2.distance2 (Ratnode.getPos bnode) pos in
-				if d < cdist1 && bnode != node then 
-					(bnode, d)
-				else
-					(cnode1, cdist1)
-			) ((List.hd nodes.(netnum) ), 1e24) nodes.(netnum)
-		in
-		(* tracks too *)
-		let (cnode2,_) = 
-			List.fold_left2 (fun (cnode1,cdist1) bnode1 bnode2 -> 
-				let d1 = Pts2.distance2 (Ratnode.getPos bnode1) pos in
-				let d2 = Pts2.distance2 (Ratnode.getPos bnode2) pos in
-				let d,bnode = if d1 < d2
-					then d1,bnode1
-					else d2,bnode2 
+	if (Array.length nodes) > netnum then (
+		if !gdragShowAllNets || !gdragShow5Smallest then (
+			let rnselAppend bnode =
+				if bnode != node then (
+					let xc = Ratnode.getx bnode in
+					let yc = Ratnode.gety bnode in
+					m_rnsel <- ( ((fst pos),(snd pos),xc,yc,netnum) :: m_rnsel ); 
+				)
+			in
+			(* add pads *)
+			List.iter (fun bnode -> rnselAppend bnode ) nodes.(netnum) ; 
+			if List.length m_rnsel < 50 then (
+				(* tracks if it does not look like too big of a problem *)
+				List.iter2 (fun bnode1 bnode2 -> 
+					rnselAppend bnode1; 
+					rnselAppend bnode2; 
+				) tracks1.(netnum) tracks2.(netnum) ; 
+			) ; 
+			let rnLength (ax1,ay1,ax2,ay2,_) = 
+				Pts2.distance2 (ax1,ay1) (ax2,ay2)
+			in
+			if !gdragShow5Smallest then (
+				let sorted = ref [] in
+				sorted :=List.sort (fun a b -> 
+					let ad = rnLength a in
+					let bd = rnLength b in
+					if ad < bd then -1 else if ad > bd then 1 else 0
+				) m_rnsel ; 
+				(* select the top 5 *)
+				m_rnsel <- [] ; 
+				if List.length !sorted > 4 then (
+					for i = 0 to 4 do (
+						try (
+							m_rnsel <- (List.hd !sorted :: m_rnsel); 
+							sorted := List.tl !sorted ;
+						) with Failure("hd") -> () ; 
+					) done; 
+				)
+			); 
+		) else (
+			if (List.length nodes.(netnum)) > 0 then (
+				let (cnode,cdist) = 
+					List.fold_left (fun (cnode1,cdist1) bnode -> 
+						let d = Pts2.distance2 (Ratnode.getPos bnode) pos in
+						if d < cdist1 && bnode != node then 
+							(bnode, d)
+						else
+							(cnode1, cdist1)
+					) ((List.hd nodes.(netnum) ), 1e24) nodes.(netnum)
 				in
-				if d < cdist1 then 
-					(bnode, d)
-				else
-					(cnode1, cdist1)
-			) (cnode,cdist) tracks1.(netnum) tracks2.(netnum)
-		in
-		let xc = Ratnode.getx cnode2 in
-		let yc = Ratnode.gety cnode2 in
-		m_rnsel <- ( ((fst pos),(snd pos),xc,yc,netnum) :: m_rnsel ); 
-	) ; 
+				(* tracks too *)
+				let (cnode2,_) = 
+					List.fold_left2 (fun (cnode1,cdist1) bnode1 bnode2 -> 
+						let d1 = Pts2.distance2 (Ratnode.getPos bnode1) pos in
+						let d2 = Pts2.distance2 (Ratnode.getPos bnode2) pos in
+						let d,bnode = if d1 < d2
+							then d1,bnode1
+							else d2,bnode2 
+						in
+						if d < cdist1 then 
+							(bnode, d)
+						else
+							(cnode1, cdist1)
+					) (cnode,cdist) tracks1.(netnum) tracks2.(netnum)
+				in
+				let xc = Ratnode.getx cnode2 in
+				let yc = Ratnode.gety cnode2 in
+				m_rnsel <- ( ((fst pos),(snd pos),xc,yc,netnum) :: m_rnsel ); 
+			); 
+		)
+	) ;
 
 (* need a new algorithm to generate this minimum-spanning tree for each net *)
 (* tracks are about the same as normal nodes, except they have already been contracted *)

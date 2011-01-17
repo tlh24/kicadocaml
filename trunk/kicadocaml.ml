@@ -1,4 +1,4 @@
-(* Copyright 2008-2010, Timothy L Hanson *)
+(* Copyright 2008-2011, Timothy L Hanson *)
 (* This file is part of Kicadocaml.
 
     Kicadocaml is free software: you can redistribute it and/or modify
@@ -1326,6 +1326,10 @@ let makemenu top togl filelist =
 		gratsnest#clearSel (); 
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
+			if ( !glayer = 24) && !ggridSnap then ( (* drawing layer defaults to grid snap *)
+				let grd = ggrid.(0) in
+				gsnapped := (snap (fst out) grd), (snap (snd out) grd)
+			); 
 			(* set the hit flags& get a netnum *)
 			let (nn,hitsize2,hitz2,hitclear2) = 
 				if !gdrawmods then (
@@ -1422,7 +1426,10 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			updatecurspos ev; (* get a new hit *)
 			workingnet := !gcurnet ; 
-			if !workingnet > 0 then (
+			if (!glayer = 24 && glayerEn.(24)) then (
+				workingnet := 0; (* the drawing net. *)
+			);
+			if !workingnet > 0 || !glayer = 24 then (
 				if List.exists (fun z -> z#getHit () ) !gzones then (
 					(* try adding a point to a zone *)
 					let zones = List.filter (fun z -> z#getHit()) !gzones in
@@ -2890,10 +2897,11 @@ let makemenu top togl filelist =
 			if (List.length magnets) > 0 then (
 				gratsnest#clearAll (); (* no need for the ratsnest while this is going on*)
 				let modules = Pull.filtermods !gmodules !gtracks in
+				let magnet = List.hd magnets in
 				printf "Pull.filtermods: output %d\n%!" (List.length modules);
 				let rec loop () = 
 					if !gpulling then (
-						Pull.pull (List.hd magnets) modules;
+						Pull.pull magnet modules;
 						render togl nulfun ;
 						ignore(Timer.add ~ms:20 ~callback:loop)
 					);
@@ -2907,7 +2915,7 @@ let makemenu top togl filelist =
 		printf "p release!\n%!"; 
 		updatecurspos ev ; 
 		gpulling := false; 
-		Pull.stop !gmodules ; 
+		Pull.stop !gmodules (fun () -> render togl nulfun); 
 		redoRatNest (); 
 		render togl nulfun ;
 	) top; 

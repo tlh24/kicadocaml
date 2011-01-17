@@ -1,3 +1,20 @@
+(* Copyright 2008-2011, Timothy L Hanson *)
+(* This file is part of Kicadocaml.
+
+    Kicadocaml is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Kicadocaml is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Kicadocaml.  If not, see <http://www.gnu.org/licenses/>.
+*)
+
 (* tries to "pull" available modules toward a selectetd component 
 based on net connectivity *)
 
@@ -71,9 +88,21 @@ let pull magnet modules = (
 	) modules
 ) ;;
 
-let stop modules = (
-	printf "Pull.stop! \n%!";
+let stop modules render = (
+(* 	printf "Pull.stop! \n%!"; *)
+	let maxnet = ref 0 in
+	let amods = Anneal.makeAmods
+		(List.filter (fun m-> 
+			if m#getMoving() then (
+				m#setMoving false ; true
+			) else false ) modules) maxnet in
 	List.iter (fun m -> 
 		if (m#getMoving()) then m#setMoving false
-	) modules
+	) modules; 
+	Anneal.hitAll true amods (fun () -> 
+		List.iter (fun m -> 
+			m#update (); 
+		) amods;
+		render ()
+	); 
 ) ;;

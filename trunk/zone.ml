@@ -626,7 +626,7 @@ object (self)
 			line := input_line2 ic ; 
 		) done ;
 		(* make sure we are in polygon mode. *)
-		m_options <- Pcre.qreplace ~pat:"ZOptions \d+" ~templ:"ZOptions 0" m_options; 
+		m_options <- Pcre.qreplace ~pat:"ZOptions \d+ \d+ \w" ~templ:"ZOptions 0 16 F" m_options; 
 		(* need to clean up the corners - break into a series of polygons; 
 		the first is the primary, the rest are cutouts *)
 		m_corners <- [||] ; 

@@ -90,60 +90,6 @@ object
 		)
 	)
 end;;
- (* 
-class pcb_simpZone = 
-object
-	val mutable 
-	val mutable m_segs
-*)
-class pcb_drawsegment = 
-object
-	val mutable m_shape = 0
-	val mutable m_stx = 0
-	val mutable m_sty = 0
-	val mutable m_enx = 0
-	val mutable m_eny = 0
-	val mutable m_width = 0
-	val mutable m_layer = 0
-	val mutable m_type = 0
-	val mutable m_angle = 0
-	val mutable m_g = new grfx
-	method getLayer () = m_layer ; 
-	method update () = (
-		m_g#updateLayer m_layer ; (* this also sets z, needed for vertices *)
-		m_g#empty () ;
-		m_g#makeTrackInt m_stx m_sty m_enx m_eny m_width ; 
-	)
-	method draw bbox = (
-		ignore(m_g#draw ~hit:false bbox); 
-	)
-	method read ic = (
-		let line = input_line2 ic in
-		let sp = Pcre.extract ~pat:"Po (\d+) ([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+) (\d+)" line in
-		m_shape <- ios sp.(1) ; 
-		m_stx <- ios sp.(2) ; 
-		m_sty <- ios sp.(3) ; 
-		m_enx <- ios sp.(4) ; 
-		m_eny <- ios sp.(5) ; 
-		m_width <- ios sp.(6) ; 
-		let line2 = input_line2 ic in
-		let sp2 = Pcre.extract ~pat:"De (\d+) (\d+) (\d+)" line2 in
-		m_layer <- ios sp2.(1) ;
-		m_type <- ios sp2.(2) ;
-		m_angle <- ios sp2.(3) ;
-		(*read the $EndDRAWSEGMENT line *)
-		let d = ref "" in
-		d := input_line2 ic ; 
-	)
-	method save oc = (
-		fprintf oc "$DRAWSEGMENT\n" ; 
-		fprintf oc "Po %d %d %d %d %d %d\n" 
-			m_shape m_stx m_sty m_enx m_eny m_width ; 
-		fprintf oc "De %d %d %d 0 0\n" 
-			m_layer m_type m_angle ; 
-		fprintf oc "$EndDRAWSEGMENT\n" ; 
-	)
-end;; 
 
 let gnets = ref [] (*this must be a reference, as we are updating! *)
 let gtracks = ref []
@@ -166,7 +112,7 @@ let gviasizelist = ref []
 let gviapad = ref 0.047
 let gviadrill = ref 0.015
 let gfname = ref "" 
-let groute135 = ref true
+let groute135 = ref false
 let gtrackKeepSlope = ref true
 let gfilelist = ref [] 
 let gdrawtracks = ref true
@@ -294,7 +240,7 @@ let abouttext =
 "written in Ocaml (yay) \n" ^
 "by Tim Hanson, sideskate@gmail.com \n" ^
 "for use with the Kicad suite of programs.\n" ^
-"   (not meant to work wholly by itself -- netlist/lib load incomplete) \n\n" ^
+"   (not meant to work wholly by itself -- lib load incomplete) \n\n" ^
 "Relevant hotkeys / commands: \n" ^ 
 " right mouse button --- pan \n" ^ 
 " scroll wheel --- zoom \n" ^

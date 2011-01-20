@@ -342,8 +342,6 @@ object (self)
 					| _ -> Pad_STD
 			); 
 			m_layers <- string_to_layers sp.(2); 
-(* 			print_endline ( "found pad with the following layers : " ^ sp.(2) ); *)
-			List.iter (fun s -> print_endline( ": " ^ (string_of_int s))) m_layers
 		in
 		let parse_line4 = 
 			let sp = parse "Ne (\d+) \"([^\"]*)\"" in

@@ -363,6 +363,8 @@ object (self)
 			); 
 			m_net <- ios sp.(3) ; 
 			m_status <- sp.(4) ; 
+			if m_layer = 24 (*drawings *) then m_drawsegment <- true ; 
+			(* tracks don't make sense on the drawings layer. *)
 		)
 		method save oc = (
 			if not m_drawsegment then (

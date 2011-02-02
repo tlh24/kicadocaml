@@ -53,7 +53,7 @@ object (self)
 	
 	val mutable m_timestamp = random_timestamp ()
 	val mutable m_aux = "" 
-	val mutable m_options = ""
+	val mutable m_options = "ZOptions 0 16 F 200 200"
 	
 	method getLayer () = m_layer
 	method getHit () = m_hit

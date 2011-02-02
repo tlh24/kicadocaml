@@ -49,6 +49,7 @@ let check page =
 		printf "go to http://ordering.digikey.com/Ordering/OrderStatus.aspx?web_id=%s&access_id=%s&site=US to view/edit this order\n%!" 
 			webid accessid ; 
 	) ; 
+	(* printf "rxed page{ %s }\n" page; *)
 	Unix.sleep 1 ; 
 	(* ignore(read_line () ) *)
 	;;
@@ -133,17 +134,24 @@ let _ =
 	
 	let httphdr = ("HTTP/1.1\r\n"^
 		"Host: ordering.digikey.com\r\n"^
-		"accept: text/html,application/xhtml+xml,application/xml\r\n"^
-		"accept-language: en-us,en;q=0.5\r\n"^
-		"Connection: keep-alive\r\n") in
+		"Accept: text/html,application/xhtml+xml,application/xml\r\n"^
+		"Accept-language: en-us,en;q=0.5\r\n"^
+		"Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7"^
+		"Keep-Alive: 300\r\n"^
+		"Connection: keep-alive\r\n"^
+		"Referer: http://ordering.digikey.com/Ordering/AddPart.aspx"^
+		"Content-Type: application/x-www-form-urlencoded\r\n") in
 		
 	(* get a cookie! *)
 	sock_send ("GET http://ordering.digikey.com/"^
 		"Ordering/AddPart.aspx?site=us&lang=en&WT.z_header=link "^httphdr^"\r\n");  
 	let page1 = sock_recv () in
-	let cookie= (Pcre.extract ~pat:"Set-Cookie: ([^;]+);" page1).(1) in
+	(* server ID seems to be critical thing here. *)
+	let cookie= (Pcre.extract ~pat:"sid=([^;]+);" page1).(1) in
+	printf "Cookie %s\n" cookie; 
 	(* add some local stuff to the cookie? *)
-	let cookie = cookie ^ "; WT_FPC=id=2070911184.2998612" in
+	let cookie = "WT_FPC=id=" ^ (string_of_float (Random.float 1000000.0))^
+		"; sid="^cookie^"; cur=USD" in 
 	
 	List.iter (fun (pn,pc) -> 
 		let count = soi pc in
@@ -151,11 +159,11 @@ let _ =
 		if fnd then (
 			let part = Pcre.replace ~pat:" " ~templ:"" part1 in
 			sock_send (
-				"GET " ^
-				"/Ordering/AddPart.aspx?part="^(Netencoding.Url.encode part)^
-				"&qty="^count^"&cref= "^
-				httphdr ^
-				"Cookie: " ^ cookie ^ ";\r\n\r\n" );
+                                "GET " ^
+                                "/Ordering/AddPart.aspx?part="^(Netencoding.Url.encode part)^
+                                "&qty="^count^"&cref= "^
+                                httphdr ^
+                                "Cookie: " ^ cookie ^ ";\r\n\r\n" );
 			let res = sock_recv () in 
 			check res ; 
 			 if Pcre.pmatch ~pat:"302 Moved" res then (

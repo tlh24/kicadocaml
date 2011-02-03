@@ -11,9 +11,8 @@ It was/is written by Tim Hanson, sideskate@gmail.com
 NETLIST & STARTING A NEW BOARD:
 
 Currently kicadocaml does not do netlist import, nor can it read kicad's footprint
-libraries; hence, to start a board, *you must use pcbnew*.  also, if you update
-the netlist, you must also use pcbnew.  sorry. Write me an email to complain 
-and maybe I'll fix it ;-)
+libraries; hence, to start a board, *you must use pcbnew*. 
+Write me an email to complain and maybe I'll fix it ;-)
 
 ISSUES:
 
@@ -28,8 +27,7 @@ opening a board that was previously saved in pcbnew yuo may want to
 does not automatically realize that it was prev. saved in pcbnew. 
 
 Kicadocaml features a novel triangle-based zone filling algorithm; if
-zone fill fails in pcbnew, you can fill it in kicadocaml.  However, you cannot 
-set the zone edges in the program - more missing features! 
+zone fill fails in pcbnew, you can fill it in kicadocaml. 
 
 Preference support is severly lacking; kicadocaml should remember the 
 state of all options, as well as the grid resolution.
@@ -55,4 +53,3 @@ $ make opt
 and everything should work!
 Once you have started the program, be sure to look at 'about'
 hidden (for now) in the 'options' menu for the keyboard commands. 
-

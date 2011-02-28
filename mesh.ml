@@ -358,7 +358,7 @@ let mesh pts segs filter =
 		!n
 	) in
 	let insert d = 
-(* 		printf "inserting (%f,%f)\n%!" (fst d) (snd d) ; *)
+		printf "inserting (%f,%f)\n%!" (fst d) (snd d) ;
 		let tn = findcontaining2 d false in
 		if tn >= 0 && tn < ntri then subdivide tn d
 	in
@@ -507,6 +507,7 @@ let mesh pts segs filter =
 		) done ; 
 		gselected := 0 ; 
 	in
+	printf "making sure all segments are in mesh\n%!"; 
 	(* need to make sure no triangles span segments *)
 	(* if they do, we simply insert a new point until no segments are left w/ intersections *)
 	let rec eliminate ss w dopt chthr = 
@@ -523,7 +524,7 @@ let mesh pts segs filter =
 				if addpoint then ( morpts := g :: (!morpts); ); 
 				if addseg then ( morsegs := (e,g) :: (!morsegs); ); 
 			) ss ; 
-(* 			printf "eliminate segments:  %d points\n%!" (List.length !morpts) ; *)
+			printf "eliminate segments:  %d points\n%!" (List.length !morpts) ;
 			gannopts := !morpts ; 
 			gannosegs := !morsegs ; 
 			List.iter insert !morpts ; 

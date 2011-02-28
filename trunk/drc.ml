@@ -107,7 +107,8 @@ let testdrcAll tracks modules top rendercb () =
 			incr cnt ; 
 			Button.create ~text:((soi !cnt) ^ ": " ^ (sof (fst p))^", "^(sof (snd p))^" d="^(sof d))
 				~command:(fun () -> 
-					gpan := (Pts2.scl p (-1.0)); 
+					let p2 = t#getStart () in
+					gpan := (Pts2.scl p2 (-1.0)); 
 					ignore(testdrc t !tracks !modules) ; (* to set highlight *)
 					t#setHighlight true ;
 					rendercb (); )

@@ -141,6 +141,10 @@ object (self)
 	method getLayer () = m_layer
 	
 	method getRef () = (List.find (fun t -> t#getType() = 0 ) m_texts)#getText()
+	method getRefChar () = (
+		let refdes = self#getRef () in
+		try (Pcre.extract ~pat:"(\w)" refdes).(1) with Not_found -> "-"
+	)
 	method getValue () = (List.find (fun t -> t#getType() = 1 ) m_texts)#getText()
 	method getLibRef () = m_libRef  (* aka the footprint *)
 	method getFoot () = m_libRef

@@ -1047,7 +1047,7 @@ let makemenu top togl filelist =
 		let savexyr layer = 
 			let title = if layer = 15 then "Top XYR" else "Bottom XYR" in
 			(* assume we flip along the y-axis *)
-			let xscale = if layer=15 then 1.0 else -1.0 in
+			let xscale = if layer = 15 then 1.0 else -1.0 in
 			(* flipping also incurrs a 180deg rotation *)
 			let radd = if layer=15 then 0.0 else 180.0 in
 			let filename = (getSaveFile ~defaultextension:".xyr" ~filetypes:filetyp ~title ()) in
@@ -1058,7 +1058,13 @@ let makemenu top togl filelist =
 				m#update(); (* just in case .. *)
 				let x,y = m#getCenter false in
 				let r1 = xscale *. ((foi (m#getRot())) /. 10.0) +. radd in (* xscale to do the flip..*)
-				let r = if r1 >= 360.0 then r1 -. 360.0 else (if r1 < 0.0 then 360.0 +. r1 else r1 ) in
+				let r2 = if r1 >= 360.0 then r1 -. 360.0 else (if r1 < 0.0 then 360.0 +. r1 else r1 ) in
+				(* resistors and capacitors: just output 0 or 90 for rotation. *)
+				(* this improves robot acccuracy *)
+				let rd = m#getRefChar () in
+				let r = if rd = "C" || rd = "R" || rd = "L" then (
+						if r2 >= 180.0 then r2 -. 180.0 else r2
+					) else r2 in
 				(* the pad1 stuff is used for validation *)
 				let p1x,p1y = try 
 					let pad1 = List.find( fun p -> p#getPadName() = "1" )
@@ -1072,7 +1078,7 @@ let makemenu top togl filelist =
 					x y r p1x p1y ; 
 			) (List.filter (fun m -> m#getLayer() = layer) !gmodules ); 
 			(* also we should add in through-hole pads for alignment -- 
-			this because the surface mount pads will be covered in paste when actually pnp.. *)
+			this because the surface mount pads will be covered in paste when actually pnping.. *)
 			let fidnum = ref 0 in
 			List.iter (fun m -> 
 				List.iter (fun p -> 

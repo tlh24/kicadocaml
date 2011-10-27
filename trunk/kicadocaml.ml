@@ -1165,6 +1165,7 @@ let makemenu top togl filelist =
 			let fname2 = (getSaveFile ~defaultextension:".brd" 
 				~filetypes:filetyp ~title:"save board" ()) in
 			saveall fname2; 
+			Wm.title_set top ("Kicad Ocaml " ^ fname2 );
 			(* update gfname last in case the user clicks cancel and 
 			an exception is thrown *)
 			gfname := fname2; 

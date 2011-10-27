@@ -196,245 +196,247 @@ object (self)
 		m_tris <- [] ; 
 		m_poly <- [] ; 
 		(* generate a bounding box *)
-		let corners = (List.map (fun (a,b,_) -> (a,b)) (Array.to_list m_corners.(0))) in
-		let (minx,miny) = 
-			List.fold_left (fun (mx,my) (x,y)  -> (min mx x),(min my y))
-			(List.hd corners) corners  in
-		let (maxx,maxy) = 
-			List.fold_left (fun (mx,my) (x,y)  -> (max mx x),(max my y))
-			(List.hd corners) corners in
-		let bbx = (minx,miny,maxx,maxy) in
-		(* first filter by layer - remove all tracks & modules 
-		that do not have our layer and are not on our net *)
-		let tracks = List.filter (fun t -> 
-			((t#getLayer ()) = m_layer || (t#getType() = Track_Via))
-			&& bbxIntersect (t#getDrcBBX()) bbx
-			&& (t#getNet()) != m_net
-		) tracks in
-		let mods = List.filter (fun m-> m#hasLayer m_layer) mods in
-		(* keep the pads associated with their module, for position *)
-		
-		(* unfortunately grfx.ml works with quads, not polygons - 
-		and we need polys, or a closed sequence of vertices, for meshing 
-		hence routines need to be duplicated. *)
-		let makeCircle (x,y) w = 
-			let n = 16 in
-			let v = ref [] in
-			let t = ref 0.0 in
-			let dt = 2.0 *. pi /. foi(n) in
-			let cos_ t = cos(t) *. w *. 0.5 +. x in
-			let sin_ t = sin(t) *. w *. 0.5 +. y in
-			for i = 1 to n do (
-				v := (cos_ !t , sin_ !t) :: !v ; 
-				t := !t +. dt ;
-			) done ; 
-			!v (* this does not include the repeated last point *)
-		in
-		let makeTrack s e width = 
-			let dx,dy = Pts2.sub e s in
-			let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
-			let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
-			let (mx, my) = ((-1.0) *. ny , nx) in (*rotate pi/2 ccw *)
-			let pnt t x y = ( x +. cos(t)*.nx +. sin(t)*.mx, y +. cos(t)*.ny +. sin(t)*.my ) in
-			let t = ref (pi /. 2.0) in
-			let dt = -2.0 *. pi /. 16.0 in
-			let v = ref [] in
-			let endcap (x,y) = 
-				for i = 0 to 8 do (
-					v := (pnt !t x y) :: !v ;
+		if Array.length m_corners.(0) > 3 then (
+			let corners = (List.map (fun (a,b,_) -> (a,b)) (Array.to_list m_corners.(0))) in
+			let (minx,miny) = 
+				List.fold_left (fun (mx,my) (x,y)  -> (min mx x),(min my y))
+				(List.hd corners) corners  in
+			let (maxx,maxy) = 
+				List.fold_left (fun (mx,my) (x,y)  -> (max mx x),(max my y))
+				(List.hd corners) corners in
+			let bbx = (minx,miny,maxx,maxy) in
+			(* first filter by layer - remove all tracks & modules 
+			that do not have our layer and are not on our net *)
+			let tracks = List.filter (fun t -> 
+				((t#getLayer ()) = m_layer || (t#getType() = Track_Via))
+				&& bbxIntersect (t#getDrcBBX()) bbx
+				&& (t#getNet()) != m_net
+			) tracks in
+			let mods = List.filter (fun m-> m#hasLayer m_layer) mods in
+			(* keep the pads associated with their module, for position *)
+			
+			(* unfortunately grfx.ml works with quads, not polygons - 
+			and we need polys, or a closed sequence of vertices, for meshing 
+			hence routines need to be duplicated. *)
+			let makeCircle (x,y) w = 
+				let n = 16 in
+				let v = ref [] in
+				let t = ref 0.0 in
+				let dt = 2.0 *. pi /. foi(n) in
+				let cos_ t = cos(t) *. w *. 0.5 +. x in
+				let sin_ t = sin(t) *. w *. 0.5 +. y in
+				for i = 1 to n do (
+					v := (cos_ !t , sin_ !t) :: !v ; 
 					t := !t +. dt ;
 				) done ; 
+				!v (* this does not include the repeated last point *)
 			in
-			endcap e ; 
-			t := pi /. -2.0 ; 
-			endcap s ; 
-			(* List.iter (fun (x,y) -> printf "track pt (%f , %f)\n%!" x y ; ) !v ; *)
-			!v (* again no repeats *)
-		in
-		let makeOval o w h = 
-			(* not so tricky - just use maketrack *)
-			if w > h then (
-				let cw = 0.5 *. (w -. h) in
-				makeTrack (Pts2.add o (-1.0 *. cw,0.0)) (Pts2.add o (cw,0.0)) h
-			) else (
-				let ch = 0.5 *. (h -. w) in
-				makeTrack (Pts2.add o (0.0,-1.0 *. ch)) (Pts2.add o (0.0,ch)) w
-			)
-		in
-		let makeRect (x,y) w h = 
-			let f = 0.5 in
-			 [ (x -. f *. w , y -. f *. h ) ; (x -. f *. w , y +. f *. h ) ; 
-			(x +. f *. w , y +. f *. h ) ; (x +. f *. w , y -. f *. h ) ]
-		in
-		let segments s = 
-			(* convert a series of vertices to segments, and close the loop. *)
-			let q = List.rev s in
-			let k = List.hd q in
-			List.rev_map2 (fun a b -> (a,b)) s (k :: List.rev (List.tl q))
-		in
-		
-		let segs = ref [] in
-		let pts = ref [] in 
-		(* make corners a loop so we don't miss any segments *)
-		let corners_poly = (List.hd corners) :: (List.rev corners) in
-		
-		let addSegs v = 
-			(* make sure at least one point is inside the list of corners *)
-			if List.exists (fun p -> Poly.inside corners_poly p) v then (
-				(* add the track points to the growing list, of course *)
-				List.iter (fun e -> pts := e :: !pts) v ; 
-				(* need to iterate over all segments, adding any intersections 
-				to the list of points to add to the mesh *)
-				let segv = segments v in
-				List.iter (fun (a,b) -> 
-					List.iter (fun (c,d) -> 
-						let hit,e = Pts2.intersectBool a b c d in
-						if hit then (
-							pts := e :: !pts ; 
-						)
-					) !segs ; 
-				) segv ;
-				(* keep a running list of segments *)
-				List.iter (fun e -> segs := e :: !segs) segv ; 
-			) ; 
-		in
-		printf "adding tracks to zone ..\n%!"; 
-		(* iterate over the tracks *)
-		List.iter (fun t -> 
-			let v = 
-			match t#getType () with
-				| Track_Track -> 
-					makeTrack (t#getStart()) (t#getEnd()) 
-						(fudge *. t#getWidth() +. 2.0 *. m_clearance +. m_minthick) ; 
-				| Track_Via -> 
-					makeCircle (t#getStart()) 
-						(fudge *. t#getWidth() +. 2.0 *. m_clearance +. m_minthick) ; 
+			let makeTrack s e width = 
+				let dx,dy = Pts2.sub e s in
+				let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
+				let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
+				let (mx, my) = ((-1.0) *. ny , nx) in (*rotate pi/2 ccw *)
+				let pnt t x y = ( x +. cos(t)*.nx +. sin(t)*.mx, y +. cos(t)*.ny +. sin(t)*.my ) in
+				let t = ref (pi /. 2.0) in
+				let dt = -2.0 *. pi /. 16.0 in
+				let v = ref [] in
+				let endcap (x,y) = 
+					for i = 0 to 8 do (
+						v := (pnt !t x y) :: !v ;
+						t := !t +. dt ;
+					) done ; 
+				in
+				endcap e ; 
+				t := pi /. -2.0 ; 
+				endcap s ; 
+				(* List.iter (fun (x,y) -> printf "track pt (%f , %f)\n%!" x y ; ) !v ; *)
+				!v (* again no repeats *)
 			in
-			addSegs v ; 
-		) tracks ; 
-		
-		(* iterate over the modules *)
-		printf "adding modules to zone ..\n%!"; 
-		printf "Note: pads are not connected to zone; manual thermal relief required (for now)\n%!"; 
-		List.iter (fun m -> 
-			List.iter (fun p -> 
-				if p#hasLayer m_layer (*&& p#getNet() != m_net*) then (
-					let bbx = p#getBBX() in
-					let pp = bbxCenter bbx in (* may have rotation applied *)
-					let w,h = bbxWH bbx in
-					let v = 
-					match p#getShape() with 
-						| Pad_Circle -> 
-							makeCircle pp
-								(fudge *. w +. 2.0 *. m_clearance +. m_minthick) ; 
-						| Pad_Rect -> 
-							makeRect pp
-								(fudge *. w +. 2.0 *. m_clearance +. m_minthick)
-								(fudge *. h +. 2.0 *. m_clearance +. m_minthick) ; 
-						| Pad_Oval -> 
-							makeOval pp 
-								(fudge *. w +. 2.0 *. m_clearance +. m_minthick)
-								(fudge *. h +. 2.0 *. m_clearance +. m_minthick) ;
-						| _ -> printf "don't know pad shape!\n%!"; 
-							[] ;
-					in
-					addSegs v ; 
+			let makeOval o w h = 
+				(* not so tricky - just use maketrack *)
+				if w > h then (
+					let cw = 0.5 *. (w -. h) in
+					makeTrack (Pts2.add o (-1.0 *. cw,0.0)) (Pts2.add o (cw,0.0)) h
+				) else (
+					let ch = 0.5 *. (h -. w) in
+					makeTrack (Pts2.add o (0.0,-1.0 *. ch)) (Pts2.add o (0.0,ch)) w
+				)
+			in
+			let makeRect (x,y) w h = 
+				let f = 0.5 in
+				[ (x -. f *. w , y -. f *. h ) ; (x -. f *. w , y +. f *. h ) ; 
+				(x +. f *. w , y +. f *. h ) ; (x +. f *. w , y -. f *. h ) ]
+			in
+			let segments s = 
+				(* convert a series of vertices to segments, and close the loop. *)
+				let q = List.rev s in
+				let k = List.hd q in
+				List.rev_map2 (fun a b -> (a,b)) s (k :: List.rev (List.tl q))
+			in
+			
+			let segs = ref [] in
+			let pts = ref [] in 
+			(* make corners a loop so we don't miss any segments *)
+			let corners_poly = (List.hd corners) :: (List.rev corners) in
+			
+			let addSegs v = 
+				(* make sure at least one point is inside the list of corners *)
+				if List.exists (fun p -> Poly.inside corners_poly p) v then (
+					(* add the track points to the growing list, of course *)
+					List.iter (fun e -> pts := e :: !pts) v ; 
+					(* need to iterate over all segments, adding any intersections 
+					to the list of points to add to the mesh *)
+					let segv = segments v in
+					List.iter (fun (a,b) -> 
+						List.iter (fun (c,d) -> 
+							let hit,e = Pts2.intersectBool a b c d in
+							if hit then (
+								pts := e :: !pts ; 
+							)
+						) !segs ; 
+					) segv ;
+					(* keep a running list of segments *)
+					List.iter (fun e -> segs := e :: !segs) segv ; 
 				) ; 
-			) (m#getPads()); 
-		) mods ; 
-		
-		(* add the corners in last so they are added first *)
-		pts := List.rev_append corners !pts ; 
-		segs := List.rev_append (segments corners) !segs ;
-		printf "meshing points and segments\n%!"; 
-		(* make the filter function *)
-		let filter (a,b,c) =
-			let d = Pts2.scl (Pts2.add a (Pts2.add b c)) 0.33333 in
-			let good = ref (Poly.inside corners_poly d) in 
+			in
+			printf "adding tracks to zone ..\n%!"; 
+			(* iterate over the tracks *)
 			List.iter (fun t -> 
-				if !good then (
-					let e = match t#getType() with
-						| Track_Track ->
-							( Pts2.closestpointonline (t#getStart()) (t#getEnd()) d true )
-						| Track_Via -> 
-							( (t#getStart()) )
-					in
-					if Pts2.distance d e < (fudge *. (t#getWidth()) *. 0.5 
-						+. m_clearance +. 0.5 *. m_minthick) 
-					then good := false
-				); 
+				let v = 
+				match t#getType () with
+					| Track_Track -> 
+						makeTrack (t#getStart()) (t#getEnd()) 
+							(fudge *. t#getWidth() +. 2.0 *. m_clearance +. m_minthick) ; 
+					| Track_Via -> 
+						makeCircle (t#getStart()) 
+							(fudge *. t#getWidth() +. 2.0 *. m_clearance +. m_minthick) ; 
+				in
+				addSegs v ; 
 			) tracks ; 
-			(* do the same for the modules *)
+			
+			(* iterate over the modules *)
+			printf "adding modules to zone ..\n%!"; 
+			printf "Note: pads are not connected to zone; manual thermal relief required (for now)\n%!"; 
 			List.iter (fun m -> 
-				if !good then (
-					List.iter (fun p -> 
-						if p#hasLayer m_layer (* && p#getNet() != m_net *) then ( (* pads not in zone! *)
-							let bbx = p#getBBX() in
-							let x,y = bbxCenter bbx in (* may have rotation applied *)
-							let w,h = bbxWH bbx in
-							let sx = (fudge *. w +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
-							let sy = (fudge *. h +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
-							let bad = 
-							match p#getShape() with 
-								| Pad_Circle -> 
-									Pts2.distance (x,y) d < sx 
-								| Pad_Rect -> 
-									(fst d) > x -. sx && (fst d) < x +. sx &&
-									(snd d) > y -. sy && (snd d) < y +. sy
-								| Pad_Oval ->  
-									let e,t = if sx > sy then (
-										let cw = (sx -. sy) in
-										Pts2.closestpointonline 
-											(Pts2.add (x,y) (-1.0 *. cw, 0.0))
-											(Pts2.add (x,y) (1.0 *. cw, 0.0))
-											d true , sy
-									) else (
-										let ch = (sy -. sx) in
-										Pts2.closestpointonline 
-											(Pts2.add (x,y) (0.0,-1.0 *. ch))
-											(Pts2.add (x,y) (0.0, 1.0 *. ch))
-											d true , sx
-									) in
-									Pts2.distance d e < t
-								| _ -> false;
-							in
-							(* if bad then ( --debug code.
-								match p#getShape() with
-									| Pad_Circle -> 
-										printf "triangle %f,%f intersect circle @ %f,%f , %f \n%!"
-										(fst d) (snd d) x y sx ; 
-									| Pad_Rect -> 
-										printf "triangle %f,%f intersect rect @ %f,%f , %f x %f\n%!"
-										(fst d) (snd d) x y sx sy; 
-									| Pad_Oval -> 
-										printf "triangle %f,%f intersect oval @ %f,%f , %f x %f\n%!"
-										(fst d) (snd d) x y sx sy; 
-									| _ -> (); 
-							) ;  *)
-							good := !good && not bad ; 
-						) ; 
-					) (m#getPads()); 
-				);
+				List.iter (fun p -> 
+					if p#hasLayer m_layer (*&& p#getNet() != m_net*) then (
+						let bbx = p#getBBX() in
+						let pp = bbxCenter bbx in (* may have rotation applied *)
+						let w,h = bbxWH bbx in
+						let v = 
+						match p#getShape() with 
+							| Pad_Circle -> 
+								makeCircle pp
+									(fudge *. w +. 2.0 *. m_clearance +. m_minthick) ; 
+							| Pad_Rect -> 
+								makeRect pp
+									(fudge *. w +. 2.0 *. m_clearance +. m_minthick)
+									(fudge *. h +. 2.0 *. m_clearance +. m_minthick) ; 
+							| Pad_Oval -> 
+								makeOval pp 
+									(fudge *. w +. 2.0 *. m_clearance +. m_minthick)
+									(fudge *. h +. 2.0 *. m_clearance +. m_minthick) ;
+							| _ -> printf "don't know pad shape!\n%!"; 
+								[] ;
+						in
+						addSegs v ; 
+					) ; 
+				) (m#getPads()); 
 			) mods ; 
-			!good
-		in
-		(* attempt to limit really tiny triangles by spanning the space with extra points *)
-		(* assume that we want 20 along the larger dim *)
-		let dx,dy = maxx -. minx,maxy -. miny in
-		let n = 20 in
-		let nx,ny = if dx > dy then (
-			n, iof (floor (foi n) *. dy /. dx)
-		)else(
-			iof (floor (foi n) *. dx /. dy) , n
-		)in
-		let sx,sy = dx /. (foi (nx-1)), dy /.(foi (ny-1)) in
-		for kx = 0 to nx do (
-			for ky = 0 to ny do (
-				pts := ((minx -. (sx /. 2.0) +. sx *. (foi kx)),(miny  -. (sy /. 2.0) +. sy *. (foi ky))) :: !pts ; 
+			
+			(* add the corners in last so they are added first *)
+			pts := List.rev_append corners !pts ; 
+			segs := List.rev_append (segments corners) !segs ;
+			printf "meshing points and segments\n%!"; 
+			(* make the filter function *)
+			let filter (a,b,c) =
+				let d = Pts2.scl (Pts2.add a (Pts2.add b c)) 0.33333 in
+				let good = ref (Poly.inside corners_poly d) in 
+				List.iter (fun t -> 
+					if !good then (
+						let e = match t#getType() with
+							| Track_Track ->
+								( Pts2.closestpointonline (t#getStart()) (t#getEnd()) d true )
+							| Track_Via -> 
+								( (t#getStart()) )
+						in
+						if Pts2.distance d e < (fudge *. (t#getWidth()) *. 0.5 
+							+. m_clearance +. 0.5 *. m_minthick) 
+						then good := false
+					); 
+				) tracks ; 
+				(* do the same for the modules *)
+				List.iter (fun m -> 
+					if !good then (
+						List.iter (fun p -> 
+							if p#hasLayer m_layer (* && p#getNet() != m_net *) then ( (* pads not in zone! *)
+								let bbx = p#getBBX() in
+								let x,y = bbxCenter bbx in (* may have rotation applied *)
+								let w,h = bbxWH bbx in
+								let sx = (fudge *. w +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
+								let sy = (fudge *. h +. 2.0 *. m_clearance +. m_minthick) *. 0.5 in
+								let bad = 
+								match p#getShape() with 
+									| Pad_Circle -> 
+										Pts2.distance (x,y) d < sx 
+									| Pad_Rect -> 
+										(fst d) > x -. sx && (fst d) < x +. sx &&
+										(snd d) > y -. sy && (snd d) < y +. sy
+									| Pad_Oval ->  
+										let e,t = if sx > sy then (
+											let cw = (sx -. sy) in
+											Pts2.closestpointonline 
+												(Pts2.add (x,y) (-1.0 *. cw, 0.0))
+												(Pts2.add (x,y) (1.0 *. cw, 0.0))
+												d true , sy
+										) else (
+											let ch = (sy -. sx) in
+											Pts2.closestpointonline 
+												(Pts2.add (x,y) (0.0,-1.0 *. ch))
+												(Pts2.add (x,y) (0.0, 1.0 *. ch))
+												d true , sx
+										) in
+										Pts2.distance d e < t
+									| _ -> false;
+								in
+								(* if bad then ( --debug code.
+									match p#getShape() with
+										| Pad_Circle -> 
+											printf "triangle %f,%f intersect circle @ %f,%f , %f \n%!"
+											(fst d) (snd d) x y sx ; 
+										| Pad_Rect -> 
+											printf "triangle %f,%f intersect rect @ %f,%f , %f x %f\n%!"
+											(fst d) (snd d) x y sx sy; 
+										| Pad_Oval -> 
+											printf "triangle %f,%f intersect oval @ %f,%f , %f x %f\n%!"
+											(fst d) (snd d) x y sx sy; 
+										| _ -> (); 
+								) ;  *)
+								good := !good && not bad ; 
+							) ; 
+						) (m#getPads()); 
+					);
+				) mods ; 
+				!good
+			in
+			(* attempt to limit really tiny triangles by spanning the space with extra points *)
+			(* assume that we want 20 along the larger dim *)
+			let dx,dy = maxx -. minx,maxy -. miny in
+			let n = 20 in
+			let nx,ny = if dx > dy then (
+				n, iof (floor (foi n) *. dy /. dx)
+			)else(
+				iof (floor (foi n) *. dx /. dy) , n
+			)in
+			let sx,sy = dx /. (foi (nx-1)), dy /.(foi (ny-1)) in
+			for kx = 0 to nx do (
+				for ky = 0 to ny do (
+					pts := ((minx -. (sx /. 2.0) +. sx *. (foi kx)),(miny  -. (sy /. 2.0) +. sy *. (foi ky))) :: !pts ; 
+				) done ; 
 			) done ; 
-		) done ; 
-		m_tris <- Mesh.mesh !pts !segs filter ; 
-		self#update() ; (* refill the Raw buffers *)
+			m_tris <- Mesh.mesh !pts !segs filter ; 
+			self#update() ; (* refill the Raw buffers *)
+		)
 	)
 	method hitclear () = m_hit <- false
 	method hit (px,py) netnum hitsize hitz hitclear = (

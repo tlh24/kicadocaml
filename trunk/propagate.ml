@@ -153,7 +153,7 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 		in
 		let rec propagate unconn changed layercheck = (
 			(* each iteration conn are those that have been *changed* *)
-			printf "propagate netcodes: changed %d\n%!" (List.length changed); 
+			printf "propagate netcodes: unconn %d changed %d\n%!" (List.length unconn) (List.length changed); 
 			let newchanged = ref [] in
 			List.iter (fun o -> (* changed modules *)
 				List.iter (fun q -> (* unconnected modules *)
@@ -170,7 +170,9 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 								tracktrackConn q o
 						) 
 					) else false in
-					if conn then (
+					if conn && not q.t_connected then (
+						(* getting an error in andy's board: might have multiple vias in the same location, 
+						which creates a loop *)
 						q.t_connected <- true; 
 						q.t_net <- o.t_net ; 
 						newchanged := q :: !newchanged ; 

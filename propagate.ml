@@ -25,6 +25,8 @@ open Mod
 open Track
 open Ratnest
 
+let gdocenter = ref true ;
+
 type tt_shp = Typ_Circle | Typ_Track ;;
 
 type tt = {
@@ -220,7 +222,29 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 		if List.length !connerr > 0 then (
 			let dlog = Toplevel.create top in
 			Wm.title_set dlog "Connection errors" ;
+			(* add an option for *not* centering on button press. *)
+			let centerframe = Frame.create dlog in
+			let msg = Message.create ~text:"center" centerframe in
+			let centervar = Textvariable.create ~on:centerframe () in
+			Textvariable.set centervar (if !gdocenter then "yes" else "no" );
+			let centercallback () = 
+				gdocenter := ((Textvariable.get centervar)="yes") ; 
+			in
+			let mkradio label = 
+				Radiobutton.create ~indicatoron:true ~text:label 
+				~value:label ~variable:centervar 
+				~command:centercallback (* this one is immediately applied *)
+				centerframe
+			in
+			let recenter = mkradio "yes" in
+			let norecenter = mkradio "no" in
+			Tk.pack ~side:`Left ~fill:`X [Tk.coe msg ; Tk.coe recenter ; Tk.coe norecenter] ; 
+			(* message to user *)
+			let msgframe = Frame.create dlog in
+			let msg = Message.create ~text:"Note: button highlights all tracks that the algorithm considers to be NOT connected." msgframe in
+			Tk.pack ~side:`Left ~fill:`X [Tk.coe msg ] ; 
 			(* make a series of buttons -- but only the first 30 errors *)
+			let bframe = Frame.create dlog in
 			let err = ref [] in
 			for i = 1 to (min 30 (List.length !connerr)) do (
 				err := ((List.nth !connerr (i-1)) :: !err) ; 
@@ -230,7 +254,8 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 				incr cnt ; 
 				Button.create ~text:((soi !cnt) ^ ": " ^ e)
 					~command:(fun () -> 
-						gpan := (Pts2.scl o.t_s (-1.0)); 
+						if !gdocenter then (
+							gpan := (Pts2.scl o.t_s (-1.0)));  
 						gcurspos := o.t_s; 
 						(* also highlight the tracks that are not connected to this net .. but should be. *)
 						let net = o.t_net in
@@ -249,9 +274,10 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 							)
 						) !objs ; 
 						rendercb (); )
-					dlog) !err ; 
+					bframe) !err ; 
 			in
 			Tk.pack ~fill:`Both ~expand:true ~side:`Top buttons ; 
+			Tk.pack ~fill:`Y ~side:`Top [centerframe; msgframe; bframe]; 
 			(* need to redo the netcodes so we can put down new tracks! *)
 			propagateNetcodes2 modules tracks doall false top rendercb ; 
 		) else (

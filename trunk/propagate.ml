@@ -212,7 +212,7 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 		List.iter (fun o ->
 			(match o.t_pad with 
 				| Some _ -> if not o.t_connected && o.t_net > 0 then 
-					connerr :=  ( "not connected", o.t_s) :: !connerr ; 
+					connerr :=  ( "not connected", o) :: !connerr ; 
 				| None -> ()
 			); 
 		) !objs ; 
@@ -226,12 +226,26 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 				err := ((List.nth !connerr (i-1)) :: !err) ; 
 			) done ; 
 			let cnt = ref 0 in
-			let buttons = List.map (fun (e,p) -> 
+			let buttons = List.map (fun (e,o) -> 
 				incr cnt ; 
 				Button.create ~text:((soi !cnt) ^ ": " ^ e)
 					~command:(fun () -> 
-						gpan := (Pts2.scl p (-1.0)); 
-						gcurspos := p; 
+						gpan := (Pts2.scl o.t_s (-1.0)); 
+						gcurspos := o.t_s; 
+						(* also highlight the tracks that *are* connected to this net. *)
+						let net = o.t_net in
+						List.iter (fun b -> 
+							if o.t_net == b.t_net then (
+								(match b.t_pad with 
+									| Some p -> p#setHighlight true; (* don't change the nets ! *)
+									| None -> ()
+								); 
+								(match b.t_track with 
+									| Some t -> t#setHighlight true ; 
+									| None -> ()
+								); 
+							)
+						) !objs ; 
 						rendercb (); )
 					dlog) !err ; 
 			in

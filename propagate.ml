@@ -232,16 +232,18 @@ let rec propagateNetcodes2 modules tracks doall checkpads top rendercb = (
 					~command:(fun () -> 
 						gpan := (Pts2.scl o.t_s (-1.0)); 
 						gcurspos := o.t_s; 
-						(* also highlight the tracks that *are* connected to this net. *)
+						(* also highlight the tracks that are not connected to this net .. but should be. *)
 						let net = o.t_net in
 						List.iter (fun b -> 
-							if o.t_net == b.t_net then (
+							if not b.t_connected then (
 								(match b.t_pad with 
-									| Some p -> p#setHighlight true; (* don't change the nets ! *)
+									| Some p -> 
+										if p#getNet () == net then p#setHighlight true;
 									| None -> ()
 								); 
 								(match b.t_track with 
-									| Some t -> t#setHighlight true ; 
+									| Some t -> 
+										if t#getNet () == net then t#setHighlight true;
 									| None -> ()
 								); 
 							)

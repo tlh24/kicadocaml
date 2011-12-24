@@ -119,6 +119,8 @@ let layer_to_string layer =
 		| 15 -> "Top"
 		| 20 -> "SS_Bot"
 		| 21 -> "SS_Top"
+		| 22 -> "SM_Bot"
+		| 23 -> "SM_Top"
 		| 24 -> "Drawings"
 		| _ -> ""
 
@@ -133,6 +135,8 @@ let string_to_layer s =
 		| "Top" -> 15
 		| "SS_Bot" -> 20
 		| "SS_Top" -> 21
+		| "SM_Bot" -> 22
+		| "SM_Top" -> 23
 		| "Drawings" -> 24
 		| _ -> 31
 
@@ -147,6 +151,8 @@ let layer_to_color layer =
 		| 15 -> (1. , 0. , 0. ) ; (*red, component , top*)
 		| 20 -> (1.0, 0.9, 0.65 ) ; (* magentaish, silkscreen copper *)
 		| 21 -> (0.65, 1.0, 0.9 ) ; (* cyanish, silkscreen component *)
+		| 22 -> (1.0, 0.6, 0.0 ) ; (* orange, bottom solder mask *)
+		| 23 -> (0.6, 0.0, 1.0 ) ; (* purple, top solder mask *)
 		| 24 -> (0.65, 0.65, 0.65 ) ; (* drawings *)
 		| _ -> (0. , 0. , 0. )  (*black *)
 		(* other relevant layers -

@@ -573,7 +573,7 @@ let openFile top fname =
 	glayerPresent := [] ; (* clear the old layer list, this file may have different layers present *)
 	readlines ic ; 
 	(* also add the other known layers -- see kicad!*)
-	glayerPresent := [20; 21;24] @ !glayerPresent; 
+	glayerPresent := [20;21;22;23;24] @ !glayerPresent; 
 	(* update the enabled list ... *)
 	for i = 0 to 31 do glayerEn.(i) <- false done;
 	List.iter (fun u -> glayerEn.(u) <- true) !glayerPresent;  
@@ -1248,7 +1248,7 @@ let makemenu top togl filelist =
 			render togl nulfun
 		) else ( print_endline "layer not present in board"; ) ; 
 	in
-	let laylist = ["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot";"Drawings"] in
+	let laylist = ["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot";"Drawings";"SM_Top";"SM_Bot"] in
 	let (layerframe,changelayercallback) = makeLayerFrame 
 		laylist
 		laylist
@@ -1279,7 +1279,7 @@ let makemenu top togl filelist =
 		gratsnest#clearSel (); 
 		if dosnap && nonemoving then (
 			gsnapped := out ; 
-			if ( !glayer = 24) && !ggridSnap then ( (* drawing layer defaults to grid snap *)
+			if ( !glayer >= 20) && !ggridSnap then ( (* drawing/silkscreen layer defaults to grid snap *)
 				let grd = ggrid.(0) in
 				gsnapped := (snap (fst out) grd), (snap (snd out) grd)
 			); 
@@ -1379,10 +1379,10 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			updatecurspos ev; (* get a new hit *)
 			workingnet := !gcurnet ; 
-			if (!glayer = 24 && glayerEn.(24)) then (
+			if (!glayer >= 20 && glayerEn.(!glayer)) then (
 				workingnet := 0; (* the drawing net. *)
 			);
-			if !workingnet > 0 || !glayer = 24 then (
+			if !workingnet > 0 || !glayer >= 20 then (
 				if List.exists (fun z -> z#getHit () ) !gzones then (
 					(* try adding a point to a zone *)
 					let zones = List.filter (fun z -> z#getHit()) !gzones in

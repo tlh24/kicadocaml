@@ -99,7 +99,7 @@ let ggeneric = ref []
 let gzoom = ref 1.0
 let gdrag = ref (0.0, 0.0)
 let goldpan = ref (0.0, 0.0)
-let ghithold = ref false
+let ghithold = ref false (* don't update 'hit' when shift is down -- just use box *)
 let genabledepth = ref true 
 let file_header  = ref "" 
 let gratsnest = new ratsNest
@@ -1277,7 +1277,7 @@ let makemenu top togl filelist =
 		let nonemoving = not ( List.exists (fun m -> m#getMoving () ) !gmodules ) in
 		(* also should update the hit & snap *)
 		gratsnest#clearSel (); 
-		if dosnap && nonemoving then (
+		if dosnap && nonemoving && (not !ghithold) then (
 			gsnapped := out ; 
 			if ( !glayer >= 20) && !ggridSnap then ( (* drawing/silkscreen layer defaults to grid snap *)
 				let grd = ggrid.(0) in
@@ -1287,7 +1287,7 @@ let makemenu top togl filelist =
 			let (nn,hitsize2,hitz2,hitclear2) = 
 				if !gdrawmods then (
 					List.fold_left (fun (netnum,hitsize,hitz,clearhit) m -> 
-						m#hit out !ghithold onlyworknet netnum hitsize hitz clearhit
+						m#hit out onlyworknet netnum hitsize hitz clearhit
 					) (worknet, 1e24, -2e2, (fun() -> ()) ) !gmodules 
 				) else (worknet, 1e24, -2e2, (fun() -> ()) )
 			in
@@ -1295,7 +1295,7 @@ let makemenu top togl filelist =
 			let nn3,hitsize3,hitz3,hitclear3 = 
 				if !gdrawtracks && !gmode <> Mode_MoveText then (
 					List.fold_left (fun (netn1,hitsize,hitz,hitclear) track -> 
-						track#hit (out, onlyworknet, hitsize, hitz, hitclear, !ghithold, netn1)
+						track#hit (out, onlyworknet, hitsize, hitz, hitclear, netn1)
 					) (nn,hitsize2,hitz2,[hitclear2]) !gtracks 
 				) else nn,hitsize2,hitz2,[]
 			in
@@ -1410,7 +1410,7 @@ let makemenu top togl filelist =
 					(* therefore update the hit vars *)
 					printf "adding track ..\n%!" ; 
 					ignore( List.fold_left (fun (nn,hitsize,hitz,clearhit) m -> 
-						m#hit !gcurspos false false nn hitsize hitz clearhit
+						m#hit !gcurspos false nn hitsize hitz clearhit
 					) (0, 1e24, -2e2, (fun() -> ()) ) !gmodules ); 
 					let padHasLayer = List.exists (fun m-> 
 						List.exists (fun p -> 
@@ -1923,13 +1923,30 @@ let makemenu top togl filelist =
 				gselectRect := (1e99,1e99,1e99,1e99) ; 
 				Mouse.releaseMove top; 
 				updatecurspos evinf ; 
-				
+				printf "%d modules and %d tracks selected\n" (List.length modules) (List.length tracks);
 				printf "please drag the selected modules .. (or release shift) \n%!" ; 
 				printf "known bug: do not rotate and drag at the same time!\n%!" ; 
+
+				(* also add in 'c' for copy tracks *)
+				bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:
+				(fun _ ->
+					printf "copying %d tracks in drag...\n%!" (List.length tracks); 
+					let newtracks = List.map (fun t -> Oo.copy t) tracks in
+					List.iter (fun t -> 
+						t#setHit false; 
+						t#applyMove (); ) tracks ;
+					List.iter (fun t -> 
+						t#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
+						t#update (); 
+						t#setHit true) newtracks ;
+					gtracks := List.rev_append newtracks !gtracks; (* add them to the global list *)
+				) top;
 				(* release the old press .. yes this is confusing now *)
 				Mouse.releasePress top ; (* unbind this function even though it is executing! *)
 				Mouse.bindPress top ~onPress:
 				(fun evv -> 
+					(* redefine tracks -- user may have copied some *)
+					let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
 					printf "dragging %d tracks and %d modules \n%!" 
 						(List.length tracks) (List.length modules); 
 					List.iter (fun m-> m#setMoving true ) modules ;
@@ -1978,6 +1995,8 @@ let makemenu top togl filelist =
 			(* List.iter (fun m-> m#setHit false ) !gmodules ;  
 			List.iter (fun m-> m#setHit false ) !gtracks ; *)
 			Mouse.releasePress top ; 
+			(* clear the old binding *)
+			bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:(fun _ -> ()) top ; 
 		in
 		
 		bind ~events:[`KeyPressDetail("Shift_R")] ~action:selectPress top ; 

@@ -190,7 +190,7 @@ object (self)
 		method getHit () = m_hit ; 
 		method setHit h = m_hit <- h ; 
 		method hitclear () = m_hit <- false
-		method hit (p, onlyworknet, hitsize, hitz, hitclear, hithold, netnum) = 
+		method hit (p, onlyworknet, hitsize, hitz, hitclear, netnum) = 
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* hit bazed on z-sorting. *)
 			(* hitclear is a list as we can hit more than one track at a time *)
@@ -209,14 +209,13 @@ object (self)
 			(* z-sorting: want to be able to hit small items in the background *)
 			(* don't want to allow hitting tracks on more than one layer - 
 			if we do, must clear the previous *)
-			if not m_moving && ( mz >= hitz) &&
+			if not m_moving && mz >= hitz &&
 				m_visible && (not onlyworknet || netnum = m_net) then (
 				(* don't update the hit variable if we are moving*)
 				(* don't hit if onlyworknet (e.g. when adding or removing a track)
 				is true and we are not the workingnet. *)
 				m_washit <- m_hit ; 
 				m_hit <- self#touch p ; 
-				m_hit <- m_hit || (m_washit && hithold) ; 
 				
 				let st = self#getStart()  in
 				let en = self#getEnd() in
@@ -244,7 +243,7 @@ object (self)
 						| Track_Via -> gsnapped := st ;
 					); 
 					(* manage the return data *)
-					if mz <> hitz && not hithold then (
+					if mz <> hitz then (
 						(* clear all the old hit *)
 						(* printf "clearing all old hit in track#hit z=%f\n%!" mz;*)
 						List.iter (fun f -> f ()) hitclear; 

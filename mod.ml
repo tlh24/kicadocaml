@@ -158,7 +158,7 @@ object (self)
 	
 	method clearHit () = m_hit <- false ; 
 	
-	method hit p hithold onlyworknet netnum hitsize hitz clearhit = (
+	method hit p onlyworknet netnum hitsize hitz clearhit = (
 		(* if any of the pads are hit, then this module is hit *)
 		(* pads can only be hit if you are on the right layer *)
 		(* modules can be hit from any layer if you are in mod-move mode*)
@@ -189,7 +189,7 @@ object (self)
 				glayerEn.(m_layer) in
 			(* hold the hit signal if shift is depressed *)
 			m_washit <- m_hit ; 
-			m_hit <- hitself || hitpad || hittext || (hithold && m_washit); 
+			m_hit <- hitself || hitpad || hittext; 
 			if hitself then (
 				clearhit3 () ; (*clear the previous hit record, we are smaller *)
 				(netnum3, ms,(mz -. 1.0),self#clearHit) (* subtract one so we can hit tracks if we hit a mod*)

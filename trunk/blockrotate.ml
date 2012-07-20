@@ -64,3 +64,36 @@ let rotate mods tracks =
 		t#update (); 
 	) tracks ; 
 	;;
+	
+(* mirror a block of items -- only tracks, does not make sense for modules! *)
+
+let mirror tracks vertical = 
+	(* get collective center. *)
+	if (List.length tracks) > 0 then (
+		let bbx0 = (List.hd tracks)#getDrcBBX() in
+		let bbx1 = List.fold_left 
+			(fun bbx t -> bbxMerge (t#getDrcBBX()) bbx) 
+			bbx0 tracks in 
+		let cx, cy = bbxCenter bbx1 in
+		printf "blockmirror: center @ %f %f\n%!" cx cy; 
+		let flip (x,y) = (* this just calculates the move *)
+			if vertical then (
+				0.0, (2.0 *. (cy -. y))
+			) else (
+				(2.0 *. (cx -. x)), 0.0
+			)
+		in
+		List.iter (fun t -> 
+			t#setU 0.0 ; 
+			t#move (flip (t#getStart ())); 
+			t#applyMove (); 
+			if t#getType () = Track_Track then (
+				t#setU 1.0 ; 
+				t#move (flip (t#getEnd ())); 
+				t#applyMove (); 
+			); 
+			t#update (); 
+		) tracks ; 
+	) else (
+	 printf "mirror: no tracks!\n%!"
+	)

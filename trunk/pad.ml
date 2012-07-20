@@ -124,7 +124,8 @@ object (self)
 			if m_hit then (
 				(* printf "snapped to pad %s\n%!" m_padname; *)
 				clearhitin (); (*clear the previous hit record, we are smaller *)
-				gsnapped := bbxCenter ( m_g#getBBX() ) ;
+				if !gdosnap then (
+					gsnapped := bbxCenter ( m_g#getBBX() ) );
 				true, m_netnum, ms, m_z, self#clearHit
 			)else ja, netnum, hitsize, hitz, clearhitin
 		)else ja, netnum, hitsize, hitz, clearhitin

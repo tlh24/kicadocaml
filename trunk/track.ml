@@ -23,7 +23,7 @@ type pcb_track_type = Track_Track | Track_Via
 class pcb_track = 
 object (self)
 		val mutable m_shape = 0
-		val mutable m_stx = 0. (* need these stored as floats so we don't run into\ *)
+		val mutable m_stx = 0. (* need these stored as floats so we don't run into *)
 		val mutable m_sty = 0. (* roundoff issues when drc auomatically moves them *)
 		val mutable m_enx = 0.
 		val mutable m_eny = 0.
@@ -232,15 +232,17 @@ object (self)
 					); 
 					(* if it is a via, then m_u is always 0. *)
 					(* manage the snaps *)
-					(match m_type with 
-						| Track_Track -> (
-							gsnapped := Pts2.closestpointonline st en p true ; 
-							(* snap to the end caps *)
-							if Pts2.distance !gsnapped st < w2 then
-								gsnapped := st ; 
-							if Pts2.distance !gsnapped en < w2 then
-								gsnapped := en ; ); 
-						| Track_Via -> gsnapped := st ;
+					if !gdosnap then (
+						(match m_type with 
+							| Track_Track -> (
+								gsnapped := Pts2.closestpointonline st en p true ; 
+								(* snap to the end caps *)
+								if Pts2.distance !gsnapped st < w2 then
+									gsnapped := st ; 
+								if Pts2.distance !gsnapped en < w2 then
+									gsnapped := en ; ); 
+							| Track_Via -> gsnapped := st ;
+						); 
 					); 
 					(* manage the return data *)
 					if mz <> hitz then (
@@ -265,6 +267,8 @@ object (self)
 			let en = self#getEnd() in
 			if m_type = Track_Via then (
 				(Pts2.distance st p ) < w2
+			) else if !gTrackEndpointOnly then (
+				(Pts2.distance st p ) < w2 || (Pts2.distance en p ) < w2
 			)else if glayerEn.(m_layer) then (
 				Pts2.tracktouch st en p w2
 			) else false

@@ -234,6 +234,91 @@ let saveall filename =
 	(* addToFilelist filename ; *)
 	close_out_noerr oc ; 
 	;;
+	
+let exportCIF filename = (* this is a very experimental feature! *)
+	print_endline ("saving " ^ filename );
+	let oc = open_out filename in
+	fprintf oc "DS 1 20 2;\n"; (* scale by 20/2 -- so we keep kicad's native resolution *)
+	(* units: 1 mil = 1 micron. CIF works in centimicrons (10nm) *)
+	let trans x = iofs (x /. 1.0) in (* takes care of rounding issues. *)
+	let wires layer = 
+		List.iter (fun t -> 
+		if t#getLayer () = layer then (
+			let sx,sy = t#getStart () in
+			let ex,ey = t#getEnd () in
+			fprintf oc "W%i %i %i %i %i;\n"
+				(trans (t#getWidth()))
+				(trans sx)
+				(trans sy)
+				(trans ex)
+				(trans ey) ; 
+			)
+		) !gtracks; 	
+	in
+	(* not all CIF programs support rounded wires -- for these, use polygons. *)
+	let polywire layer = 
+		List.iter (fun t -> 
+		if t#getLayer () = layer then (
+			let sx,sy = t#getStart () in
+			let ex,ey = t#getEnd () in
+			let width = t#getWidth () in
+			(* this copied from grfx.ml -- we want something similar, but simpler as only need outline*)
+			let dx = ex -. sx in
+			let dy = ey -. sy in
+			let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
+			let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
+			let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
+			let n = 15 in
+			let t = ref (pi /. -2.0) in
+			let dt = pi /. foi(n) in
+			let pnt t x y = ( x -. cos(t)*.nx +. sin(t)*.mx, y -. cos(t)*.ny +. sin(t)*.my) in
+			let endcap x y = 
+				for i = 1 to n do (
+					let vx,vy = pnt !t x y in
+					fprintf oc " %i %i" (trans vx) (trans vy); 
+					t := !t +. dt ; 
+				)done; 
+			in
+			fprintf oc "P"; 
+			endcap sx sy; 
+			endcap ex ey;
+			fprintf oc ";\n"; 
+		)
+	) !gtracks; 	
+	in
+	(* first layer: , parylene cut-through.*)
+	fprintf oc "L Via1;\n"; 
+	(* iterate through the drawings layer, plotting each *)
+	polywire 24; 
+	(* next the metal layer *)
+	fprintf oc "L Metal;\n"; 
+	polywire 15; 
+	(* iterate through the module(s) too -- represent the pads as blocks. *)
+	List.iter (fun m ->
+		List.iter (fun p ->
+			if p#getShape () = Pad_Rect then (
+				let lx,ly,ux,uy = p#getBBX () in
+				let cx = 0.5 *. (lx +. ux) in
+				let cy = 0.5 *. (ly +. uy) in
+				let w = ux -. lx in
+				let h = uy -. ly in
+				fprintf oc "B %i %i %i %i;\n"
+					(trans w) (trans h) (trans cx) (trans cy) ; 
+			)
+		) (m#getPads ())
+	) !gmodules; 
+	(* now the upper via layer -- cut through the top parylene *)
+	fprintf oc "L Via2;\n"; 
+	polywire 24; 
+	polywire 23; (* solder mask_top *)
+	fprintf oc "DF;\n";
+	fprintf oc "C 1;\n";
+	fprintf oc "End\n"; 
+	flush oc ; (* this is necessary!!! *)
+	(* addToFilelist filename ; *)
+	close_out_noerr oc ; 
+	;;
+	
 (* UI stuff *)
 let abouttext =
 "Kicad PCB editor\n" ^
@@ -262,6 +347,8 @@ let abouttext =
 " v - insert a via (in add tracks mode) \n" ^
 " v - edit module value (in move module mode)\n"^
 " Ctrl-V - select via size \n" ^
+" X - mirror along x axis\n" ^
+" Y - mirror along y axis\n" ^
 " .... \n" ^
 " page up - select copper layer \n" ^
 " page down - select component layer \n" ^
@@ -459,15 +546,8 @@ let render togl cb =
 			| Mode_MoveText -> (0.22,0.77,1.) (* aqua *)
 		); 
 		drawCrosshairs !gcurspos ; 
-		(* drawRing !gcurspos (0.17 *. 0.7) (0.2 *. 0.7); 
-		GlDraw.color ~alpha:1. (1. , 1., 1. ); 
-		drawCursor !gcurspos ; 
-		GlDraw.color ~alpha:1. (0.4 , 1., 0.8 ); 
-		drawCursor !gsnapped ; *)
 		GlDraw.color ~alpha:0.5 (0.4 , 1., 0.8 ); 
 		drawCrosshairs !gsnapped ; 
-		(* draw crosshairs too ... may be useful! *)
-		
 		
 		(* draw the selection box *)
 		if bbxIntersect !gselectRect screenbbx then (
@@ -475,22 +555,7 @@ let render togl cb =
 			drawRect !gselectRect ;
 		) ; 
 	);
-	(*
-	let pp = if !gbutton1pressed then 
-		Pts2.add !gcurspos !gdrag 
-		else !gcurspos
-	in
-	!gcursordisp "cursor" (fst pp) (snd pp) ;  *)
-	(* more test code : 
-	GlDraw.begins `quads ; 
-	GlDraw.color ~alpha:0.5 (1. , 1. , 1.); 
-	let x , y = !gpan in
-	GlDraw.vertex3 ( x -. s , y -. s, 0.5) ; 
-	GlDraw.vertex3 ( x -. s , y +. s, 0.5) ; 
-	GlDraw.vertex3 ( x +. s , y +. s, 0.5) ; 
-	GlDraw.vertex3 ( x +. s , y -. s, 0.5) ; 
-	GlDraw.ends (); 
-	*)
+
 	GlMat.pop() ; 
 	Gl.flush ();
 	Togl.swap_buffers togl ; 
@@ -1185,6 +1250,27 @@ let makemenu top togl filelist =
 				fprintf oc "%s %s\n" board schematic;
 			) !gfilelist ; 
 			fprintf oc "Geometry %s\n" geo; 
+			(* write the persistent variables *)
+			let writebool name v = 
+				let tv = if !v then "true" else "false" in
+				fprintf oc "%s %s\n" name tv; 
+			in
+			writebool "genabledepth" genabledepth;
+			writebool "groute135" groute135;
+			writebool "gtrackKeepSlope" gtrackKeepSlope;
+			writebool "gdrawtracks" gdrawtracks; 
+			writebool "gdrawmods" gdrawmods; 
+			writebool "gdrawzones" gdrawzones; 
+			writebool "gdrawratsnest" gdrawratsnest;
+			writebool "gdrawratsnest" gdrawratsnest;
+			writebool "gshowPadNumbers" gshowPadNumbers; 
+			writebool "gshowHiddenText" gshowHiddenText; 
+			writebool "ggridDraw" ggridDraw; 
+			writebool "ggridSnap" ggridSnap; 
+			writebool "gsnapTracksToGrid" gsnapTracksToGrid; 
+			writebool "gdrawText" gdrawText;
+			writebool "gdosnap" gdosnap; 
+			writebool "gTrackEndpointOnly" gTrackEndpointOnly; 
 			flush oc ; 
 			close_out_noerr oc; 
 		); 
@@ -1277,12 +1363,12 @@ let makemenu top togl filelist =
 		let nonemoving = not ( List.exists (fun m -> m#getMoving () ) !gmodules ) in
 		(* also should update the hit & snap *)
 		gratsnest#clearSel (); 
+		gsnapped := out ; 
+		if !ggridSnap then ( (* either you grid snap or you track snap. *)
+			let grd = ggrid.(0) in
+			gsnapped := (snap (fst out) grd), (snap (snd out) grd)
+		); 
 		if dosnap && nonemoving && (not !ghithold) then (
-			gsnapped := out ; 
-			if ( !glayer >= 20) && !ggridSnap then ( (* drawing/silkscreen layer defaults to grid snap *)
-				let grd = ggrid.(0) in
-				gsnapped := (snap (fst out) grd), (snap (snd out) grd)
-			); 
 			(* set the hit flags& get a netnum *)
 			let (nn,hitsize2,hitz2,hitclear2) = 
 				if !gdrawmods then (
@@ -1941,12 +2027,12 @@ let makemenu top togl filelist =
 						t#setHit true) newtracks ;
 					gtracks := List.rev_append newtracks !gtracks; (* add them to the global list *)
 				) top;
+				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
 				(* release the old press .. yes this is confusing now *)
 				Mouse.releasePress top ; (* unbind this function even though it is executing! *)
 				Mouse.bindPress top ~onPress:
 				(fun evv -> 
 					(* redefine tracks -- user may have copied some *)
-					let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
 					printf "dragging %d tracks and %d modules \n%!" 
 						(List.length tracks) (List.length modules); 
 					List.iter (fun m-> m#setMoving true ) modules ;
@@ -2231,7 +2317,9 @@ let makemenu top togl filelist =
 		) !groute135 ; 
 	addOption tracksSub "when dragging tracks mantain slope" (fun b -> gtrackKeepSlope := b) !gtrackKeepSlope ; 
 	addOption tracksSub "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
-	addOption tracksSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid; 
+	addOption tracksSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid;
+	addOption tracksSub "snap tracks to eachother" (fun b -> gdosnap := b) !gdosnap; 
+	addOption tracksSub "only track endpoints active" (fun b -> gTrackEndpointOnly := b) !gTrackEndpointOnly; 
 	
 	Menu.add_command viasSub ~label:"Vias dialog (Ctrl-V)" ~command:viasFun ;
 	Menu.add_command viasSub ~label:"Adjust via drill sizes" ~command:viaDrillAdjust ; 
@@ -2518,6 +2606,13 @@ let makemenu top togl filelist =
 		trk4#setWidth 1.0 ; 
 		z#fill [trk;trk2;trk3;trk4] []; 
 	); 
+	Menu.add_command miscSub ~label:"Save CIF" ~command:
+	(fun () -> 
+		let filetyp = [ {typename="Caltech Intermediate Format";extensions=[".cif"];mactypes=[]} ] in
+		let fname2 = (getSaveFile ~defaultextension:".cif" 
+			~filetypes:filetyp ~title:"save CIF layout" ()) in
+		exportCIF fname2; 
+	); 
 
 	Menu.add_command optionmenu ~label:"About" ~command:(helpbox "about" abouttext top) ; 
 	(* get the menus working *)
@@ -2563,8 +2658,19 @@ let makemenu top togl filelist =
 		); 
 		render togl nulfun;
 	in
+	let doMirror ev vertical = 
+		gratsnest#clearSel (); 
+		gcurspos := calcCursPos ev !gpan true; (* this will update the list of hit modules *)
+		(* operates independently of hithold .. simpler is better. *)
+		let tracks = List.filter (fun t -> t#getHit()) !gtracks in
+		Blockrotate.mirror tracks vertical ;
+		(* will have to manually update the rat's nest & connectivity. *)
+		let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
+		SI.iter (fun n -> gratsnest#updateTracks ~final:true n !gtracks ) worknets;
+		render togl nulfun;
+	in
 	let switchSelectTrack ev = 
-		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules *)
+		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules .. rollover for that*)
 		(* first see if nothing is selected .. *)
 		let lay = try (List.find (fun t -> t#getHit()) !gtracks)#getLayer ()
 			with _ -> ( 
@@ -2660,7 +2766,11 @@ let makemenu top togl filelist =
 		~action:(fun ev -> 
 			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then 
 				switchSelectTrack ev
-			else doRotate ev) top ; (* middle mouse button rotates, or selectsswitches*)
+			else doRotate ev) top ; (* middle mouse button rotates, or selectsswitches *)
+			
+
+	bind ~events:[`Modified([`Shift], `KeyPressDetail"X")] ~action:(fun ev -> doMirror ev true) top;
+	bind ~events:[`Modified([`Shift], `KeyPressDetail"Y")] ~action:(fun ev -> doMirror ev false) top;
 	bind ~events:[`KeyPressDetail("Page_Up")] ~action:(fun _-> changelayercallback "Bot";) top;  
 	bind ~events:[`KeyPressDetail("Page_Down")] ~action:(fun _ -> changelayercallback "Top";) top;  
 	bind ~events:[`KeyPressDetail("F5")] ~action:(fun _ -> changelayercallback "L1";) top;  
@@ -2922,6 +3032,11 @@ let _ =
 	let cin = try Some (open_in fil)
 		with _ -> None
 	in
+	let extract line pat var = 
+		if Pcre.pmatch ~pat line then (
+			var := Pcre.pmatch ~pat:"true" line 
+		)
+	in
 	(
 	match cin with 
 		| Some chan -> (
@@ -2948,6 +3063,23 @@ let _ =
 					if Pcre.pmatch ~pat:"Geometry" line then (
 						geo := (Pcre.extract ~pat:"Geometry ([\w\d\+]+)" line).(1); 
 					) ; 
+					(* go through the list of preferences. *)
+					extract line "genabledepth" genabledepth;
+					extract line "groute135" groute135;
+					extract line "gtrackKeepSlope" gtrackKeepSlope;
+					extract line "gdrawtracks" gdrawtracks; 
+					extract line "gdrawmods" gdrawmods; 
+					extract line "gdrawzones" gdrawzones; 
+					extract line "gdrawratsnest" gdrawratsnest;
+					extract line "gdrawratsnest" gdrawratsnest;
+					extract line "gshowPadNumbers" gshowPadNumbers; 
+					extract line "gshowHiddenText" gshowHiddenText; 
+					extract line "ggridDraw" ggridDraw; 
+					extract line "ggridSnap" ggridSnap; 
+					extract line "gsnapTracksToGrid" gsnapTracksToGrid; 
+					extract line "gdrawText" gdrawText;
+					extract line "gdosnap" gdosnap;
+					extract line "gTrackEndpointOnly" gTrackEndpointOnly; 
 				) else (
 					okok := false; 
 				)

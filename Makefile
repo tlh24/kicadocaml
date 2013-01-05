@@ -28,6 +28,10 @@ SRC = $(OBJS:.cmo=.ml)
 .ml.cmx:
 	$(OCAMOPT) $(OPTIONS) $<
 	
+all: kicadocaml.opt 	#bytecode
+
+byte: kicadocaml  	#native code
+	
 netlist.cmo:netlist.ml $(OBJS1)
 	$(OCAMLC) -syntax camlp4o $(OPTIONS),camlp4 $<
 	
@@ -48,10 +52,6 @@ kicadocaml.opt: $(OPTOBJS)
 	
 dump.odoc : $(SRC)
 	ocamlfind ocamldoc $(OPTIONS) $(SRC) -dump dump.odoc
-	
-all: kicadocaml 				#bytecode
-
-opt: kicadocaml.opt  	#native code
 
 
 doc: dump.odoc # documenation (e.g. for cameleon)

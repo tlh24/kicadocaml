@@ -349,16 +349,21 @@ object (self)
 		(*below, timestamp and status always seem to be 0 - not including *)
 		method read ic line = 
 		(
-			let sp = Pcre.extract ~pat:"Po (\d+) ([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+) (\d+) ([\d-]+)" line in
+			let sp = Pcre.extract ~pat:"Po (\d+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
 			m_shape <- ios sp.(1) ; 
-			m_stx <- fois (ios sp.(2)) ; 
-			m_sty <- fois (ios sp.(3)) ; 
-			m_enx <- fois (ios sp.(4)) ; 
-			m_eny <- fois (ios sp.(5)) ; 
-			m_width <- fois (ios sp.(6)) ; 
-			m_drill <- fois (ios sp.(7)) ; 
+			m_stx <- foss sp.(2) ; 
+			m_sty <- foss sp.(3) ; 
+			m_enx <- foss sp.(4) ; 
+			m_eny <- foss sp.(5) ; 
+			m_width <- foss sp.(6) ; 
+			m_drill <- foss sp.(7) ; 
 			let line2 = input_line2 ic in (*the De ... line*)
-			let sp = Pcre.extract ~pat:"De (\d+) (\d+) (\d+) \d+ (\w+)" line2 in
+			let sp = if !gfver = 1 then 
+				Pcre.extract ~pat:"De (\d+) (\d+) (\d+) \d+ (\w+)" line2 
+			else
+				Pcre.extract ~pat:"De (\d+) (\d+) (\d+) (\w+) \d+" line2 
+			in
+			(* !! version 2 has a different order here.. *)
 			m_layer <- ios sp.(1) ; 
 			m_type <- ( match sp.(2) with
 				| "1" -> Track_Via ; 
@@ -371,9 +376,9 @@ object (self)
 		)
 		method save oc = (
 			if not m_drawsegment then (
-				fprintf oc "Po %d %d %d %d %d %d %d\n"
-					m_shape (iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) 
-					(iofs m_width) (iofs m_drill);
+				fprintf oc "Po %d %s %s %s %s %s %s\n"
+					m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) 
+					(sofs m_width) (sofs m_drill);
 				(* pcbnew expects vias to be on layer 15 (component) *)
 				let layer = if m_type = Track_Via then 15 else m_layer in
 				fprintf oc "De %d %d %d 0 %s\n" layer 
@@ -383,8 +388,8 @@ object (self)
 				flush oc ; 
 			) else (
 				fprintf oc "$DRAWSEGMENT\n" ; 
-				fprintf oc "Po %d %d %d %d %d %d\n" 
-					m_shape (iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) (iofs m_width) ; 
+				fprintf oc "Po %d %s %s %s %s %s\n" 
+					m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) (sofs m_width) ; 
 				fprintf oc "De %d %d %d 0 0\n" 
 					m_layer 0 m_angle ; 
 				fprintf oc "$EndDRAWSEGMENT\n" ; 
@@ -395,13 +400,13 @@ object (self)
 		
 		method read_drawsegment ic = (
 			let line = input_line2 ic in
-			let sp = Pcre.extract ~pat:"Po (\d+) ([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+) (\d+)" line in
+			let sp = Pcre.extract ~pat:"Po (\d+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
 			m_shape <- ios sp.(1) ; 
-			m_stx <- fois (ios sp.(2)) ; 
-			m_sty <- fois (ios sp.(3)) ; 
-			m_enx <- fois (ios sp.(4)) ; 
-			m_eny <- fois (ios sp.(5)) ; 
-			m_width <- fois (ios sp.(6)) ; 
+			m_stx <- foss sp.(2) ; 
+			m_sty <- foss sp.(3) ; 
+			m_enx <- foss sp.(4) ; 
+			m_eny <- foss sp.(5) ; 
+			m_width <- foss sp.(6) ; 
 			let line2 = input_line2 ic in
 			let sp2 = Pcre.extract ~pat:"De (\d+) (\d+) (\d+)" line2 in
 			m_layer <- ios sp2.(1) ;

@@ -148,14 +148,14 @@ object (self)
 	)
 	method read line orot = (
 		let parse_line1 = 
-			let sp =  Pcre.extract ~pat:"T(\d) ([\d-]+) ([\d-]+) (\d+) (\d+) (\d+) (\d+) (\w+) (\w+) (\d+)[^\"]+\"([^\"]+)\"" line in
+			let sp =  Pcre.extract ~pat:"T(\d) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) (\d+) ([\.\d-]+) (\w+) (\w+) (\d+)[^\"]+\"([^\"]*)\"" line in
 			m_type <- ios sp.(1) ; 
-			m_x <- fois(ios sp.(2)) ;
-			m_y <- fois(ios sp.(3)) ;
-			m_sx <- fois(ios sp.(4)) ;
-			m_sy <- fois(ios sp.(5)) ;
+			m_x <- foss sp.(2) ;
+			m_y <- foss sp.(3) ;
+			m_sx <- foss sp.(4) ;
+			m_sy <- foss sp.(5) ;
 			m_rot <- (ios sp.(6)) - orot ; (* this is the way pcbnew saves the board files *)
-			m_width <- fois(ios sp.(7)) ;
+			m_width <- foss sp.(7) ;
 			m_mirror <- (
 				match sp.(8) with
 					| "M" -> true
@@ -173,9 +173,9 @@ object (self)
 		parse_line1 ; 
 	)
 	method save oc = (
-		fprintf oc "T%d %d %d %d %d %d %d %s %s %d %s\"%s\"\n" 
-			m_type (iofs m_x) (iofs m_y) (iofs m_sx) (iofs m_sy)
-			(m_rot+m_orot) (iofs m_width)
+		fprintf oc "T%d %s %s %s %s %d %s %s %s %d %s\"%s\"\n" 
+			m_type (sofs m_x) (sofs m_y) (sofs m_sx) (sofs m_sy)
+			(m_rot+m_orot) (sofs m_width)
 			(if m_mirror then "M" else "N" )
 			(if m_show then "V" else "I")
 			m_layer m_textMirror m_text

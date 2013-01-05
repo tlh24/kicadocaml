@@ -83,15 +83,15 @@ object
 	)
 	method read ic line shapetype = (
 		let parse_startend = 
-			let sp = Pcre.extract ~pat:"\w+ ([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+)" line in
-			m_stx <- fois (ios sp.(1)) ; 
-			m_sty <- fois (ios sp.(2)) ; 
-			m_enx <- fois (ios sp.(3)) ; 
-			m_eny <- fois (ios sp.(4)); 
+			let sp = Pcre.extract ~pat:"\w+ ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
+			m_stx <- foss sp.(1) ; 
+			m_sty <- foss sp.(2) ; 
+			m_enx <- foss sp.(3) ; 
+			m_eny <- foss sp.(4) ; 
 		in
 		let parse_widthlayer = 
-			let sp = Pcre.extract ~pat:"\w+ [\d-]+ [\d-]+ [\d-]+ [\d-]+ (\d+) (\d+)" line in
-			m_width <- fois (ios sp.(1)) ; 
+			let sp = Pcre.extract ~pat:"\w+ [\.\d-]+ [\.\d-]+ [\.\d-]+ [\.\d-]+ ([\.\d-]+) (\d+)" line in
+			m_width <- foss sp.(1) ; 
 			m_layer <- ios sp.(2) ; 
 		in
 		(
@@ -106,22 +106,22 @@ object
 				)
 				| Shape_Arc -> (
 					parse_startend ; 
-					let sp = Pcre.extract ~pat:"\w+ \d+ \d+ \d+ \d+ (\d+) (\d+) (\d+)" line in
+					let sp = Pcre.extract ~pat:"\w+ \d+ \d+ \d+ \d+ (\d+) ([\.\d-]+) (\d+)" line in
 					m_angle <- ios sp.(1) ; 
-					m_width <- fois (ios sp.(2)) ; 
+					m_width <- foss sp.(2) ; 
 					m_layer <- ios sp.(3) ; 
 				)
 				| Shape_Polygon -> (
 					parse_startend ;
-					let sp = Pcre.extract ~pat:"\w+ \d+ \d+ \d+ \d+ (\d+) (\d+) (\d+)" line in
+					let sp = Pcre.extract ~pat:"\w+ \d+ \d+ \d+ \d+ (\d+) ([\.\d-]+) (\d+)" line in
 					m_polycount <- ios sp.(1) ; 
-					m_width <- fois (ios sp.(2)) ; 
+					m_width <- foss sp.(2) ; 
 					m_layer <- ios sp.(3) ; 
 					for i = 1 to m_polycount do
 						let ll = input_line2 ic in
-						let spp = Pcre.extract ~pat:"Dl (\d+) (\d+)" ll in
-						m_polyX <- ( fois (ios spp.(1) ) :: m_polyX ) ; 
-						m_polyY <- ( fois (ios spp.(2) ) :: m_polyY ) ; 
+						let spp = Pcre.extract ~pat:"Dl ([\.\d-]+) ([\.\d-]+)" ll in
+						m_polyX <- (( foss spp.(1) ) :: m_polyX ) ; 
+						m_polyY <- (( foss spp.(2) ) :: m_polyY ) ; 
 					done
 				)
 		) ; 
@@ -129,11 +129,11 @@ object
 	)
 	method save oc = (
 		let save_startend oc typ = 
-			fprintf oc "%s %d %d %d %d" typ 
-			(iofs m_stx) (iofs m_sty) (iofs m_enx) (iofs m_eny) ; 
+			fprintf oc "%s %s %s %s %s" typ 
+			(sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) ; 
 		in
 		let save_widthlayer oc = 
-			fprintf oc " %d %d\n" (iofs m_width) m_layer ; 
+			fprintf oc " %s %d\n" (sofs m_width) m_layer ; 
 		in
 		match m_type with
 			| Shape_Segment -> (
@@ -154,7 +154,7 @@ object
 				fprintf oc " %d" m_polycount ; 
 				save_widthlayer oc ; 
 				List.iter2 (fun x y -> 
-					fprintf oc "Dl %d %d\n" (iofs x) (iofs y);
+					fprintf oc "Dl %s %s\n" (sofs x) (sofs y);
 				) m_polyX m_polyY ; 
 			)
 	)

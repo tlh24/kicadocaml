@@ -294,7 +294,7 @@ object (self)
 		in
 		(* first line should be eg. `Sh "2" R 236 354 0 0 900` *)
 		let parse_line1 = 
-			let sp = parse "Sh \"([^\"]*)\" (\w) (\d+) (\d+) (\d+) (\d+) ([-\d]+)"  in
+			let sp = parse "Sh \"([^\"]*)\" (\w) ([\.\d-]+) ([\.\d-]+) (\d+) (\d+) ([-\d]+)"  in
 			m_padname <- sp.(1); 
 			m_shape <- (
 				match sp.(2) with
@@ -304,8 +304,8 @@ object (self)
 					| "T" -> Pad_Trapezoid
 					| _    -> Pad_Circle
 			);
-			m_sx <- fois (ios sp.(3)); 
-			m_sy <- fois (ios sp.(4)); 
+			m_sx <- foss sp.(3); 
+			m_sy <- foss sp.(4); 
 			m_dsx <- ios sp.(5) ; 
 			m_dsy <- ios sp.(6) ; 
 			m_rot <- (ios sp.(7)) - rot ; 
@@ -315,17 +315,17 @@ object (self)
 		let parse_line2 = 
 			let line = input_line2 ic in
 			try (
-				let sp = Pcre.extract ~pat:"Dr (\d+) ([-\d]+) ([-\d]+) (\d+) (\d+)" line in
-				m_drill <- fois (ios sp.(1)); 
-				m_drillOffX <- fois (ios sp.(2)); 
-				m_drillOffY <- fois (ios sp.(3)); 
-				m_drillSx <- fois (ios sp.(4)); 
-				m_drillSy <- fois (ios sp.(5)); 
+				let sp = Pcre.extract ~pat:"Dr ([\.\d]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
+				m_drill <- foss sp.(1); 
+				m_drillOffX <- foss sp.(2); 
+				m_drillOffY <- foss sp.(3); 
+				m_drillSx <- foss sp.(4); 
+				m_drillSy <- foss sp.(5);
 			) with _ -> (
-				let sp = Pcre.extract ~pat:"Dr (\d+) ([-\d]+) ([-\d]+)" line in
-				m_drill <- fois (ios sp.(1)); 
-				m_drillOffX <- fois (ios sp.(2)); 
-				m_drillOffY <- fois (ios sp.(3)); 
+				let sp = Pcre.extract ~pat:"Dr ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
+				m_drill <- foss sp.(1); 
+				m_drillOffX <- foss sp.(2); 
+				m_drillOffY <- foss sp.(3); 
 				m_drillSx <- 0.0; 
 				m_drillSy <- 0.0; 
 			)
@@ -350,9 +350,9 @@ object (self)
 			m_netname <- sp.(2) ; 
 		in
 		let parse_line5 =
-			let sp = parse "Po ([\d-]+) ([\d-]+)" in
-			m_x <- fois(ios sp.(1)) ;
-			m_y <- fois(ios sp.(2)) ; 
+			let sp = parse "Po ([\.\d-]+) ([\.\d-]+)" in
+			m_x <- foss sp.(1) ;
+			m_y <- foss sp.(2) ; 
 		in
 		parse_line1; 
 		parse_line2; 
@@ -373,11 +373,11 @@ object (self)
 		let ra = m_rot + rot in (* convert back to global coords *)
 		let rb = mod2 ra 3600 in
 		fprintf oc "$PAD\n" ; 
-		fprintf oc "Sh \"%s\" %s %d %d %d %d %d\n"
+		fprintf oc "Sh \"%s\" %s %s %s %d %d %d\n"
 			m_padname (self#shapeToChar())
-			(iofs m_sx) (iofs m_sy) m_dsx m_dsy rb ; 
-		fprintf oc "Dr %d %d %d" (iofs m_drill) (iofs m_drillOffX) (iofs m_drillOffY) ; 
-		if m_shape = Pad_Oval then fprintf oc " %d %d" (iofs m_drillSx) (iofs m_drillSy); 
+			(sofs m_sx) (sofs m_sy) m_dsx m_dsy rb ; 
+		fprintf oc "Dr %s %s %s" (sofs m_drill) (sofs m_drillOffX) (sofs m_drillOffY) ; 
+		if m_shape = Pad_Oval then fprintf oc " %s %s" (sofs m_drillSx) (sofs m_drillSy); 
 		fprintf oc "\n"; 
 		fprintf oc "At %s N %8.8lX\n"
 			(match m_type with
@@ -388,7 +388,7 @@ object (self)
 				| Pad_MECA -> "MECA" )
 			(layers_to_int32 m_layers) ; 
 		fprintf oc "Ne %d \"%s\"\n" m_netnum m_netname ; 
-		fprintf oc "Po %d %d\n" (iofs m_x) (iofs m_y) ; 
+		fprintf oc "Po %s %s\n" (sofs m_x) (sofs m_y) ; 
 		fprintf oc "$EndPAD\n"
 	)
 	method save_lua oc ctr radians j = (

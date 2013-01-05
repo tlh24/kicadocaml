@@ -14,14 +14,20 @@
     You should have received a copy of the GNU General Public License
     along with Kicadocaml.  If not, see <http://www.gnu.org/licenses/>.
 *)
+let gscl = ref 10000.0 (* global file unit scaling *)
+let gunit = ref "in"
+let gfver = ref 1 (* file version *)
 let pi = acos(-1.0)
 let round x = int_of_float (floor (x +. 0.5))  (* cortesy of http://www.podval.org/~sds/ocaml-sucks.html *)
 let fos = float_of_string
 let ios = int_of_string
 let foi = float_of_int
 let iof = int_of_float
-let fois x = (float_of_int x) /. 10000.
-let iofs x = (round( x *. 10000.))
+let foss x = (float_of_string x) /. !gscl
+let sofs x = (if !gfver = 1 then 
+		(string_of_int (round( x *. !gscl))) 
+		else 
+		(string_of_float (x *. !gscl)))
 let sof = string_of_float
 let soi = string_of_int
 let fabs = abs_float
@@ -44,7 +50,7 @@ let gfilereadname = ref ""
 let input_line2 ic = 
 	let line = input_line ic in
 	linenum := !linenum + 1 ; 
-(* 	print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
+ 	print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; 
 	line ;;
 let nothingxy (_:float) (_:float) = () ;;
 let nothingsxy (_:string) (_:float) (_:float) = () ; 
@@ -91,10 +97,10 @@ let gTrackEndpointOnly = ref false
 let random_timestamp () = Printf.sprintf "%x" (Int32.to_int(Random.int32 (Int32.max_int))) ;;
 
 let convert_units x y w h = 
-	let fx = fois x in
-	let fy = fois y in
-	let fw = (fois w) /. 2. in
-	let fh = (fois h) /. 2. in
+	let fx = foss x in
+	let fy = foss y in
+	let fw = (foss w) /. 2. in
+	let fh = (foss h) /. 2. in
 	(fx, fy, fw, fh)
 	
 let layer_to_z layer = 

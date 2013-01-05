@@ -50,15 +50,6 @@ let crossnorm a b =
 let crossangle a b = 
 	asin (crossnorm a b)
 	;;
-let fois a b = 
-	(float_of_int a) /. 10000. , (float_of_int b) /. 10000. 
-	;;
-let foist a = 
-	(float_of_int (fst a)) /. 10000. , (float_of_int (snd a)) /. 10000. 
-	;;
-let iofs a = 
-	(int_of_float ((fst a) *. 10000.)), (int_of_float ((snd a) *. 10000.))
-	;;
 let length a = 
 	let x, y = a in
 	let sq w = w*.w in

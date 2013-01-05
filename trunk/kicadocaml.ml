@@ -74,7 +74,7 @@ object
 				*)
 				if tp = "TrackClearence" || tp = "TrackClearance" then (
 					let l = (Pcre.extract ~pat:"(\d+)" !line).(1) in
-					gclearance := fois (ios l) ; 
+					gclearance := foss l ; 
 					print_endline ( "global track clearance = " ^ sof !gclearance ); 
 				); 
 			); 
@@ -152,6 +152,9 @@ let readlines ic =
 	in
 	(* read the header *)
 	file_header := input_line2 ic ; 
+	gfver := ios (try (Pcre.extract ~pat:"Version (\d+)" !file_header).(1)
+		with _ -> "1"); 
+	if !gfver = 2 then gscl := 1.0 ; 
 	(* and the blank line after that *)
 	let eof = ref false in
 	while not !eof do (
@@ -198,6 +201,7 @@ let readlines ic =
 	)
 	done; 
 	close_in_noerr ic ; 
+	print_endline ( "file version:" ^ (soi !gfver) ^ " scale:" ^ (string_of_float !gscl) ); 
 	print_endline ( "number of nets:" ^ string_of_int(List.length !gnets) ) ; 
 	print_endline ( "number of modules:" ^ string_of_int(List.length !gmodules) ) ; 
 	print_endline ( "number of tracks:" ^ string_of_int(
@@ -240,21 +244,7 @@ let exportCIF filename = (* this is a very experimental feature! *)
 	let oc = open_out filename in
 	fprintf oc "DS 1 20 2;\n"; (* scale by 20/2 -- so we keep kicad's native resolution *)
 	(* units: 1 mil = 1 micron. CIF works in centimicrons (10nm) *)
-	let trans x = iofs (x /. 1.0) in (* takes care of rounding issues. *)
-	let wires layer = 
-		List.iter (fun t -> 
-		if t#getLayer () = layer then (
-			let sx,sy = t#getStart () in
-			let ex,ey = t#getEnd () in
-			fprintf oc "W%i %i %i %i %i;\n"
-				(trans (t#getWidth()))
-				(trans sx)
-				(trans sy)
-				(trans ex)
-				(trans ey) ; 
-			)
-		) !gtracks; 	
-	in
+	let trans x = iof (x /. 1000.0) in (* CHECK THIS *)
 	(* not all CIF programs support rounded wires -- for these, use polygons. *)
 	let polywire layer = 
 		List.iter (fun t -> 
@@ -275,7 +265,7 @@ let exportCIF filename = (* this is a very experimental feature! *)
 			let endcap x y = 
 				for i = 1 to n do (
 					let vx,vy = pnt !t x y in
-					fprintf oc " %i %i" (trans vx) (trans vy); 
+					fprintf oc " %d %d" (trans vx) (trans vy); 
 					t := !t +. dt ; 
 				)done; 
 			in
@@ -3237,7 +3227,6 @@ let _ =
 		[(0,0);(1,0);(1,1);(0,1)] in
 	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace... *) 
-(* 	openFile top "/home/tlh24/svn/myopen/emg_dsp/stage8/test.brd";  *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/ecc83/ecc83-pp_v2.brd";  *)
 	(* openFile top "/home/tlh24/svn/kicad/demos/pic_programmer/pic_programmer.brd"; 
 	List.iter (fun z -> z#empty ()) !gzones ; *)
@@ -3249,7 +3238,9 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
- 	Printexc.record_backtrace true ; (* ocaml 3.11 *)
+ 	(*Printexc.record_backtrace true ; (* ocaml 3.11 *)
+ 	openFile top "/home/tlh24/kicadocaml-issue9/fapubar.brd";  
+ 	Printexc.print_backtrace stdout ; (* ocaml 3.11 *) *)
  	Printexc.print mainLoop () ;
 	;;
 		

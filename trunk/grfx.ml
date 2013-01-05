@@ -152,9 +152,6 @@ method makeRing (fx,fy) id od =
 	self#updateRaw() ; 
 	(* print_endline( "initializing verts: " ^ string_of_int(List.length b.verts)) *)
 
-method makeTrackInt sx sy ex ey width = 
-	self#makeTrack (Pts2.foist (sx,sy)) (Pts2.foist (ex,ey)) (fois width) ; 
-
 method makeTrack (sx,sy) (ex,ey) width = 
 	(*functionally the same as verts_circle_make, though the middle is stretched out. *)
 	let dx = ex -. sx in

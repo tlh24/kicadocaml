@@ -574,8 +574,8 @@ object (self)
 		let rex = Pcre.regexp ~flags:[`CASELESS] endpat in
 		m_poly <- []; 
 		while not (Pcre.pmatch ~rex !line) do (
-			let sp = Pcre.extract ~pat:"([\d-]+) ([\d-]+) ([\d-]+) ([\d-]+)" !line in
-			let conv n = fois (ios (sp.(n))) in
+			let sp = Pcre.extract ~pat:"([\.\d-]+) ([\.\d-]+) ([\d-]+) ([\d-]+)" !line in
+			let conv n = foss (sp.(n)) in
 			m_poly <- ( (conv 1),(conv 2),(ios (sp.(3))),(ios (sp.(4))) ) :: m_poly ; 
 			line := input_line2 ic ; 
 		) done ; 
@@ -588,7 +588,6 @@ object (self)
 		let line = ref (input_line2 ic) in
 		let rex = Pcre.regexp ~flags:[`CASELESS] endpat in
 		let corners = ref [] in (* temporary list; the other is a list of lists *)
-		let conv n = fois (ios n) in
 		while not (Pcre.pmatch ~rex !line) do (
 			(* printf "%s\n%!" !line ;  *)
 			let tp = try Some (Pcre.extract ~pat:"^([\w\$]+)" !line).(1) with _ -> None in
@@ -597,7 +596,7 @@ object (self)
 				| Some tpp -> (
 					match tpp with 
 					| "ZInfo" -> (
-						let sp = Pcre.extract ~pat:"^\w+ (\w+) ([\d-]+) \"([^\"]+)\"" !line in
+						let sp = Pcre.extract ~pat:"^\w+ (\w+) ([\d-]+) \"([^\"]*)\"" !line in
 						m_timestamp <- sp.(1) ; 
 						m_net <- ios (sp.(2)) ; 
 						m_netname <- sp.(3) ; 
@@ -609,16 +608,16 @@ object (self)
 					| "ZAux" -> ( m_aux <- !line ; )
 					| "ZClearance" -> (
 						let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
-						m_clearance <- (conv (sp.(1)))  ; 
+						m_clearance <- (foss (sp.(1)))  ; 
 						)
 					| "ZMinThickness" -> (
 						let sp = Pcre.extract ~pat:"^\w+ (\d+)" !line in
-						m_minthick <- conv (sp.(1)) ; 
+						m_minthick <- foss (sp.(1)) ; 
 						)
 					| "ZOptions" -> ( m_options <- !line ; )
 					| "ZCorner" -> (
-						let sp = Pcre.extract ~pat:"^\w+ ([\d-]+) ([\d-]+) (\d+)" !line in
-						corners := ( (conv (sp.(1))),(conv (sp.(2))),(ios (sp.(3))) ) :: !corners ;
+						let sp = Pcre.extract ~pat:"^\w+ ([\.\d-]+) ([\.\d-]+) (\d+)" !line in
+						corners := ( (foss (sp.(1))),(foss (sp.(2))),(ios (sp.(3))) ) :: !corners ;
 						)
 					| "$POLYSCORNERS" -> (self#read_poly ic)
 					| _ -> () 
@@ -693,33 +692,33 @@ object (self)
 		fprintf oc "ZInfo %s %d \"%s\"\n"  m_timestamp m_net m_netname ; 
 		fprintf oc "ZLayer %d\n" m_layer ; 
 		fprintf oc "%s\n" m_aux ; 
-		fprintf oc "ZClearance %d T\n"  (iofs m_clearance) ; 
-		fprintf oc "ZMinThickness %d\n" (iofs m_minthick) ; 
+		fprintf oc "ZClearance %s T\n"  (sofs m_clearance) ; 
+		fprintf oc "ZMinThickness %s\n" (sofs m_minthick) ; 
 		fprintf oc "%s\n%!" m_options ; 
 		Array.iter (fun corn -> 
 			let l = (Array.length corn)-1 in
 			Array.iteri (fun i (x,y,z) -> 
-				fprintf oc "ZCorner %d %d %d\n" 
-				(iofs x) (iofs y) (if i=l then 1 else z) ; 
+				fprintf oc "ZCorner %s %s %d\n" 
+				(sofs x) (sofs y) (if i=l then 1 else z) ; 
 			) corn ; 
 		) m_corners ;
 		(* if there are triangle, save them - otherwise, try to save the poly *)
 		if List.length m_tris > 0 then (
 			fprintf oc "$POLYSCORNERS\n" ; 
 			List.iter (fun (a,b,c) -> 
-				fprintf oc "%d %d 0 0\n" 
-					(iofs (fst a)) (iofs (snd a)) ; 
-				fprintf oc "%d %d 0 0\n" 
-					(iofs (fst b)) (iofs (snd b)) ; 
-				fprintf oc "%d %d 1 0\n"  (* this marks the end of our (small) polygon? *)
-					(iofs (fst c)) (iofs (snd c)) ; 
+				fprintf oc "%s %s 0 0\n" 
+					(sofs (fst a)) (sofs (snd a)) ; 
+				fprintf oc "%s %s 0 0\n" 
+					(sofs (fst b)) (sofs (snd b)) ; 
+				fprintf oc "%s %s 1 0\n"  (* this marks the end of our (small) polygon? *)
+					(sofs (fst c)) (sofs (snd c)) ; 
 			) m_tris ; 
 			fprintf oc "$endPOLYSCORNERS\n%!" ; 
 		)else if (List.length m_poly) > 0 then (
 			fprintf oc "$POLYSCORNERS\n" ; 
 			List.iter (fun (x,y,z,w) -> 
-				fprintf oc "%d %d %d %d\n"
-					(iofs x) (iofs y) z w ; 
+				fprintf oc "%s %s %d %d\n"
+					(sofs x) (sofs y) z w ; 
 			) m_poly ; 
 			fprintf oc "$endPOLYSCORNERS\n%!" ; 
 		) ; 

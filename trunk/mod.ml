@@ -79,20 +79,26 @@ object (self)
 	method getVisible () = m_visible ;
 	method setUpdateCallback f = m_updateCallback <- f ; 
 	method update () = (
-		(* print_endline("updating pads:" ^ (string_of_int (List.length m_pads))); *)
+		print_endline((sofs m_x)^" "^(sofs m_y)^" updating pads:" ^ (string_of_int (List.length m_pads))); 
 		m_move <- (0. , 0. ) ;
 		List.iter (fun p -> p#update m_rot m_x m_y) m_pads ; 
 		List.iter (fun p -> p#setPart ( self#getRef() ) ) m_pads ; 
 		List.iter (fun p -> p#update m_rot m_x m_y) m_shapes ; 
 		List.iter (fun p -> p#update m_rot m_x m_y ) m_texts ; 
-		(* draw ourself simply, with a rectangle containing all the pads *)
-		let (lx, ly, hx,hy) = List.fold_left (fun a b -> 
-			let aminx,aminy,amaxx,amaxy = a in
-			let bminx,bminy,bmaxx,bmaxy = b#getBBX() in
-			let min c d = if c < d then c else d in
-			let max c d = if c > d then c else d in
-			((min aminx bminx), (min aminy bminy),(max amaxx bmaxx),(max amaxy bmaxy))
-		) ((List.hd m_pads)#getBBX()) m_pads in
+		(* draw ourself simply, with a rectangle containing all the pads 
+		 if no pads, bbx is defined by the shapes
+		 if no shape, small bbx.*)
+		let (lx, ly, hx,hy) = if List.length m_pads > 0 then 
+			List.fold_left (fun a b -> 
+				bbxMerge a (b#getBBX())
+			) ((List.hd m_pads)#getBBX()) m_pads 
+		else( if List.length m_shapes > 0 then 
+			List.fold_left (fun a b ->
+				bbxMerge a (b#getBBX())
+			) ((List.hd m_shapes)#getBBX()) m_shapes
+			else
+			(m_x -. 0.1, m_y -. 0.1, m_x +. 0.1, m_y +. 0.1) 
+		) in
 		m_g#updateLayer m_layer ; 
 		m_g#setAlpha 0.16 ;
 		m_g#empty(); 
@@ -414,9 +420,9 @@ object (self)
 		(*note: don't bother with the $MODULE <libref> line --
 			the information is duplicated in the Li <libref> line *)
 		let parse_line1 s = 
-			let sp = Pcre.extract ~pat:"Po ([\d-]+) ([\d-]+) (\d+) (\d+) (\w+) (\w+) ([^ ]+)" !s in
-			m_x <- fois (ios sp.(1)); 
-			m_y <- fois (ios sp.(2)); 
+			let sp = Pcre.extract ~pat:"Po ([\.\d-]+) ([\.\d-]+) (\d+) (\d+) (\w+) (\w+) ([^ ]+)" !s in
+			m_x <- foss sp.(1); 
+			m_y <- foss sp.(2); 
 			m_rot <- ios sp.(3); 
 			m_layer <- ios sp.(4);
 			m_LastEditTime <- sp.(5); 
@@ -495,8 +501,8 @@ object (self)
 	)
 	method save oc = (
 		fprintf oc "$MODULE %s\n" m_libRef ; 
-		fprintf oc "Po %d %d %d %d %s %s %s\n" 
-			(iofs m_x) (iofs m_y) m_rot m_layer m_LastEditTime m_TimeStamp m_statusText ; 
+		fprintf oc "Po %s %s %d %d %s %s %s\n" 
+			(sofs m_x) (sofs m_y) m_rot m_layer m_LastEditTime m_TimeStamp m_statusText ; 
 		fprintf oc "Li %s\n" m_libRef ; 
 		if (String.length m_doc) > 0 then (
 			fprintf oc "Cd %s\n" m_doc ; 

@@ -142,11 +142,16 @@ object (self)
 			(* don't #updateLayer -- z should remain 0.0 for all tracks *)
 			(* perform z-sorting with opengl translate operations. *)
 			(
+				let st = self#getStart() in
+				let en = self#getEnd() in
 				match m_type with 
-					| Track_Track -> 
-						m_g#makeTrack (self#getStart()) (self#getEnd()) m_width ; 
+					| Track_Track -> (
+						if Pts2.distance2 st en = 0. then (
+							m_g#makeCircle (fst st) (snd st) m_width m_width
+						) else (
+							m_g#makeTrack st en m_width ) )
 					| Track_Via -> 
-						m_g#makeRing (self#getStart()) m_drill m_width; 
+						m_g#makeRing st m_drill m_width; 
 			);
 			self#updateDrcBBX(); 
 			self#updateColor (); 
@@ -209,7 +214,7 @@ object (self)
 			(* z-sorting: want to be able to hit small items in the background *)
 			(* don't want to allow hitting tracks on more than one layer - 
 			if we do, must clear the previous *)
-			if not m_moving && mz >= hitz &&
+			if not m_moving && mz >= hitz && glayerEn.(m_layer) &&
 				m_visible && (not onlyworknet || netnum = m_net) then (
 				(* don't update the hit variable if we are moving*)
 				(* don't hit if onlyworknet (e.g. when adding or removing a track)

@@ -186,12 +186,12 @@ method makeTrack (sx,sy) (ex,ey) width =
 method makeOval o w h = 
 	if w > h then (
 		self#makeTrack 
-			(Pts2.add o (w *. -0.5,0.0)) 
-			(Pts2.add o (w *. 0.5,0.0)) h
+			(Pts2.add o ((w -. h) *. -0.5,0.0)) 
+			(Pts2.add o ((w -. h) *. 0.5,0.0)) h
 	) else (
 		self#makeTrack 
-			(Pts2.add o (0.0,h *. -0.5)) 
-			(Pts2.add o (0.0,h *. 0.5)) w
+			(Pts2.add o (0.0,(h -. w) *. -0.5)) 
+			(Pts2.add o (0.0,(h -. w) *. 0.5)) w
 	)
 method makeOvalRing n (ox,oy) w h id = 
 	(* make this drawable with quads. *)

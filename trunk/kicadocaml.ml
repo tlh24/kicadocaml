@@ -2654,7 +2654,7 @@ let makemenu top togl filelist =
 		gcurspos := calcCursPos ev !gpan true; (* this will update the list of hit modules *)
 		(* operates independently of hithold .. simpler is better. *)
 		let tracks = List.filter (fun t -> t#getHit()) !gtracks in
-		Blockrotate.mirror tracks vertical ;
+		Blockrotate.mirror tracks vertical;
 		(* will have to manually update the rat's nest & connectivity. *)
 		let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 		SI.iter (fun n -> gratsnest#updateTracks ~final:true n !gtracks ) worknets;
@@ -2753,6 +2753,7 @@ let makemenu top togl filelist =
 	bindMouseSelect () ; (* bind the shift keys to selection *)
 	(* the strings in the bindings are from X11's keysymdef.h ... *)
 	bind ~events:[`KeyPressDetail("r")] ~action:doRotate top ;
+	bind ~events:[`Modified([`Shift], `KeyPressDetail"R")] ~action:doRotate top ;
 	bind ~events:[`ButtonPressDetail(2)] ~fields:[`MouseX; `MouseY] 
 		~action:(fun ev -> 
 			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then 

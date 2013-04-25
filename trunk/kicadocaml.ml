@@ -1485,6 +1485,7 @@ let makemenu top togl filelist =
 					(* see if we hit a pad - if we hit a pad and a track, may not need to change layers *)
 					(* therefore update the hit vars *)
 					printf "adding track ..\n%!" ; 
+					(* this is old code -- use the middle mouse button to change layers if need be. 
 					ignore( List.fold_left (fun (nn,hitsize,hitz,clearhit) m -> 
 						m#hit !gcurspos false nn hitsize hitz clearhit
 					) (0, 1e24, -2e2, (fun() -> ()) ) !gmodules ); 
@@ -1501,7 +1502,7 @@ let makemenu top togl filelist =
 						compare (glayerZ.(a#getLayer())) (glayerZ.(b#getLayer()))) hittracks in
 					let lay = if preslayergood || padHasLayer || List.length sorted = 0 then !glayer else 
 						(List.hd sorted)#getLayer() in
-					if lay <> !glayer then changelayercallback (layer_to_string lay); 
+					if lay <> !glayer then changelayercallback (layer_to_string lay); *)
 					let track = new pcb_track in
 					gtracks := (track :: !gtracks); 
 					gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true; 
@@ -1629,9 +1630,9 @@ let makemenu top togl filelist =
 			gbutton1pressed := false ;
 			(* remove any zero-length tracks that may have been created in the process *)
 			(* this may delete other tracks .. but ehwell !*)
-			gtracks := List.filter (
+			(*gtracks := List.filter (
 				fun t -> t#manhattanLength() > 0. || t#getType() != Track_Track
-			) !gtracks ; 
+			) !gtracks ; *)
 			gratsnest#updateTracks !workingnet !gtracks ; 
 			Mouse.releaseMove top ; 
 			updatecurspos ev ; 

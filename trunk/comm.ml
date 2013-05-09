@@ -50,7 +50,7 @@ let gfilereadname = ref ""
 let input_line2 ic = 
 	let line = input_line ic in
 	linenum := !linenum + 1 ; 
- 	print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; 
+ 	(* print_endline ( (string_of_int !linenum) ^ " : " ^ line) ; *)
 	line ;;
 let nothingxy (_:float) (_:float) = () ;;
 let nothingsxy (_:string) (_:float) (_:float) = () ; 

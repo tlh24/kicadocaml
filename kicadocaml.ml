@@ -521,9 +521,6 @@ let render togl cb =
 			GlArray.draw_arrays `quads 0 4 ; 
 			Raw.free_static raw ; 
 		in
-		(* let drawCursor (x,y) = 
-			drawRect (x -. s,y -. s,x +. s,y +. s) 
-		in *)
 		if !gmode = Mode_AddTrack then (
 			(* draw the layer we'll add a track on, scaled appropriately *)
 			GlDraw.color ~alpha: 0.25 (layer_to_color !glayer); 
@@ -2750,6 +2747,7 @@ let makemenu top togl filelist =
 	(* bindings! *)
 	bindMouseMoveModule () ; (*default is to move modules *)
 	Mouse.bindMove top ~action:updatecurspos ; (* default move action is to simply watch the cursor *)
+	Mouse.bindDefaultMove updatecurspos ; 
 	bindMouseSelect () ; (* bind the shift keys to selection *)
 	(* the strings in the bindings are from X11's keysymdef.h ... *)
 	bind ~events:[`KeyPressDetail("r")] ~action:doRotate top ;

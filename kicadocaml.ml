@@ -255,24 +255,38 @@ let exportCIF filename = (* this is a very experimental feature! *)
 			(* this copied from grfx.ml -- we want something similar, but simpler as only need outline*)
 			let dx = ex -. sx in
 			let dy = ey -. sy in
-			let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
-			let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
-			let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
 			let n = 15 in
 			let t = ref (pi /. -2.0) in
 			let dt = pi /. foi(n) in
-			let pnt t x y = ( x -. cos(t)*.nx +. sin(t)*.mx, y -. cos(t)*.ny +. sin(t)*.my) in
-			let endcap x y = 
-				for i = 1 to n do (
-					let vx,vy = pnt !t x y in
+			if dx *. dx +. dy *. dy > 0.0 then (
+				let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
+				let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
+				let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
+				let pnt t x y = 
+					( x -. cos(t)*.nx +. sin(t)*.mx, y -. cos(t)*.ny +. sin(t)*.my) in
+				let endcap x y = 
+					for i = 1 to n do (
+						let vx,vy = pnt !t x y in
+						fprintf oc " %d %d" (trans vx) (trans vy); 
+						t := !t +. dt ; 
+					)done; 
+				in
+				fprintf oc "P"; 
+				endcap sx sy; 
+				endcap ex ey;
+				fprintf oc ";\n"; 
+			) else (
+				(* draw a circle then.*)
+				let pnt t = 
+					(sx +. 0.5*.width*.cos(t), sy +. 0.5*.width*.sin(t)) in
+				fprintf oc "P"; 
+				for i = 1 to 2*n do (
+					let vx,vy = pnt !t in
 					fprintf oc " %d %d" (trans vx) (trans vy); 
 					t := !t +. dt ; 
 				)done; 
-			in
-			fprintf oc "P"; 
-			endcap sx sy; 
-			endcap ex ey;
-			fprintf oc ";\n"; 
+				fprintf oc ";\n"; 
+			)
 		)
 	) !gtracks; 	
 	in

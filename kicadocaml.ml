@@ -243,8 +243,8 @@ let exportCIF filename = (* this is a very experimental feature! *)
 	print_endline ("saving " ^ filename );
 	let oc = open_out filename in
 	fprintf oc "DS 1 20 2;\n"; (* scale by 20/2 -- so we keep kicad's native resolution *)
-	(* units: 1 mil = 1 micron. CIF works in centimicrons (10nm) *)
-	let trans x = iof (x /. 1000.0) in (* CHECK THIS *)
+	(* units: 1 mil = 1 micron. CIF works in centimicrons (10nm = 10-8m) *)
+	let trans x = iof (x *. 10000.0) in (* CHECK THIS *)
 	(* not all CIF programs support rounded wires -- for these, use polygons. *)
 	let polywire layer = 
 		List.iter (fun t -> 

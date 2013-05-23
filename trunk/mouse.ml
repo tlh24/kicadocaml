@@ -24,7 +24,7 @@ let mouseReleaseQ = Stack2.create () ;;
 let gbutton1pressed = ref false
 let mouseDefaultMove = ref (fun _ -> ()) (* should be 'updatecurspos' *)
 
-let bindMove top ~action = 
+let bindMove ln top ~action = 
 	(* keep these things on a stack, so that we can push / pop them 
 	e.g. when the user presses 'shift', we start a selection box
 	and if the user then presses the right mouse button, we pan. 
@@ -32,16 +32,16 @@ let bindMove top ~action =
 	the default is to simply update the cursor position, of course. *)
 	Stack2.push action mouseMoveQ ; 
 	bind ~events:[`Motion] ~fields:[`MouseX; `MouseY] ~action:action top;
-	printf "Mouse.bindMove\n%!"; 
+	printf "Mouse.bindMove @ %d length %d\n%!" ln (Stack2.length mouseMoveQ); 
 	;;
 
-let releaseMove top = 
+let releaseMove ln top = 
 	let action = try 
 		Stack2.pop_nxt mouseMoveQ 
 		with Stack2.Empty -> !mouseDefaultMove
 	in
 	bind ~events:[`Motion] ~fields:[`MouseX; `MouseY] ~action:action top;
-	printf "Mouse.releaseMove\n%!"; 
+	printf "Mouse.releaseMove @ %d length %d\n%!" ln (Stack2.length mouseMoveQ); 
 	;;
 	
 let bindDefaultMove action = 

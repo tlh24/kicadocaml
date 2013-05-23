@@ -1256,6 +1256,9 @@ let makemenu top togl filelist =
 				let tv = if !v then "true" else "false" in
 				fprintf oc "%s %s\n" name tv; 
 			in
+			let writefloat name v = 
+				fprintf oc "%s %f\n" name v 
+			in
 			writebool "genabledepth" genabledepth;
 			writebool "groute135" groute135;
 			writebool "gtrackKeepSlope" gtrackKeepSlope;
@@ -1272,6 +1275,11 @@ let makemenu top togl filelist =
 			writebool "gdrawText" gdrawText;
 			writebool "gdosnap" gdosnap; 
 			writebool "gTrackEndpointOnly" gTrackEndpointOnly; 
+			writefloat "ggrid0" ggrid.(0);
+			writefloat "ggrid1" ggrid.(1);
+			writefloat "ggrid2" ggrid.(2);
+			writefloat "ggrid3" ggrid.(3);
+			writefloat "ggrid4" ggrid.(4);
 			flush oc ; 
 			close_out_noerr oc; 
 		); 
@@ -1540,7 +1548,7 @@ let makemenu top togl filelist =
 					let lastgood = ref (!gsnapped) in
 					let lastgoodmp = ref (!gsnapped) in
 					let start = !gsnapped in
-					Mouse.bindMove top ~action:
+					Mouse.bindMove 1537 top ~action:
 					(fun evinf -> 
 						gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true evinf !gpan true; 
 						(* will also clear the selected ratsnest *)
@@ -1645,7 +1653,7 @@ let makemenu top togl filelist =
 				fun t -> t#manhattanLength() > 0. || t#getType() != Track_Track
 			) !gtracks ; *)
 			gratsnest#updateTracks !workingnet !gtracks ; 
-			Mouse.releaseMove top ; 
+			Mouse.releaseMove 1642 top ; 
 			updatecurspos ev ; 
 		) ; 
 	)in
@@ -1750,7 +1758,7 @@ let makemenu top togl filelist =
 			) ; 
 			let safemove = ref (0. , 0.) in 
 			gbutton1pressed := true ; 
-			Mouse.bindMove top ~action:
+			Mouse.bindMove 1747 top ~action:
 			(fun evinf ->
 				let cx,cy = calcCursPos ~worknet:!workingnet 
 					~onlyworknet:true evinf !gpan true in
@@ -1800,7 +1808,7 @@ let makemenu top togl filelist =
 		~onRelease:
 		(fun ev -> 
 			gbutton1pressed := false ;
-			Mouse.releaseMove top ; 
+			Mouse.releaseMove 1797 top ; 
 			(* need to update the moved tracks, if there were any *)
 			List.iter (fun t-> 
 				t#setMoving false; 
@@ -1838,7 +1846,7 @@ let makemenu top togl filelist =
 				modules := List.filter (fun m -> let _,found = m#txthit() in found ) !gmodules ; 
 				List.iter (fun m -> m#setMoving true ) !modules ;
 				gbutton1pressed := true ; 
-				Mouse.bindMove top ~action:
+				Mouse.bindMove 1835 top ~action:
 				(fun evinf ->
 					let prescurspos = calcCursPos evinf !gpan true in
 					(* text moves should alway work. *)
@@ -1852,7 +1860,7 @@ let makemenu top togl filelist =
 		~onRelease:
 		(fun evinf ->
 			gbutton1pressed := false ;
-			Mouse.releaseMove top ; 
+			Mouse.releaseMove 1849 top ; 
 			(* need to update the moved tracks, if there were any *)
 			List.iter (fun m -> m#setMoving false; ) !modules ; 
 			updatecurspos evinf ; 
@@ -1915,7 +1923,7 @@ let makemenu top togl filelist =
 			) !modules ; 
 			*)
 			(* printf "bindMouseMoveModule: binding movement\n%!" ; *)
-			Mouse.bindMove top ~action:
+			Mouse.bindMove 1912 top ~action:
 			(fun evinf ->
 				let prescurspos = calcCursPos evinf !gpan true in
 				(* try the move; if it causes any problems, back up. *)
@@ -1953,7 +1961,7 @@ let makemenu top togl filelist =
 		~onRelease: 
 		(fun evinf ->
 			(* printf "bindMouseMoveModule: releasing movement\n%!" ;*)
-			Mouse.releaseMove top ; 
+			Mouse.releaseMove 1950 top ; 
 			(* need to update the moved tracks, if there were any *)
 			List.iter (fun m -> m#setMoving false; m#setHit false) !modules ; 
 			(* need to update the moved tracks, if there were any *)
@@ -1982,7 +1990,7 @@ let makemenu top togl filelist =
 				if not !gbutton3pressed then (
 					List.iter (fun m-> m#setHit false) !gmodules; 
 					List.iter (fun t -> t#setMoving false) !gtracks ; 
-					Mouse.bindMove top ~action:
+					Mouse.bindMove 1979 top ~action:
 					(fun evinf -> 
 						let (px,py) = calcCursPos evinf !gpan true in
 						gselectRect := ((fmin sx px),(fmin sy py),(fmax sx px),(fmax sy py)) ; 
@@ -2009,7 +2017,7 @@ let makemenu top togl filelist =
 				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
 				let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 				gselectRect := (1e99,1e99,1e99,1e99) ; 
-				Mouse.releaseMove top; 
+				Mouse.releaseMove 2006 top; 
 				updatecurspos evinf ; 
 				printf "%d modules and %d tracks selected\n" (List.length modules) (List.length tracks);
 				printf "please drag the selected modules .. (or release shift) \n%!" ; 
@@ -2043,7 +2051,7 @@ let makemenu top togl filelist =
 					SI.iter (fun n -> gratsnest#updateTracks ~final:false n !gtracks ) worknets; 
 					gbutton1pressed := true ;
 					let startPos = calcCursPos evv !gpan true in
-					Mouse.bindMove top ~action:
+					Mouse.bindMove 2040 top ~action:
 					(fun evv -> 
 						let prescurspos = calcCursPos evv !gpan true in
 						let cx,cy =  Pts2.sub prescurspos startPos in
@@ -2069,7 +2077,7 @@ let makemenu top togl filelist =
 					(* List.iter (fun m-> m#setHit false ) tracks ;  *)
 					(* make a set of all the working nets, update them *)
 					SI.iter (fun n -> gratsnest#updateTracks ~final:true n !gtracks ) worknets;
-					Mouse.releaseMove top; 
+					Mouse.releaseMove 2066 top; 
 					(* shiftRelease evv ; *)
 					updatecurspos evv ; 
 				); 
@@ -2628,7 +2636,7 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			goldcurspos :=  calcCursPos ev !gpan false; 
 			goldpan := !gpan ;
-			Mouse.bindMove top ~action:
+			Mouse.bindMove 2625 top ~action:
 			(fun evinf ->
 				let prescurs = calcCursPos evinf !goldpan false in
 				gpan := Pts2.add (Pts2.sub prescurs !goldcurspos) !goldpan ; 
@@ -2637,7 +2645,7 @@ let makemenu top togl filelist =
 		) top ;
 	bind ~events:[`ButtonReleaseDetail(3)]  ~fields:[`MouseX; `MouseY] ~action:
 		(fun _ -> 
-			Mouse.releaseMove top ; 
+			Mouse.releaseMove 2634 top ; 
 			render togl nulfun;
 		) top ; 
 	
@@ -2760,7 +2768,7 @@ let makemenu top togl filelist =
 	in
 	(* bindings! *)
 	bindMouseMoveModule () ; (*default is to move modules *)
-	Mouse.bindMove top ~action:updatecurspos ; (* default move action is to simply watch the cursor *)
+	Mouse.bindMove 2757 top ~action:updatecurspos ; (* default move action is to simply watch the cursor *)
 	Mouse.bindDefaultMove updatecurspos ; 
 	bindMouseSelect () ; (* bind the shift keys to selection *)
 	(* the strings in the bindings are from X11's keysymdef.h ... *)
@@ -3041,6 +3049,12 @@ let _ =
 			var := Pcre.pmatch ~pat:"true" line 
 		)
 	in
+	let fextract line vname present = 
+		if Pcre.pmatch ~pat:vname line then (
+			let pat = String.concat vname [" ([\d\-\.e]+)"] in
+			float_of_string (Pcre.extract ~pat line).(1) 
+		) else present
+	in
 	(
 	match cin with 
 		| Some chan -> (
@@ -3084,6 +3098,11 @@ let _ =
 					extract line "gdrawText" gdrawText;
 					extract line "gdosnap" gdosnap;
 					extract line "gTrackEndpointOnly" gTrackEndpointOnly; 
+					ggrid.(0) <- fextract line "ggrid0" ggrid.(0);
+					ggrid.(1) <- fextract line "ggrid1" ggrid.(1); 
+					ggrid.(2) <- fextract line "ggrid2" ggrid.(2); 
+					ggrid.(3) <- fextract line "ggrid3" ggrid.(3); 
+					ggrid.(4) <- fextract line "ggrid4" ggrid.(4); 
 				) else (
 					okok := false; 
 				)
@@ -3252,9 +3271,8 @@ let _ =
 	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
 	schema#print "" ; 
 	*)
- 	(*Printexc.record_backtrace true ; (* ocaml 3.11 *)
- 	openFile top "/home/tlh24/kicadocaml-issue9/fapubar.brd";  
- 	Printexc.print_backtrace stdout ; (* ocaml 3.11 *) *)
+ 	Printexc.record_backtrace true ; (* ocaml 3.11 *)
+ 	Printexc.print_backtrace stdout ; (* ocaml 3.11 *)
  	Printexc.print mainLoop () ;
 	;;
 		

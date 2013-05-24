@@ -239,7 +239,7 @@ let saveall filename =
 	close_out_noerr oc ; 
 	;;
 	
-let exportCIF filename = (* this is a very experimental feature! *)
+let exportCIF filename = (* this is a somewhat experimental feature! *)
 	print_endline ("saving " ^ filename );
 	let oc = open_out filename in
 	fprintf oc "DS 1 20 2;\n"; (* scale by 20/2 -- so we keep kicad's native resolution *)
@@ -321,6 +321,147 @@ let exportCIF filename = (* this is a very experimental feature! *)
 	flush oc ; (* this is necessary!!! *)
 	(* addToFilelist filename ; *)
 	close_out_noerr oc ; 
+	;;
+	
+let exportGerber filename = (* testing, testing. *)
+	(* make an aperture list, w/ pads. *)
+	let apertures = Hashtbl.create 10 in
+	let cnt = ref 10 in
+	List.iter (fun t->
+		let width = t#getWidth () in
+		if not (Hashtbl.mem apertures (width, 0.0)) then (
+			Hashtbl.add apertures (width, 0.0) !cnt; 
+			cnt := !cnt + 1; 
+		)
+	) !gtracks; 
+	(* iterate over pads, too *)
+	List.iter (fun m->
+		List.iter (fun p->
+			let width = p#getSx() in
+			let height = p#getSy() in
+			if p#getShape() = Pad_Rect then (
+				if not (Hashtbl.mem apertures (width, height)) then (
+					Hashtbl.add apertures (width, height) !cnt; 
+					cnt := !cnt + 1; 
+				)
+			);
+			if p#getShape() = Pad_Circle || p#getShape() = Pad_Oval then (
+				let l = if width > height then width else height in
+				if not (Hashtbl.mem apertures (l, 0.0)) then (
+					Hashtbl.add apertures (l, 0.0) !cnt; 
+					cnt := !cnt + 1; 
+				)
+			)
+		) (m#getPads())
+	) !gmodules; 
+	
+	let saveGerberFile layer fnm panx pany pannx panny = 
+		print_endline ("saving " ^ fnm );
+		let oc = open_out fnm in
+		let pc = "%" in
+		fprintf oc "G04 (created by kicadocaml v 112)*\n"; 
+		fprintf oc "G01*\nG70*\nG90*\n" ; 
+		fprintf oc "%sMOIN*%s\n" pc pc;
+		fprintf oc "G04 Gerber Fmt 3.4, Leading zero omitted, Abs format*\n";
+		fprintf oc "%sFSLAX34Y34*%s\n" pc pc; 
+		(* these won't be in order .. meh. *)
+		fprintf oc "G04 APERTURE LIST*\n"; 
+		Hashtbl.iter (fun k v -> 
+			let (w,h) = k in
+			if (h = 0.0) then (
+				fprintf oc "%sADD%dC,%1.6f*%s\n" pc v w pc
+			) else (
+				fprintf oc "%sADD%dR,%1.6fX%1.6f*%s\n" pc v w h pc
+			)
+		) apertures; 
+		(* now iterate over the tracks / modules, flashing the apertures. *)
+		let cnvt d = iof (d *. 10000.0) in
+		let gerbPrint x y flashcode = 
+			let six = if x < 0.0 then "-" else "" in
+			let siy = if y < 0.0 then "-" else "" in
+			fprintf oc "X%s%06dY%s%06dD%s*\n" 
+				six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
+		in
+		let gerbTrackPanel (sx,sy) (ex,ey) = 
+			(* this also pannelizes! *)
+			for j=0 to panny-1 do (
+				for i=0 to pannx-1 do (
+					let ox = panx *. (foi i) in
+					let oy = pany *. (foi j) in
+					gerbPrint (sx +. ox) (sy +. oy) "02"; 
+					gerbPrint (ex +. ox) (ey +. oy) "01"; 
+				)done
+			)done
+		in
+		let gerbPrintPanel x y flashcode = 
+			for j=0 to panny-1 do (
+				for i=0 to pannx-1 do (
+					let ox = panx *. (foi i) in
+					let oy = pany *. (foi j) in
+					gerbPrint (x +. ox) (y +. oy) flashcode
+				)done
+			)done
+		in
+		Hashtbl.iter (fun k v -> 
+			let (w,h) = k in
+			fprintf oc "G54D%d*\n" v ; 
+			if h = 0.0 then (
+				List.iter (fun t->
+					if t#getLayer() = layer && t#getWidth() = w then ( (* drawings layer *)
+						gerbTrackPanel (t#getStart()) (t#getEnd()); 
+					)
+				) !gtracks; 
+			) ; 
+			List.iter (fun m ->
+				List.iter (fun p -> 
+					if p#hasLayer layer then(
+						let width = p#getSx() in
+						let height = p#getSy() in
+						if p#getShape() = Pad_Rect then (
+							if width = w && height = h then (
+								let sx,sy = p#getCenter() in
+								gerbPrintPanel sx sy "03";
+							)
+						);
+						if p#getShape() = Pad_Circle then (
+							if width = w && h = 0.0 then (
+								let sx,sy = p#getCenter() in
+								gerbPrintPanel sx sy "02";
+							)
+						);
+						if p#getShape() = Pad_Oval then (
+							if width = w && height = h then (
+								let sx,sy = p#getCenter() in
+								if width > height then (
+									let w2 = (w -. h) *. 0.5 in
+									gerbTrackPanel ((sx -. w2), sy) ((sx +. w2), sy)
+								) else (
+									let h2 = (h -. w) *. 0.5 in
+									gerbTrackPanel (sx, (sy -. h2)) (sx, (sy -. h2)) 
+								)
+							)
+						)
+					)
+				) (m#getPads())
+			) !gmodules 
+		) apertures ; 
+		fprintf oc "M02*\n";
+		flush oc ; (* this is necessary!!! *)
+		(* addToFilelist filename ; *)
+		close_out_noerr oc ; 
+	in
+	(* only layers that have tracks on them *)
+	let rootname = if Pcre.pmatch ~pat:"[^\.]+\.gbr" filename then 
+		(Pcre.extract ~pat:"([^\.]+)\.gbr" filename).(1) 
+		else filename in
+	for lay = 0 to 24 do (
+		if List.exists (fun t-> t#getLayer() = lay) !gtracks then (
+			let fnm = (rootname ^ "_" ^ (layer_to_string lay) ^ ".gbr") in
+			let fnm2 = (rootname ^ "_array_" ^ (layer_to_string lay) ^ ".gbr") in
+			saveGerberFile lay fnm2 6.75 29.45 10 2 ;
+			saveGerberFile lay fnm 0.0 0.0 1 1
+		)
+	) done
 	;;
 	
 (* UI stuff *)
@@ -2616,12 +2757,19 @@ let makemenu top togl filelist =
 		trk4#setWidth 1.0 ; 
 		z#fill [trk;trk2;trk3;trk4] []; 
 	); 
-	Menu.add_command miscSub ~label:"Save CIF" ~command:
+	Menu.add_command miscSub ~label:"Export CIF" ~command:
 	(fun () -> 
 		let filetyp = [ {typename="Caltech Intermediate Format";extensions=[".cif"];mactypes=[]} ] in
 		let fname2 = (getSaveFile ~defaultextension:".cif" 
-			~filetypes:filetyp ~title:"save CIF layout" ()) in
+			~filetypes:filetyp ~title:"Save CIF layout" ()) in
 		exportCIF fname2; 
+	); 
+	Menu.add_command miscSub ~label:"Export Gerber" ~command:
+	(fun () -> 
+		let filetyp = [ {typename="Gerber 274x";extensions=[".gbr"];mactypes=[]} ] in
+		let fname2 = (getSaveFile ~defaultextension:".gbr" 
+			~filetypes:filetyp ~title:"Save gerber plot" ()) in
+		exportGerber fname2; 
 	); 
 
 	Menu.add_command optionmenu ~label:"About" ~command:(helpbox "about" abouttext top) ; 

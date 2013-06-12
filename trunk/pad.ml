@@ -263,10 +263,11 @@ object (self)
 	method getPadName () = m_padname 
 	method getShape () = m_shape 
 	method getPos () = m_x,m_y
-	method getSx () = if m_rot = 900 || m_rot = 2700 then m_sy else m_sx 
-	method getSy () = if m_rot = 900 || m_rot = 2700 then m_sx else m_sy 
-	method getDrill () = m_drill ; 
 	method getBBX () = m_g#getBBX()
+	method getSx () = let (minx, _, maxx, _) = m_g#getBBX() in maxx -. minx ; 
+	method getSy () = let (_, miny, _, maxy) = m_g#getBBX() in maxy -. miny ; 
+	method getDrill () = m_drill ; 
+	
 	method getCenter () = (bbxCenter (m_g#getBBX() ) ) 
 	method setMoveCallback f = m_moveCallback <- f 
 	method setSelCallback f = m_selCallback <- f 
@@ -287,7 +288,8 @@ object (self)
 	)
 	method read ic rot = (
 		(* rot is the parent module rotation - 
-		rotations are in global coordinates in the file *)
+		rotations are in global coordinates in the file, 
+		whereas here transforms are cumulative. *)
 		let parse pattern = 
 			let line = input_line2 ic in
 			Pcre.extract ~pat:pattern line

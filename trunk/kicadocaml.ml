@@ -375,10 +375,10 @@ let exportGerber filename = (* testing, testing. *)
 			)
 		) apertures; 
 		(* now iterate over the tracks / modules, flashing the apertures. *)
-		let cnvt d = iof (d *. 10000.0) in
+		let cnvt d = round (d *. 10000.0) in
 		let gerbPrint x y flashcode = 
 			let six = if x < 0.0 then "-" else "" in
-			let siy = if y < 0.0 then "-" else "" in
+			let siy = if y > 0.0 then "-" else "" in (*flip vertical axis .. not sure why.*)
 			fprintf oc "X%s%06dY%s%06dD%s*\n" 
 				six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
 		in
@@ -458,7 +458,7 @@ let exportGerber filename = (* testing, testing. *)
 		if List.exists (fun t-> t#getLayer() = lay) !gtracks then (
 			let fnm = (rootname ^ "_" ^ (layer_to_string lay) ^ ".gbr") in
 			let fnm2 = (rootname ^ "_array_" ^ (layer_to_string lay) ^ ".gbr") in
-			saveGerberFile lay fnm2 6.75 29.45 10 2 ;
+			(* saveGerberFile lay fnm2 6.75 29.45 10 2 ;*)
 			saveGerberFile lay fnm 0.0 0.0 1 1
 		)
 	) done
@@ -507,6 +507,7 @@ let abouttext =
 " Enter - cross probe transmit to eeschema\n" ^
 " Backspace - remove highlighted track\n" ^
 " Delete - remove highlighted track & all connected tracks\n" ^
+" Escape - Unstick the mouse (workaround for Tk error)\n" ^
 " Ctrl-F - find \n" ^
 " F3 - find next \n"
 
@@ -853,7 +854,8 @@ let makemenu top togl filelist =
 	and viamenu = Menu.create ~tearoff:false viab 
 	and trackmenu = Menu.create ~tearoff:false trackb in
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
-	let cursordisp = Text.create ~width:17 ~height:2 menubar in
+	let cursorbox = Text.create ~width:17 ~height:2 menubar in
+	let snapbox = Text.create ~width:17 ~height:2 menubar in
 	(* information display callback *)
 	ginfodisp := ( fun s ->  
 		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (infodisp) ; 
@@ -862,11 +864,13 @@ let makemenu top togl filelist =
 	 ginfodispappend := ( fun s ->  
 		Text.insert  ~index:(`End, []) ~text:s infodisp;
 	 ); 
-	gcursordisp := (fun str x y -> 
+	let coorddisp txtbx str x y =
 		let s = Printf.sprintf "%s x %2.4f\n%s y %2.4f" str x str y in
-		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (cursordisp) ; 
-		Text.insert  ~index:(`End, []) ~text:s cursordisp; 
-	) ; 
+		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (txtbx) ; 
+		Text.insert  ~index:(`End, []) ~text:s txtbx; 
+	in
+	gcursordisp := (fun str x y -> coorddisp cursorbox str x y; 
+		coorddisp snapbox "snap" (fst !gsnapped) (snd !gsnapped)); 
 		
 	(*array callback ... *)
 	let arrayFun () = 
@@ -1550,7 +1554,7 @@ let makemenu top togl filelist =
 	
 	let updatecurspos ev = 
 		gcurspos :=  calcCursPos ev !gpan true; 
-		!gcursordisp "cursor" (fst !gcurspos) (snd !gcurspos) ; 
+		!gcursordisp "cursor" (fst !gcurspos) (snd !gcurspos) ;
 		render togl nulfun;
 	in
 	let modfind cb = (
@@ -2137,11 +2141,13 @@ let makemenu top togl filelist =
 						gselectRect := ((fmin sx px),(fmin sy py),(fmax sx px),(fmax sy py)) ; 
 						!gcursordisp "size" ((fmax sx px) -. (fmin sx px))  ((fmax sy py) -. (fmin sy py)); 
 						(* iterate through the modules & update selected *)
-						List.iter (fun m-> 
-							if bbxIntersect (m#getBBX false) !gselectRect && m#getVisible() then 
-								m#setHit true 
-							else m#setHit false
-						) !gmodules ; 
+						if !gdrawmods then (
+							List.iter (fun m-> 
+								if bbxIntersect (m#getBBX false) !gselectRect && m#getVisible() then 
+									m#setHit true 
+								else m#setHit false
+							) !gmodules ; 
+						);
 						(* same for the tracks *)
 						List.iter (fun t-> 
 							if t#selectHit !gselectRect then 
@@ -2952,7 +2958,8 @@ let makemenu top togl filelist =
 	bind ~events:[`Modified([`Control], `KeyPressDetail"f")] ~action:
 		(fun _ -> Find.find_dlg top !gmodules center_found) top ; 
 	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  
-	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ; 
+	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ;
+	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 
@@ -3164,7 +3171,7 @@ let makemenu top togl filelist =
 	(* display them *)
 	pack ~side:`Left 
 		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 
-		Tk.coe infodisp; Tk.coe cursordisp ; Tk.coe mframe; Tk.coe layerframe];
+		Tk.coe infodisp; Tk.coe cursorbox ; Tk.coe snapbox ;Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)
 	;;

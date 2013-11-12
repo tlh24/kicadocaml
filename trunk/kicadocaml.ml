@@ -120,6 +120,7 @@ let gdrawmods = ref true
 let gdrawzones = ref true
 let gdrawratsnest = ref true
 let gpushrouting = ref false
+let gtrackDRC = ref true
 let gcrossProbeTX = ref true
 let gcrossProbeRX = ref true
 let gTrackAdd = ref (fun _ -> ())
@@ -1420,6 +1421,7 @@ let makemenu top togl filelist =
 			writebool "gdrawText" gdrawText;
 			writebool "gdosnap" gdosnap; 
 			writebool "gTrackEndpointOnly" gTrackEndpointOnly; 
+			writebool "gtrackDRC" gtrackDRC; 
 			writefloat "ggrid0" ggrid.(0);
 			writefloat "ggrid1" ggrid.(1);
 			writefloat "ggrid2" ggrid.(2);
@@ -1619,10 +1621,10 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			updatecurspos ev; (* get a new hit *)
 			workingnet := !gcurnet ; 
-			if (!glayer >= 20 && glayerEn.(!glayer)) then (
+			if ((!glayer >= 20 && glayerEn.(!glayer)) || (not !gtrackDRC)) then (
 				workingnet := 0; (* the drawing net. *)
 			);
-			if !workingnet > 0 || !glayer >= 20 then (
+			if !workingnet > 0 || !glayer >= 20 || (not !gtrackDRC) then (
 				if List.exists (fun z -> z#getHit () ) !gzones then (
 					(* try adding a point to a zone *)
 					let zones = List.filter (fun z -> z#getHit()) !gzones in
@@ -2474,7 +2476,7 @@ let makemenu top togl filelist =
 		) !groute135 ; 
 	addOption tracksSub "when dragging tracks mantain slope" (fun b -> gtrackKeepSlope := b) !gtrackKeepSlope ; 
 	addOption tracksSub "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
-	addOption tracksSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid;
+	addOption tracksSub "enable DRC on tracks" (fun b -> gtrackDRC := b) !gtrackDRC;
 	addOption tracksSub "snap tracks to eachother" (fun b -> gdosnap := b) !gdosnap; 
 	addOption tracksSub "only track endpoints active" (fun b -> gTrackEndpointOnly := b) !gTrackEndpointOnly; 
 	
@@ -3252,7 +3254,8 @@ let _ =
 					extract line "gsnapTracksToGrid" gsnapTracksToGrid; 
 					extract line "gdrawText" gdrawText;
 					extract line "gdosnap" gdosnap;
-					extract line "gTrackEndpointOnly" gTrackEndpointOnly; 
+					extract line "gTrackEndpointOnly" gTrackEndpointOnly;
+					extract line "gtrackDRC" gtrackDRC; 
 					ggrid.(0) <- fextract line "ggrid0" ggrid.(0);
 					ggrid.(1) <- fextract line "ggrid1" ggrid.(1); 
 					ggrid.(2) <- fextract line "ggrid2" ggrid.(2); 

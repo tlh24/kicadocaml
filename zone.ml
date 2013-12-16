@@ -37,6 +37,7 @@ object (self)
 	val mutable m_moving = false
 	val mutable m_hitN = 0
 	val mutable m_hitEdge = -1
+	val mutable m_move = (0.0, 0.0)
 	(* minimum thickness of the zone.  kicad draws the edges of each polygon
 	using a stroke of this width.  hence, when meshing our zones, we add this to the offset.
 	therefore the rendering and meshing of zones here will have larger holes than in kicad or 
@@ -57,10 +58,14 @@ object (self)
 	
 	method getLayer () = m_layer
 	method getHit () = m_hit
-	method setMoving m = m_moving <- m
 	method getNetName () = m_netname
 	method setNetNum n = m_net <- n
-
+	method newGrfx () = (
+		m_g <- new grfx; 
+		m_rawv <- [] ; (* empty list of Raw *)
+		m_rawv_tri <- Raw.create_static `float 1 ; 
+		m_rawv_fill <- Raw.create_static `float 1 ; 
+	)
 	method set_corners pts = (
 		m_corners <- Array.make 1 [||] ; (* array of arrays *)
 		m_corners.(0) <- (Array.map (fun (x,y) -> (x,y,0)) 
@@ -112,7 +117,7 @@ object (self)
 				y0 := y2 ; 
 				incr i; 
 				m_rawv <- rawv :: m_rawv ; 
-				(*  make little squares to let you drag around the corners *)
+				(*  make little (fixed size) squares to let you drag around the corners *)
 				let w = 0.01 /. 2.0 in
 				Array.iter (fun  (x1,y1,_) -> 
 					m_g#makeRectFloat ~accumulate:true x1 y1 w w ; 
@@ -129,6 +134,7 @@ object (self)
 		self#free () ; 
 		self#updateCorners ();
 		self#updateLayers (); 
+		m_move <- (0.0, 0.0);
 		let i = ref 0 in
 		if List.length m_tris > 2 then (
 			let len = (List.length m_tris * 3) in (* number of lines *)
@@ -439,6 +445,10 @@ object (self)
 		)
 	)
 	method hitclear () = m_hit <- false
+	method setHit hit = (
+		m_hit <- hit; 
+		m_hitN <- (if hit then -9999 else -1)
+	)
 	method hit (px,py) netnum hitsize hitz hitclear = (
 		(* see if p is next to any of our corners *)
 		if not m_moving then (
@@ -543,6 +553,43 @@ object (self)
 			(m_corners.(0)).(m_hitN) <- (x,y,z); 
 			self#updateCorners (); 
 		) ; 
+		if m_moving && m_hitN == -9999 then (
+			m_move <- (x,y) ; 
+		) ; 
+	)
+	method applyMove () = (
+		let mx,my = m_move in
+		Array.iteri (fun i corners -> 
+			Array.iteri (fun j (x,y,z) -> 
+				m_corners.(i).(j) <- (x +. mx, y +. my, z)
+			) corners
+		) m_corners ; 
+		self#empty (); (* this will clear the fill, zero m_move. *)
+		m_moving <- false; 
+	)
+	method setMoving b all = ( (* b is bool for moving or not *)
+		if b then (
+			m_move <- (0. , 0.); 
+			if all then m_hitN <- -9999; (* move all; move corner through hit mechanism. *)
+		) else (
+			self#applyMove () ; 
+			m_move <- (0. , 0.)
+		) ; 
+		m_moving <- b
+	)
+	method selectHit bbx = (
+		(* if any of the endpoints are within the selected region, then true. *)
+		if (not glayerEn.(m_layer)) then (
+			false 
+		) else (
+			let mtch = ref false in
+			Array.iter (fun corners -> 
+				Array.iter (fun (x1,y1,_) -> 
+					if bbxInside bbx (x1,y1) then mtch := true 
+				) corners
+			) m_corners ; 
+			!mtch
+		)
 	)
 	method polyToTris () = (
 		(* try to convert the polygons in the input to triangles *)
@@ -651,11 +698,15 @@ object (self)
 	method draw bbox = (
 		let alpha = if !gcurnet = m_net then 0.78 else 0.5 in
 		m_g#setAlpha alpha ; 
+		if m_moving then (
+			GlMat.push () ; 
+			GlMat.translate ~x:(fst m_move) ~y:(snd m_move) ~z:0. (); 
+		) ; 
 		if m_g#draw bbox ~hit:m_hit then ( (* there shouldn't be anything outside the corners, right? *)
 			(* probe *)
 			if m_hit then !ginfodisp ("zone, layer:" ^ (layer_to_string m_layer) ^ 
 					"\nnet:" ^ (soi m_net) ^ " netname:" ^ (!glookupnet m_net)) ; 
-			(* if we hit an edge, highlight that *)
+			(* if we hit an (outer) edge, highlight that *)
 			let clen = Array.length (m_corners.(0)) in
 			if m_hit && m_hitEdge >= 0 && m_hitEdge < clen then (
 				let (ax,ay,_) = (m_corners.(0)).(m_hitEdge) in
@@ -686,6 +737,7 @@ object (self)
 				GlArray.draw_arrays `triangles 0 ((Raw.length m_rawv_fill)/2) ; 
 			);
 		); 
+		if m_moving then GlMat.pop () ;
 	)
 	method save oc = (
 		fprintf oc "$CZONE_OUTLINE\n" ; 

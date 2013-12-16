@@ -57,7 +57,7 @@ let draw (xl,yl,xh,yh) gridsize alphain=
 	); 
 	;;
 	
-let dialog top rendercb = 
+let dialog top rendercb gridAddCb = 
 	let dlog = Toplevel.create top in
 	Wm.title_set dlog "Grid sizes" ; 
 	let makeFrames pack unpack label = 
@@ -78,6 +78,7 @@ let dialog top rendercb =
 				let c = ref 0 in
 				List.iter (fun (_,cb) -> 
 					ggrid.(!c) <- cb () ; 
+					if !c == 0 then (gridAddCb (ggrid.(0))) ; 
 					incr c; 
 				) frames ; 
 				rendercb(); 

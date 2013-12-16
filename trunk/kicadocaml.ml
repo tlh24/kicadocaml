@@ -109,6 +109,7 @@ let gbutton1pressed = ref false
 let gtrackwidth = ref 0.01 
 let gtrackwidthlist = ref [] 
 let gviasizelist = ref [] 
+let ggridsizelist = ref []
 let gviapad = ref 0.047
 let gviadrill = ref 0.015
 let gfname = ref "" 
@@ -849,11 +850,13 @@ let makemenu top togl filelist =
 	let fileb = Menubutton.create ~text:"File" menubar
 	and optionb = Menubutton.create ~text:"Options" menubar
 	and viab = Menubutton.create ~text:"Via" menubar 
-	and trackb = Menubutton.create ~text:"Track" menubar in
+	and trackb = Menubutton.create ~text:"Track" menubar 
+	and gridb = Menubutton.create ~text:"Grid" menubar in
 	let filemenu = Menu.create ~tearoff:false fileb
 	and optionmenu = Menu.create ~tearoff:false optionb
 	and viamenu = Menu.create ~tearoff:false viab 
-	and trackmenu = Menu.create ~tearoff:false trackb in
+	and trackmenu = Menu.create ~tearoff:false trackb
+	and gridmenu = Menu.create ~tearoff:false gridb in
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursorbox = Text.create ~width:17 ~height:2 menubar in
 	let snapbox = Text.create ~width:17 ~height:2 menubar in
@@ -1820,7 +1823,7 @@ let makemenu top togl filelist =
 			startPoint := !gsnapped ;
 			tracks := List.filter (fun t -> t#getHit() ) !gtracks ; 
 			zones := List.filter (fun z -> z#getHit ()) !gzones ;
-			List.iter (fun z -> z#setMoving true) !zones ; 
+			List.iter (fun z -> z#setMoving true false) !zones ; 
 			if List.length !tracks > 0 then (
 				print_endline "redoing tracks list in drag";
 				(* make a list of the tracks that are directly connected to hit tracks 
@@ -1961,7 +1964,7 @@ let makemenu top togl filelist =
 				t#setMoving false; 
 				t#setHit false;
 			) !tracks ; 
-			List.iter (fun z -> z#setMoving false; z#empty ()) !zones ;
+			List.iter (fun z -> z#setMoving false false; z#empty ()) !zones ;
 			(* do this second so that all constraints have a chance to be applied *)
 			List.iter (fun t -> t#clearConstraint (); t#update () ) !tracks ; 
 			gratsnest#updateTracks !workingnet !gtracks ; 
@@ -2125,7 +2128,7 @@ let makemenu top togl filelist =
 	
 	let bindMouseSelect () = (
 		(* method: let the user drag the cursor to make a transparent rectangle
-		when the mouse is released, select all modules & tracks that intersect 
+		when the mouse is released, select all modules & tracks & zones that intersect 
 		the box, and keep them selected as long as 'shift' is held down. 
 		upon the next click, move the modules and tracks. (using existing logic). *)
 		(* use gmode to return to the old state once shift is released *)
@@ -2156,6 +2159,12 @@ let makemenu top togl filelist =
 								t#setHit true
 							else t#setHit false
 						) !gtracks ; 
+						(* same for the zones *)
+						List.iter (fun t-> 
+							if t#selectHit !gselectRect then 
+								t#setHit true
+							else t#setHit false
+						) !gzones ; 
 						render togl nulfun; 
 					)
 				)
@@ -2164,6 +2173,7 @@ let makemenu top togl filelist =
 			(fun evinf -> 
 				let modules = List.filter (fun m-> m#getHit ()) !gmodules in
 				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
+				let zones = List.filter (fun t-> t#getHit ()) !gzones in
 				let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 				gselectRect := (1e99,1e99,1e99,1e99) ; 
 				Mouse.releaseMove 2006 top; 
@@ -2175,32 +2185,44 @@ let makemenu top togl filelist =
 				(* also add in 'c' for copy tracks *)
 				bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:
 				(fun _ ->
-					printf "copying %d tracks in drag...\n%!" (List.length tracks); 
+					printf "copying %d tracks and %d zones in drag...\n%!" 
+						(List.length tracks) (List.length zones); 
 					let newtracks = List.map (fun t -> Oo.copy t) tracks in
+					let newzones = List.map (fun z -> Oo.copy z) zones in
 					List.iter (fun t -> 
 						t#setHit false; 
-						t#applyMove (); ) tracks ;
+						t#applyMove () ) tracks ;
+					List.iter (fun t -> 
+						t#setHit false ; 
+						t#applyMove () ) zones ;
 					List.iter (fun t -> 
 						t#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
 						t#update (); 
 						t#setHit true) newtracks ;
 					gtracks := List.rev_append newtracks !gtracks; (* add them to the global list *)
+					List.iter (fun t -> 
+						t#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
+						t#update (); 
+						t#setHit true) newzones ;
+					gzones := List.rev_append newzones !gzones; (* add them to the global list *)
 				) top;
 				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
+				let zones = List.filter (fun t-> t#getHit ()) !gzones in
 				(* release the old press .. yes this is confusing now *)
 				Mouse.releasePress top ; (* unbind this function even though it is executing! *)
 				Mouse.bindPress top ~onPress:
 				(fun evv -> 
 					(* redefine tracks -- user may have copied some *)
-					printf "dragging %d tracks and %d modules \n%!" 
-						(List.length tracks) (List.length modules); 
+					printf "dragging %d tracks and %d modules and %d zones\n%!" 
+						(List.length tracks) (List.length modules) (List.length zones); 
 					List.iter (fun m-> m#setMoving true ) modules ;
-					List.iter (fun m-> m#setMoving true ) tracks ; 
+					List.iter (fun m-> m#setMoving true ) tracks ;
+					List.iter (fun z-> z#setMoving true true) zones ; 
 					List.iter (fun m-> m#setU 0.5 ) tracks ; 
 					SI.iter (fun n -> gratsnest#updateTracks ~final:false n !gtracks ) worknets; 
 					gbutton1pressed := true ;
 					let startPos = calcCursPos evv !gpan true in
-					Mouse.bindMove 2040 top ~action:
+					Mouse.bindMove 2221 top ~action:
 					(fun evv -> 
 						let prescurspos = calcCursPos evv !gpan true in
 						let cx,cy =  Pts2.sub prescurspos startPos in
@@ -2213,7 +2235,8 @@ let makemenu top togl filelist =
 						); 
 						!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 						List.iter (fun m -> m#move !gdrag ) modules ; 
-						List.iter (fun t -> t#move !gdrag ) tracks ; 
+						List.iter (fun t -> t#move !gdrag ) tracks ;
+						List.iter (fun t -> t#move !gdrag ) zones ; 
 						List.iter (fun t-> t#update (); ) tracks ; 
 						render togl nulfun; 
 					); 
@@ -2222,7 +2245,8 @@ let makemenu top togl filelist =
 				(fun evv ->
 					gbutton1pressed := false ;
 					List.iter (fun m-> m#setMoving false ) modules ; 
-					List.iter (fun m-> m#setMoving false ) tracks ; 
+					List.iter (fun m-> m#setMoving false ) tracks ;
+					List.iter (fun z-> z#setMoving false false) zones ; 
 					(* List.iter (fun m-> m#setHit false ) tracks ;  *)
 					(* make a set of all the working nets, update them *)
 					SI.iter (fun n -> gratsnest#updateTracks ~final:true n !gtracks ) worknets;
@@ -2420,6 +2444,34 @@ let makemenu top togl filelist =
 	(*likewise for vias. *)
 	Menu.add_command viamenu ~label:"add ..." ~command:viasFun;
 	
+	let gridAdd w = 
+		ggrid.(0) <- w ;
+		if not (List.mem w !ggridsizelist) then (
+			ggridsizelist := w :: !ggridsizelist; 
+			ggridsizelist := List.sort compare !ggridsizelist; 
+			(* find the sorted index *)
+			let j = ref 0 in
+			let indx = ref 1 in
+			List.iter (fun ww -> 
+				if ww = w then ( indx := !j ) ;
+				incr j ; 
+			) !ggridsizelist ; 
+			(* add into the menu  .. sorted *)
+			Menu.insert_command ~index:(`Num !indx) gridmenu 
+				~label:(tomm w) ~command: (fun _ -> 
+				ggrid.(0) <- w ; 
+				print_endline ("grid snap size set to " ^ (tomm w));
+			) ; 
+		) else (
+			(* print_endline ("track width already in list " ^ (tomm w)); *)
+		)
+	in 
+	gridAdd 0.002 ;  (* useful defaults *)
+	gridAdd 0.005 ; 
+	gridAdd 0.010 ; 
+	gridAdd 0.050 ; 
+	gridAdd 0.100 ; 
+	
 	(* add in the sub-options menus .. *)
 	let displaySub = Menu.create optionmenu in (* pass the contatining menu as the final argument *)
 	let tracksSub = Menu.create optionmenu in
@@ -2516,7 +2568,7 @@ let makemenu top togl filelist =
 		~command: (fun () -> Mesh.makewindow top ) ; 
 	
 	Menu.add_command gridsSub ~label:"Grids ... " 
-		~command:(fun _ -> Grid.dialog top (fun () -> render togl nulfun) );
+		~command:(fun _ -> Grid.dialog top (fun () -> render togl nulfun) gridAdd ) ;
 	addOption gridsSub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption gridsSub "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
 	addOption gridsSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid; 
@@ -2785,7 +2837,8 @@ let makemenu top togl filelist =
 	Menubutton.configure fileb ~menu:filemenu;
 	Menubutton.configure optionb ~menu:optionmenu;
 	Menubutton.configure viab ~menu:viamenu;
-	Menubutton.configure trackb ~menu:trackmenu; 
+	Menubutton.configure trackb ~menu:trackmenu;
+	Menubutton.configure gridb ~menu:gridmenu; 
 	(* bind the buttons?? *)
 	(* default *)
 	bind ~events:[`ButtonPressDetail(3)] ~fields:[`MouseX; `MouseY] ~action:
@@ -3172,7 +3225,7 @@ let makemenu top togl filelist =
 	) top; 
 	(* display them *)
 	pack ~side:`Left 
-		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 
+		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; Tk.coe gridb ;  
 		Tk.coe infodisp; Tk.coe cursorbox ; Tk.coe snapbox ;Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)

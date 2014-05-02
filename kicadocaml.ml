@@ -2615,12 +2615,24 @@ let makemenu top togl filelist =
 									Pts2.distance en stt < 0.0001 ||
 									Pts2.distance en ent < 0.0001 then (
 									(* grow the present track *)
-									let minx = min (min (fst st) (fst en)) (min (fst stt) (fst ent)) in
-									let maxx = max (max (fst st) (fst en)) (max (fst stt) (fst ent)) in
-									let miny = min (min (snd st) (snd en)) (min (snd stt) (snd ent)) in
-									let maxy = max (max (snd st) (snd en)) (max (snd stt) (snd ent)) in
-									hd#setStart (minx, miny); 
-									hd#setEnd (maxx, maxy); 
+									(* have to figure out the endpoints: the two points that are furthest apart *)
+									let g = ref 0.0 in
+									let rec longest pl = 
+										match pl with
+										| p :: ptl -> (
+											(match ptl with 
+											| p2 :: _ -> 
+												let dd = Pts2.distance p p2 in
+												if dd > !g then (
+													g := dd; 
+													hd#setStart p; 
+													hd#setEnd p2; 
+												)
+											| _ -> () ); 
+											longest ptl )
+										| _ -> ()
+									in
+									longest [st; en; stt; ent]; 
 									hd#update (); 
 									t#setDirty true; 
 								)

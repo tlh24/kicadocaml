@@ -73,10 +73,18 @@ object
 				); 
 				*)
 				if tp = "TrackClearence" || tp = "TrackClearance" then (
-					let l = (Pcre.extract ~pat:"(\d+)" !line).(1) in
+					let l = (Pcre.extract ~pat:"([\.\d]+)" !line).(1) in
 					gclearance := foss l ; 
 					print_endline ( "global track clearance = " ^ sof !gclearance ); 
 				); 
+				if tp = "Units" then (
+					let l = (Pcre.extract ~pat:"^(\w+) (\w+)" !line).(2) in
+					if l = "mm" then (
+						printf "Internal units: mm\n%!"; 
+						gscl := 25.4;
+						gunit := "mm";
+					)
+				)
 			); 
 		done ; 
 	)
@@ -327,7 +335,7 @@ let exportCIF filename = (* this is a somewhat experimental feature! *)
 	
 let exportGerber filename = (* testing, testing. *)
 	(* make an aperture list, w/ pads. *)
-	let apertures = Hashtbl.create 10 in
+	let apertures = Hashtbl.create 100 in
 	let cnt = ref 10 in
 	List.iter (fun t->
 		let width = t#getWidth () in
@@ -357,7 +365,7 @@ let exportGerber filename = (* testing, testing. *)
 		) (m#getPads())
 	) !gmodules; 
 	
-	let saveGerberFile layer fnm panx pany pannx panny = 
+	let saveGerberFile fnm layers pann affinefun = 
 		print_endline ("saving " ^ fnm );
 		let oc = open_out fnm in
 		let pc = "%" in
@@ -384,24 +392,19 @@ let exportGerber filename = (* testing, testing. *)
 			fprintf oc "X%s%06dY%s%06dD%s*\n" 
 				six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
 		in
-		let gerbTrackPanel (sx,sy) (ex,ey) = 
+		let gerbTrackPanel start fin = 
 			(* this also pannelizes! *)
-			for j=0 to panny-1 do (
-				for i=0 to pannx-1 do (
-					let ox = panx *. (foi i) in
-					let oy = pany *. (foi j) in
-					gerbPrint (sx +. ox) (sy +. oy) "02"; 
-					gerbPrint (ex +. ox) (ey +. oy) "01"; 
-				)done
+			for i=0 to pann-1 do (
+				let sx,sy = affinefun i start in
+				let ex,ey = affinefun i fin in
+				gerbPrint sx sy "02"; 
+				gerbPrint ex ey "01"; 
 			)done
 		in
 		let gerbPrintPanel x y flashcode = 
-			for j=0 to panny-1 do (
-				for i=0 to pannx-1 do (
-					let ox = panx *. (foi i) in
-					let oy = pany *. (foi j) in
-					gerbPrint (x +. ox) (y +. oy) flashcode
-				)done
+			for i=0 to pann-1 do (
+				let ox,oy = affinefun i (x,y) in
+				gerbPrint ox oy flashcode
 			)done
 		in
 		Hashtbl.iter (fun k v -> 
@@ -409,14 +412,14 @@ let exportGerber filename = (* testing, testing. *)
 			fprintf oc "G54D%d*\n" v ; 
 			if h = 0.0 then (
 				List.iter (fun t->
-					if t#getLayer() = layer && t#getWidth() = w then ( (* drawings layer *)
+					if (List.mem (t#getLayer()) layers) && t#getWidth() = w then ( (* drawings layer *)
 						gerbTrackPanel (t#getStart()) (t#getEnd()); 
 					)
 				) !gtracks; 
 			) ; 
 			List.iter (fun m ->
 				List.iter (fun p -> 
-					if p#hasLayer layer then(
+					if List.exists (fun l -> p#hasLayer l) layers then(
 						let width = p#getSx() in
 						let height = p#getSy() in
 						if p#getShape() = Pad_Rect then (
@@ -456,14 +459,50 @@ let exportGerber filename = (* testing, testing. *)
 	let rootname = if Pcre.pmatch ~pat:"[^\.]+\.gbr" filename then 
 		(Pcre.extract ~pat:"([^\.]+)\.gbr" filename).(1) 
 		else filename in
-	for lay = 0 to 24 do (
+	(*for lay = 0 to 24 do (
 		if List.exists (fun t-> t#getLayer() = lay) !gtracks then (
 			let fnm = (rootname ^ "_" ^ (layer_to_string lay) ^ ".gbr") in
 			let fnm2 = (rootname ^ "_array_" ^ (layer_to_string lay) ^ ".gbr") in
-			(* saveGerberFile lay fnm2 6.75 29.45 10 2 ;*)
-			saveGerberFile lay fnm 0.0 0.0 1 1
+			(* saveGerberFile fnm2 lay 6.75 29.45 10 2 ;*)
+			saveGerberFile fnm lay 0.0 0.0 1 1
 		)
-	) done
+	) done*)
+	(* custom setup.. *)
+	let gy = 0.1 in
+	let gx = 0.8 in
+	let pannelizeFun pann (x,y) = 
+		let n = foi pann in
+		if pann < 4 then (
+			let ox = x +. n *. 26.0 -. (26.0 *. 2.0) +. gx in
+			let oy = y +. gy in
+			(ox,oy)
+		)
+		else if pann >= 4 && pann < 8 then (
+			(* rotate 180, move *)
+			let ox =  -1.0 *. x +. (n -. 4.0)*. 26.0 -. 26.0 -. gx in
+			let oy = -1.0 *. y -. gy in
+			(ox,oy)
+		)
+		else if pann == 8 then (
+			(* rotate 90, move *)
+			let ox =  1.0 *. (y+.gy) -. 20.5 in
+			let oy = -1.0 *. (x+.gx) +. 41.0 +. 26.0 in
+			(ox,oy)
+		)
+		else if pann == 9 then (
+			(* rotate 270, move *)
+			let ox = -1.0 *. (y+.gy) +. 20.5 in
+			let oy =  1.0 *. (x+.gx) -. 41.0 -. 26.0 in
+			(ox,oy)
+		)
+		else (-100.0, -100.0)
+	in
+	saveGerberFile (rootname ^ "_metal_INVERT.gbr") [15] 10 pannelizeFun;
+	saveGerberFile (rootname ^ "_outline_cont.gbr") [24;1] 10 pannelizeFun; 
+	saveGerberFile (rootname ^ "_outline_rec.gbr") [24;4] 10 pannelizeFun;
+	saveGerberFile (rootname ^ "_metal2_INVERT.gbr") [1] 10 pannelizeFun;
+	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] 10 pannelizeFun;
+	saveGerberFile (rootname ^ "_wafer.gbr") [3] 1 (fun _ x -> x); 
 	;;
 	
 (* UI stuff *)
@@ -807,10 +846,12 @@ let openFile top fname =
 	gratsnest#clearAll (); 
 	gratsnest#make !gmodules !gtracks; 
 	(* figure out the (approximate) center of the board *)
-	let center = bbxCenter (List.fold_left 
-		(fun b m -> bbxMerge b (m#getBBX false )) 
-		((List.hd !gmodules)#getBBX false) !gmodules) in
-	gpan := Pts2.scl center (-1.0) ; 
+	if (List.length !gmodules) > 0 then (
+		let center = bbxCenter (List.fold_left 
+			(fun b m -> bbxMerge b (m#getBBX false )) 
+			((List.hd !gmodules)#getBBX false) !gmodules) in
+		gpan := Pts2.scl center (-1.0) ; 
+	) ; 
 	(* make a set of all the track widths in this board *)
 	let trackWidth = ref (SI.empty) in
 	let round x = int_of_float (floor (x +. 0.5)) in
@@ -1423,7 +1464,8 @@ let makemenu top togl filelist =
 			writebool "gsnapTracksToGrid" gsnapTracksToGrid; 
 			writebool "gdrawText" gdrawText;
 			writebool "gdosnap" gdosnap; 
-			writebool "gTrackEndpointOnly" gTrackEndpointOnly; 
+			writebool "gTrackEndpointOnly" gTrackEndpointOnly;
+			writebool "gTrackDragConnected" gTrackDragConnected; 
 			writebool "gtrackDRC" gtrackDRC; 
 			writefloat "ggrid0" ggrid.(0);
 			writefloat "ggrid1" ggrid.(1);
@@ -1740,8 +1782,8 @@ let makemenu top togl filelist =
 							track#setEnd (Pts2.add start mpa2) ; 
 							track2#setStart (Pts2.add start mpa2); 
 							track2#setEnd !gsnapped ; 
-							if testdrc2 track !gtracks !gmodules 
-								|| testdrc2 track2 !gtracks !gmodules then (
+							if !gtrackDRC && (testdrc2 track !gtracks !gmodules 
+								|| testdrc2 track2 !gtracks !gmodules) then (
 								(* that layout didn't work, try 'b' *)
 								track#setEnd (Pts2.add start mpb2) ; 
 								track2#setStart (Pts2.add start mpb2); 
@@ -1758,27 +1800,32 @@ let makemenu top togl filelist =
 							); 
 						) else (
 							track#setEnd !gsnapped ; 
-							let vio, (suggest,_) = testdrc track !gtracks !gmodules in
-							if vio && suggest != (0. , 0.) then (
-								(* if there is a violation, try out the suggestion! *)
-								(* try  to normalize track length though, so that it is (approximately)
-								the length the user desires. *)
-								let sugstart = Pts2.norm (Pts2.sub suggest start) in
-								let desstart = Pts2.sub !gsnapped start in
-								let suggest2 = Pts2.add start 
-									(Pts2.scl sugstart (Pts2.length desstart)) in
-								track#setEnd suggest2 ;
-								gsnapped := suggest2 ;
-								if testdrc2 track !gtracks !gmodules then (
-									(* if extending it didn't work, stick with the original suggestion *)
-									track#setEnd suggest ;
-									gsnapped := suggest ;
-								);
-							) ;
-							if not (testdrc2 track !gtracks !gmodules) then (
+							if !gtrackDRC then (
+								let vio, (suggest,_) = testdrc track !gtracks !gmodules in
+								if vio && suggest != (0. , 0.) then (
+									(* if there is a violation, try out the suggestion! *)
+									(* try  to normalize track length though, so that it is (approximately)
+									the length the user desires. *)
+									let sugstart = Pts2.norm (Pts2.sub suggest start) in
+									let desstart = Pts2.sub !gsnapped start in
+									let suggest2 = Pts2.add start 
+										(Pts2.scl sugstart (Pts2.length desstart)) in
+									track#setEnd suggest2 ;
+									gsnapped := suggest2 ;
+									if testdrc2 track !gtracks !gmodules then (
+										(* if extending it didn't work, stick with the original suggestion *)
+										track#setEnd suggest ;
+										gsnapped := suggest ;
+									);
+								) ;
+								if not (testdrc2 track !gtracks !gmodules) then (
+									lastgood := !gsnapped; 
+									lastgoodmp := !gsnapped ; 
+								)
+							) else (
 								lastgood := !gsnapped; 
 								lastgoodmp := !gsnapped ; 
-							)
+							); 
 						) ; 
 						let node = Ratnode.create !workingnet !lastgood in
 						gratsnest#highlight node !workingnet (); 
@@ -1895,13 +1942,14 @@ let makemenu top togl filelist =
 									t#setMoving true ; (* so we don't count it twice *)
 									addtracks := (t :: !addtracks) ; 
 									(* if a via moves then all other tracks attached to it move *)
-									if t#getType() = Track_Via then ( hitTrack t ); 
+									if t#getType() = Track_Via && !gTrackDragConnected 
+									then ( hitTrack t ); 
 								) ; 
 							) ; 
 						) nettracks ; 
 					)
 				in
-				List.iter hitTrack !tracks; 
+				if !gTrackDragConnected then List.iter hitTrack !tracks; 
 				tracks := List.rev_append !addtracks !tracks ; 
 				List.iter (fun t-> t#setHit true) !tracks ; 
 				(* untracks := List.filter (fun t -> not (t#getHit())) !gtracks; *)
@@ -2466,11 +2514,15 @@ let makemenu top togl filelist =
 			(* print_endline ("track width already in list " ^ (tomm w)); *)
 		)
 	in 
-	gridAdd 0.002 ;  (* useful defaults *)
+	gridAdd 0.001 ;  (* useful defaults *)
+	gridAdd 0.002 ;  
 	gridAdd 0.005 ; 
 	gridAdd 0.010 ; 
 	gridAdd 0.050 ; 
-	gridAdd 0.100 ; 
+	gridAdd 0.060 ; 
+	gridAdd 0.100 ;
+	gridAdd 0.120 ;
+	gridAdd 1.000 ; 
 	
 	(* add in the sub-options menus .. *)
 	let displaySub = Menu.create optionmenu in (* pass the contatining menu as the final argument *)
@@ -2530,7 +2582,58 @@ let makemenu top togl filelist =
 	addOption tracksSub "push routing" (fun b -> gpushrouting := b) !gpushrouting ; 
 	addOption tracksSub "enable DRC on tracks" (fun b -> gtrackDRC := b) !gtrackDRC;
 	addOption tracksSub "snap tracks to eachother" (fun b -> gdosnap := b) !gdosnap; 
-	addOption tracksSub "only track endpoints active" (fun b -> gTrackEndpointOnly := b) !gTrackEndpointOnly; 
+	addOption tracksSub "only track endpoints active" (fun b -> gTrackEndpointOnly := b) !gTrackEndpointOnly;
+	addOption tracksSub "drag connected tracks too" (fun b -> gTrackDragConnected := b) !gTrackDragConnected; 
+	Menu.add_command tracksSub ~label:"Remove duplicate tracks" ~command:
+	(fun () -> 
+		List.iter (fun t -> t#setDirty false) !gtracks; (* dirty flag for removal *)
+		let maxlayer = List.fold_left (fun l t -> max l (t#getLayer())) 0 !gtracks in
+		for lay = 0 to maxlayer do
+			printf "working on layer %s\n%!" (layer_to_string lay); 
+			let rec recmatch trks =
+				match trks with 
+				| hd :: tl -> (
+					let w = hd#getWidth () in
+					List.iter (fun t -> 
+						let dw = t#getWidth() -. w in
+						if (dw < 0.0001 || dw > -0.0001) && not (t#getDirty()) then (
+							let st = hd#getStart () in
+							let en = hd#getEnd () in
+							let stt = t#getStart() in
+							let ent = t#getEnd() in 
+							let d = (Pts2.distance st stt) +.
+										(Pts2.distance en ent) in
+							let d2 = (Pts2.distance en stt) +.
+										(Pts2.distance st ent) in
+							if d < 0.0001 || d2 < 0.0001 then (
+								t#setDirty true
+							(* see if they are parallel, and share a endpoint -- if so, merge *)
+							) else (if Pts2.parallel2 st en stt ent then (
+(* 								printf "parallel!\n%!";  *)
+								if Pts2.distance st stt < 0.0001 || 
+									Pts2.distance st ent < 0.0001 ||
+									Pts2.distance en stt < 0.0001 ||
+									Pts2.distance en ent < 0.0001 then (
+									(* grow the present track *)
+									let minx = min (min (fst st) (fst en)) (min (fst stt) (fst ent)) in
+									let maxx = max (max (fst st) (fst en)) (max (fst stt) (fst ent)) in
+									let miny = min (min (snd st) (snd en)) (min (snd stt) (snd ent)) in
+									let maxy = max (max (snd st) (snd en)) (max (snd stt) (snd ent)) in
+									hd#setStart (minx, miny); 
+									hd#setEnd (maxx, maxy); 
+									hd#update (); 
+									t#setDirty true; 
+								)
+							)); 
+						)
+					) tl; 
+					recmatch tl; 
+				)
+				| [] -> () in
+			recmatch (List.filter (fun t -> t#getLayer() == lay) !gtracks)
+		done; 
+		gtracks := List.filter (fun t -> not (t#getDirty () )) !gtracks; 
+	); 
 	
 	Menu.add_command viasSub ~label:"Vias dialog (Ctrl-V)" ~command:viasFun ;
 	Menu.add_command viasSub ~label:"Adjust via drill sizes" ~command:viaDrillAdjust ; 
@@ -3308,6 +3411,7 @@ let _ =
 					extract line "gdrawText" gdrawText;
 					extract line "gdosnap" gdosnap;
 					extract line "gTrackEndpointOnly" gTrackEndpointOnly;
+					extract line "gTrackDragConnected" gTrackDragConnected; 
 					extract line "gtrackDRC" gtrackDRC; 
 					ggrid.(0) <- fextract line "ggrid0" ggrid.(0);
 					ggrid.(1) <- fextract line "ggrid1" ggrid.(1); 
@@ -3464,24 +3568,10 @@ let _ =
 		| Unix.Unix_error(Unix.EADDRINUSE, "bind", "") -> 
 			print_endline "could not open a unix socket to listen for eeschema: port already used (probably by pcbnew)" ; 
 	); 
-(* 	Mesh.makewindow top ; *)
-	(* test out the mesh module 
-	printf "-- testing meshing --\n%!"; 
-	let pts = List.map  (fun(x,y) -> foi x, foi y)
-		[(0,0);(1,0);(1,1);(0,1)] in
-	ignore(Mesh.mesh pts) ;  *)
 	(* this for testing (so we can get a backtrace... *) 
-	(* openFile top "/home/tlh24/svn/kicad/demos/ecc83/ecc83-pp_v2.brd";  *)
-	(* openFile top "/home/tlh24/svn/kicad/demos/pic_programmer/pic_programmer.brd"; 
-	List.iter (fun z -> z#empty ()) !gzones ; *)
-	(* gmodules := read_netlist "/home/tlh24/svn/myopen/emg_dsp/stage8/stage4.net" gmodules; *)
-	(* gratsnest#clearAll (); 
-	Anneal.doAnneal !gmodules (fun () -> render togl nulfun); 
-	redoRatNest (); *)
-	(* let schema = new schematic in 
-	schema#openFile "/home/tlh24/svn/myopen/emg_dsp/stage2.sch" "00000000" "root" ; 
-	schema#print "" ; 
-	*)
+	(* use ocamlrun -b *)
+	(* openFile top "/home/tlh24/sewing_machine/layout3/layout3.brd"; *)
+	
  	Printexc.record_backtrace true ; (* ocaml 3.11 *)
  	Printexc.print_backtrace stdout ; (* ocaml 3.11 *)
  	Printexc.print mainLoop () ;

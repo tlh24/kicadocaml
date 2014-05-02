@@ -157,15 +157,15 @@ let parallel a b c d =
 	)
 	;;
 	
-let parallel2 a b c d = (* also anti-parallel to one part in 1e4 *)
-	if distance a b < 0.001 || distance c d < 0.001 then( false )
+let parallel2 a b c d = (* or anti-parallel to one part in 1e5 *)
+	if distance a b < 0.001 || distance c d < 0.001 then false  else (
 	let ab = norm (sub a b) in
 	let cd = norm (sub c d) in
 	let dd = dot ab cd in
 	let tol = 1.0 -. dd in
 	let tol2 = 1.0 +. dd in 
-	if tol < 0.00002 || tol2 < 0.00002 then true
-	else false
+	if tol < 0.00001 || tol2 < 0.00001 then true
+	else false)
 	;;
 	
 let intersectPt a b c d = 

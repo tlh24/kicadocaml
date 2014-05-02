@@ -14,7 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with Kicadocaml.  If not, see <http://www.gnu.org/licenses/>.
 *)
-let gscl = ref 10000.0 (* global file unit scaling *)
+let gscl = ref 10000.0 (* global file unit scaling (divide by this) *)
 let gunit = ref "in"
 let gfver = ref 1 (* file version *)
 let pi = acos(-1.0)
@@ -93,6 +93,7 @@ let gsnapTracksToGrid = ref false
 let gdrawText= ref true 
 let gdosnap = ref true
 let gTrackEndpointOnly = ref false
+let gTrackDragConnected = ref false
 
 let random_timestamp () = Printf.sprintf "%x" (Int32.to_int(Random.int32 (Int32.max_int))) ;;
 

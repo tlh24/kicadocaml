@@ -140,7 +140,7 @@ let clamp1 a b c =
 	
 let parallel a b c d = 
 	(* see if two lines are parallel *)
-	if distance2 a b < 0.0001 || distance2 c d < 0.0001 then( false )
+	if distance2 a b < 0.001 || distance2 c d < 0.001 then( false )
 	else (
 		let ab = sub b a in
 		(* a prime is the origin *)
@@ -152,10 +152,22 @@ let parallel a b c d =
 		let cp = project c in
 		let dp = project d in
 		let cd = sub dp cp in
-		if abs_float (snd cd) < 0.001 then true
+		if abs_float (snd cd) < 0.0001 then true
 		else false
 	)
 	;;
+	
+let parallel2 a b c d = (* also anti-parallel to one part in 1e4 *)
+	if distance a b < 0.001 || distance c d < 0.001 then( false )
+	let ab = norm (sub a b) in
+	let cd = norm (sub c d) in
+	let dd = dot ab cd in
+	let tol = 1.0 -. dd in
+	let tol2 = 1.0 +. dd in 
+	if tol < 0.00002 || tol2 < 0.00002 then true
+	else false
+	;;
+	
 let intersectPt a b c d = 
 	(* find the point at which two lines intersect *)
 	(* assumes that the lines are valid & non-parallel *)

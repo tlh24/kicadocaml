@@ -59,17 +59,19 @@ let testdrc track tracks modules =
 	) with Not_found -> (track, false) in
 	if (not violation) then (
 		(* search through the pads *)
-		let pad = ref (List.hd ((List.hd modules)#getPads())) in
-		let violation2 = List.exists (fun m -> 
-			if bbxIntersect bbx (m#getDrcBBX()) then (
-				let p,f = m#testdrc st en w net lay suggest in
-				if f then pad := p; 
-				f
-			) else false
-		) modules 
-		in
-		if violation2 then !pad#setHighlight true ;
-		violation2, !suggest
+		if (List.length modules) > 0 then (
+			let pad = ref (List.hd ((List.hd modules)#getPads())) in
+			let violation2 = List.exists (fun m -> 
+				if bbxIntersect bbx (m#getDrcBBX()) then (
+					let p,f = m#testdrc st en w net lay suggest in
+					if f then pad := p; 
+					f
+				) else false
+			) modules 
+			in
+			if violation2 then !pad#setHighlight true ;
+			violation2, !suggest
+		) else false, !suggest (* no module violation. *)
 	) else true, !suggest (* track violation *)
 	;;	
 

@@ -28,9 +28,9 @@ SRC = $(OBJS:.cmo=.ml)
 .ml.cmx:
 	$(OCAMOPT) $(OPTIONS) $<
 	
-all: kicadocaml.opt 	#bytecode
+all: kicadocaml.opt 	#native code
 
-byte: kicadocaml  	#native code
+byte: kicadocaml  	#bytecode 
 	
 netlist.cmo:netlist.ml $(OBJS1)
 	$(OCAMLC) -syntax camlp4o $(OPTIONS),camlp4 $<

@@ -583,7 +583,7 @@ let render togl cb =
 		Array.iteri (fun i g -> 
 			GlMat.push() ; 
 			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:((foi i) /. 500.0) (); 
-			Grid.draw screenbbx g !alpha; 
+			Grid2.draw screenbbx g !alpha; 
 			if !genabledepth then alpha := !alpha +. 0.04; 
 			GlMat.pop() ; 
 		) ggrid ;
@@ -2683,7 +2683,7 @@ let makemenu top togl filelist =
 		~command: (fun () -> Mesh.makewindow top ) ; 
 	
 	Menu.add_command gridsSub ~label:"Grids ... " 
-		~command:(fun _ -> Grid.dialog top (fun () -> render togl nulfun) gridAdd ) ;
+		~command:(fun _ -> Grid2.dialog top (fun () -> render togl nulfun) gridAdd ) ;
 	addOption gridsSub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption gridsSub "grid snap" (fun b -> ggridSnap := b ) !ggridSnap; 
 	addOption gridsSub "snap tracks to grid" (fun b -> gsnapTracksToGrid := b) !gsnapTracksToGrid; 

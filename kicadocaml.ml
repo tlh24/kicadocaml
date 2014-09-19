@@ -2522,6 +2522,8 @@ let makemenu top togl filelist =
 	gridAdd 0.060 ; 
 	gridAdd 0.100 ;
 	gridAdd 0.120 ;
+	gridAdd 0.240 ;
+	gridAdd 0.500 ; 
 	gridAdd 1.000 ; 
 	
 	(* add in the sub-options menus .. *)
@@ -2596,7 +2598,7 @@ let makemenu top togl filelist =
 					let w = hd#getWidth () in
 					List.iter (fun t -> 
 						let dw = t#getWidth() -. w in
-						if (dw < 0.0001 || dw > -0.0001) && not (t#getDirty()) then (
+						if dw < 0.0001 && dw > -0.0001 && not (t#getDirty()) then (
 							let st = hd#getStart () in
 							let en = hd#getEnd () in
 							let stt = t#getStart() in
@@ -2620,15 +2622,19 @@ let makemenu top togl filelist =
 									let rec longest pl = 
 										match pl with
 										| p :: ptl -> (
-											(match ptl with 
-											| p2 :: _ -> 
-												let dd = Pts2.distance p p2 in
-												if dd > !g then (
-													g := dd; 
-													hd#setStart p; 
-													hd#setEnd p2; 
-												)
-											| _ -> () ); 
+											let rec longest2 y =
+												match y with 
+												| p2 :: ptl2 -> 
+													let dd = Pts2.distance p p2 in
+													if dd > !g then (
+														g := dd; 
+														hd#setStart p; 
+														hd#setEnd p2; 
+													) ; 
+													longest2 ptl2
+												| _ -> () 
+											in
+											longest2 ptl; 
 											longest ptl )
 										| _ -> ()
 									in
@@ -2644,6 +2650,7 @@ let makemenu top togl filelist =
 				| [] -> () in
 			recmatch (List.filter (fun t -> t#getLayer() == lay) !gtracks)
 		done; 
+		printf "removed %d tracks\n%!" (List.length (List.filter (fun t -> t#getDirty () ) !gtracks));
 		gtracks := List.filter (fun t -> not (t#getDirty () )) !gtracks; 
 	); 
 	

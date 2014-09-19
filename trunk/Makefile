@@ -9,7 +9,7 @@ OCAMOPT = ocamlfind ocamlopt -p -g -c -w x -w Z
 else 
 OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 30
 endif
-OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid.cmo \
+OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid2.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
 	propagate.cmo schematic.cmo teardrop.cmo
 OBJS2 = netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \

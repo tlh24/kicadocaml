@@ -365,7 +365,7 @@ let exportGerber filename = (* testing, testing. *)
 		) (m#getPads())
 	) !gmodules; 
 	
-	let saveGerberFile fnm layers pann affinefun = 
+	let saveGerberFile fnm layers nopanellay pann affinefun = 
 		print_endline ("saving " ^ fnm );
 		let oc = open_out fnm in
 		let pc = "%" in
@@ -392,13 +392,14 @@ let exportGerber filename = (* testing, testing. *)
 			fprintf oc "X%s%06dY%s%06dD%s*\n" 
 				six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
 		in
+		let gerbTrack (sx,sy) (ex,ey) = 
+			gerbPrint sx sy "02"; 
+			gerbPrint ex ey "01"; 
+		in
 		let gerbTrackPanel start fin = 
 			(* this also pannelizes! *)
 			for i=0 to pann-1 do (
-				let sx,sy = affinefun i start in
-				let ex,ey = affinefun i fin in
-				gerbPrint sx sy "02"; 
-				gerbPrint ex ey "01"; 
+				gerbTrack (affinefun i start) (affinefun i fin)
 			)done
 		in
 		let gerbPrintPanel x y flashcode = 
@@ -412,9 +413,12 @@ let exportGerber filename = (* testing, testing. *)
 			fprintf oc "G54D%d*\n" v ; 
 			if h = 0.0 then (
 				List.iter (fun t->
-					if (List.mem (t#getLayer()) layers) && t#getWidth() = w then ( (* drawings layer *)
+					if (List.mem (t#getLayer()) layers) && t#getWidth() = w then ( 
 						gerbTrackPanel (t#getStart()) (t#getEnd()); 
-					)
+					) ;
+					if (List.mem (t#getLayer()) nopanellay) && t#getWidth() = w then (
+						gerbTrack (t#getStart()) (t#getEnd()); 
+					) ; 
 				) !gtracks; 
 			) ; 
 			List.iter (fun m ->
@@ -468,41 +472,48 @@ let exportGerber filename = (* testing, testing. *)
 		)
 	) done*)
 	(* custom setup.. *)
-	let gy = 0.1 in
-	let gx = 0.8 in
+	let gy = 0.0 in
+	let gx = 0.0 in
 	let pannelizeFun pann (x,y) = 
 		let n = foi pann in
-		if pann < 4 then (
-			let ox = x +. n *. 26.0 -. (26.0 *. 2.0) +. gx in
+		let rotated yoffs nn = 
+			if nn >= 0.0 && nn < 2.0 then (
+				(* rotate 90, move *)
+				let ox =  1.0 *. (y+.gy) in
+				let oy = -1.0 *. (x+.gx) -. nn *. 10.4 +. yoffs in
+				(ox,oy)
+			)
+			else if nn >= 2.0 && nn < 4.0 then (
+				(* rotate 270, move *)
+				let ox = -1.0 *. (y+.gy)  in
+				let oy =  1.0 *. (x+.gx) -. (nn -. 1.0)*. 10.4 +. yoffs in
+				(ox,oy)
+			) else (-100.0, -100.0)
+		in
+		if pann < 10 then (
+			let ox = x +. n *. 10.4 -. (10.4 *. 5.0) +. gx in
 			let oy = y +. gy in
 			(ox,oy)
 		)
-		else if pann >= 4 && pann < 8 then (
+		else if pann >= 10 && pann < 20 then (
 			(* rotate 180, move *)
-			let ox =  -1.0 *. x +. (n -. 4.0)*. 26.0 -. 26.0 -. gx in
+			let ox =  -1.0 *. x +. (n -. 10.0)*. 10.4 -. (10.4 *. 4.0) -. gx in
 			let oy = -1.0 *. y -. gy in
 			(ox,oy)
 		)
-		else if pann == 8 then (
-			(* rotate 90, move *)
-			let ox =  1.0 *. (y+.gy) -. 20.5 in
-			let oy = -1.0 *. (x+.gx) +. 41.0 +. 26.0 in
-			(ox,oy)
-		)
-		else if pann == 9 then (
-			(* rotate 270, move *)
-			let ox = -1.0 *. (y+.gy) +. 20.5 in
-			let oy =  1.0 *. (x+.gx) -. 41.0 -. 26.0 in
-			(ox,oy)
-		)
+		else if pann >= 20 && pann < 24 then (
+			rotated (-37.5) (n -. 20.0) )
+		else if pann >= 24 && pann < 28 then ( 
+			rotated (37.5 +. 10.4 *. 2.0) (n -. 24.0) )
 		else (-100.0, -100.0)
 	in
-	saveGerberFile (rootname ^ "_metal_INVERT.gbr") [15] 10 pannelizeFun;
-	saveGerberFile (rootname ^ "_outline_cont.gbr") [24;1] 10 pannelizeFun; 
-	saveGerberFile (rootname ^ "_outline_rec.gbr") [24;4] 10 pannelizeFun;
-	saveGerberFile (rootname ^ "_metal2_INVERT.gbr") [1] 10 pannelizeFun;
-	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] 10 pannelizeFun;
-	saveGerberFile (rootname ^ "_wafer.gbr") [3] 1 (fun _ x -> x); 
+	let npan = 28 in
+	saveGerberFile (rootname ^ "_metal_INVERT.gbr") [15] [23] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_outline.gbr") [24] [] npan pannelizeFun; 
+	saveGerberFile (rootname ^ "_AlEtch.gbr") [1] [] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_protect.gbr") [4] [23] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] [23] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_wafer.gbr") [3] [23] 1 (fun _ x -> x); 
 	;;
 	
 (* UI stuff *)

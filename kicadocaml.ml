@@ -472,39 +472,37 @@ let exportGerber filename = (* testing, testing. *)
 		)
 	) done*)
 	(* custom setup.. *)
-	let gy = 0.0 in
-	let gx = 0.0 in
 	let pannelizeFun pann (x,y) = 
 		let n = foi pann in
 		let rotated yoffs nn = 
 			if nn >= 0.0 && nn < 2.0 then (
 				(* rotate 90, move *)
-				let ox =  1.0 *. (y+.gy) in
-				let oy = -1.0 *. (x+.gx) -. nn *. 10.4 +. yoffs in
+				let ox =  1.0 *. y in
+				let oy = -1.0 *. x -. nn *. 10.4 +. yoffs in
 				(ox,oy)
 			)
 			else if nn >= 2.0 && nn < 4.0 then (
 				(* rotate 270, move *)
-				let ox = -1.0 *. (y+.gy)  in
-				let oy =  1.0 *. (x+.gx) -. (nn -. 1.0)*. 10.4 +. yoffs in
+				let ox = -1.0 *. y  in
+				let oy =  1.0 *. x -. (nn -. 1.0)*. 10.4 -. 0.2 +. yoffs in
 				(ox,oy)
 			) else (-100.0, -100.0)
 		in
 		if pann < 10 then (
-			let ox = x +. n *. 10.4 -. (10.4 *. 5.0) +. gx in
-			let oy = y +. gy in
+			let ox = x +. n *. 10.4 -. (10.4 *. 5.0) in
+			let oy = y in
 			(ox,oy)
 		)
 		else if pann >= 10 && pann < 20 then (
 			(* rotate 180, move *)
-			let ox =  -1.0 *. x +. (n -. 10.0)*. 10.4 -. (10.4 *. 4.0) -. gx in
-			let oy = -1.0 *. y -. gy in
+			let ox =  -1.0 *. x +. (n -. 10.0)*. 10.4 -. (10.4 *. 4.0) +. 0.2 in
+			let oy = -1.0 *. y in
 			(ox,oy)
 		)
 		else if pann >= 20 && pann < 24 then (
 			rotated (-37.5) (n -. 20.0) )
 		else if pann >= 24 && pann < 28 then ( 
-			rotated (37.5 +. 10.4 *. 2.0) (n -. 24.0) )
+			rotated (37.5 +. 10.4 *. 2.0 +. 0.2) (n -. 24.0 ) )
 		else (-100.0, -100.0)
 	in
 	let npan = 28 in
@@ -2264,6 +2262,17 @@ let makemenu top togl filelist =
 						t#update (); 
 						t#setHit true) newzones ;
 					gzones := List.rev_append newzones !gzones; (* add them to the global list *)
+					render togl nulfun; 
+				) top;
+				(* and a function to shift tracks between layers *)
+				bind ~events:[`Modified([`Shift], `KeyPressDetail"L")] ~action:
+				(fun _ ->
+					printf "moving %d tracks to current layer %d...\n%!" 
+						(List.length tracks) (List.hd !glayerZlist); 
+					List.iter (fun t -> 
+						t#setLayer (List.hd !glayerZlist); 
+						t#update ()) tracks ;
+					render togl nulfun; 
 				) top;
 				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
 				let zones = List.filter (fun t-> t#getHit ()) !gzones in

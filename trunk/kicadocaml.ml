@@ -508,8 +508,9 @@ let exportGerber filename = (* testing, testing. *)
 	let npan = 28 in
 	saveGerberFile (rootname ^ "_metal_INVERT.gbr") [15] [23] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_outline.gbr") [24] [] npan pannelizeFun; 
-	saveGerberFile (rootname ^ "_AlEtch.gbr") [1] [] npan pannelizeFun;
-	saveGerberFile (rootname ^ "_protect.gbr") [4] [23] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_TiEtch.gbr") [1] [23] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_copper.gbr") [22] [23] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_protect.gbr") [4] [] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] [23] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_wafer.gbr") [3] [23] 1 (fun _ x -> x); 
 	;;

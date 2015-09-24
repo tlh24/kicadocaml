@@ -60,7 +60,7 @@ install:
 	cp kicadocaml.opt /usr/local/bin/kicadocaml
 	
 deps:
-	sudo apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib kicad
+	sudo apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib tk-dev tcl-dev
 
 clean: 
 	rm -f $(OBJS) $(OPTOBJS)

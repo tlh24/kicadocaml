@@ -60,6 +60,7 @@ install:
 	cp kicadocaml.opt /usr/local/bin/kicadocaml
 	
 deps:
+	sudo apt-get update
 	sudo apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib tk-dev tcl-dev
 
 clean: 

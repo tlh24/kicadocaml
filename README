@@ -37,6 +37,11 @@ entry support for milimeters.
 
 BUILDING:
 
+If you're using Debian or Ubuntu, just run: 
+$ make deps
+then
+$ make
+
 To build from source, install (with apt-get or another manager):
 # apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib
 
@@ -48,7 +53,7 @@ in some directory, (and install any required dependencies) and then
 # dpkg -i liblablgl-ocaml-dev_1.02-2_i386.deb
 
 Then you can run 
-$ make opt
+$ make
 (or just 'make kicadocaml' if you want the bytecode executable)
 and everything should work!
 Once you have started the program, be sure to look at 'about'

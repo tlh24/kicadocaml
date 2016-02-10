@@ -17,18 +17,18 @@
 open Comm
 open Tk
 
-let draw (xl,yl,xh,yh) gridsize alphain=
+let draw (xl,yl,xh,yh) gridsize (gox,goy) alphain =
 	(* draw a grid on the screen*)
-	let gridrange lo hi =
-		let sta = iof (lo /. gridsize) in
-		let fin = iof (hi /. gridsize) +1 in
+	let gridrange lo hi gridorigin =
+		let sta = iof ((lo -. gridorigin) /. gridsize) in
+		let fin = iof ((hi -. gridorigin) /. gridsize) + 1 in
 		(* don't draw too many lines on the screen *)
 		if fin - sta < 400 then (
-			range_float ((foi sta) *. gridsize) gridsize ((foi fin) *. gridsize)
+			range_float ((foi sta) *. gridsize +. gridorigin) gridsize ((foi fin) *. gridsize +. gridorigin)
 		) else []
 	in
-	let vgrid =  gridrange xl xh in
-	let hgrid =  gridrange yl yh in
+	let vgrid =  gridrange xl xh gox in
+	let hgrid =  gridrange yl yh goy in
 	if List.length hgrid > 0 && List.length vgrid > 0 then (
 		let numverts = ((List.length vgrid) + (List.length hgrid)) * 2 in
 		let raw = Raw.create_static `float (numverts * 2) in

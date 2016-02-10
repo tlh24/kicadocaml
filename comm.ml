@@ -329,13 +329,22 @@ let compare2 a b =
 	let r = compare (fst a) (fst b) in
 	if r = 0 then compare (snd a) (fst b) else r
 	;;
-	
-let rec range_float a b c = 
+(*	
+let rec range_float a b c = (* not tail-recursive *)
 	if a > c then []
 	else a :: range_float (a +. b) b c
 	;;
+*)
 	
-let snap x grid = (floor ((x /. grid) +. 0.5)) *. grid 
+let range_float a b c = (* start step end; tail-recursive*)
+	let rec rf_aux acc d = 
+		if d > c then List.rev acc
+		else rf_aux (d :: acc) (d +. b) 
+	in
+	rf_aux [] a
+	;;
+	
+let snap x grid origin = (floor (((x -. origin) /. grid) +. 0.5)) *. grid +. origin
 	(* snap to a grid point. *)
 	;;
 

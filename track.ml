@@ -377,6 +377,7 @@ object (self)
 			m_net <- ios sp.(3) ; 
 			m_status <- sp.(4) ; 
 			if m_layer = 24 (*drawings *) then m_drawsegment <- true ; 
+			if m_type = Track_Via then m_shape <- 3 ;  (* this seems to be a requirement for importing .brd files with the new version of pcbnew (4.0.0) *)
 			(* tracks don't make sense on the drawings layer. *)
 		)
 		method save oc = (

@@ -118,6 +118,7 @@ let gtrackwidth = ref 0.01
 let gtrackwidthlist = ref [] 
 let gviasizelist = ref [] 
 let ggridsizelist = ref []
+let ggridorigin = ref (0.0, 0.0)
 let gviapad = ref 0.047
 let gviadrill = ref 0.015
 let gfname = ref "" 
@@ -537,7 +538,9 @@ let abouttext =
 " f - In track editing/adding mode:\n\tfuse (join) tracks - two tracks must be highlighted \n" ^
 "     In module moving mode:\n\tflip a module from the top to the bottom of the board, and vice-versa\n"^
 " h - hide / unhide selected text in move text mode\n" ^
+" L - Switch (shift-selected) tracks to current layer\n" ^ 
 " m - move module \n" ^
+" o - set origin of grid to current snap. \n" ^
 " <space> - toggle between add and move track modes\n" ^
 " t - move track mode\n" ^
 " v - insert a via (in add tracks mode) \n" ^
@@ -593,7 +596,7 @@ let render togl cb =
 		Array.iteri (fun i g -> 
 			GlMat.push() ; 
 			GlMat.translate ~x:(0.0) ~y:(0.0) ~z:((foi i) /. 500.0) (); 
-			Grid2.draw screenbbx g !alpha; 
+			Grid2.draw screenbbx g !ggridorigin !alpha; 
 			if !genabledepth then alpha := !alpha +. 0.04; 
 			GlMat.pop() ; 
 		) ggrid ;
@@ -911,6 +914,7 @@ let makemenu top togl filelist =
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursorbox = Text.create ~width:17 ~height:2 menubar in
 	let snapbox = Text.create ~width:17 ~height:2 menubar in
+	let originbox = Text.create ~width:17 ~height:2 menubar in
 	(* information display callback *)
 	ginfodisp := ( fun s ->  
 		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (infodisp) ; 
@@ -925,7 +929,8 @@ let makemenu top togl filelist =
 		Text.insert  ~index:(`End, []) ~text:s txtbx; 
 	in
 	gcursordisp := (fun str x y -> coorddisp cursorbox str x y; 
-		coorddisp snapbox "snap" (fst !gsnapped) (snd !gsnapped)); 
+		coorddisp snapbox "snap" (fst !gsnapped) (snd !gsnapped); 
+		coorddisp originbox "origin" (fst !ggridorigin) (snd !ggridorigin)); 
 		
 	(*array callback ... *)
 	let arrayFun () = 
@@ -1558,6 +1563,9 @@ let makemenu top togl filelist =
 			) else ( print_endline "layer not present in board"; ) ; 
 		)
 		top in
+	let snapgrid cor = 
+		(snap (fst cor) ggrid.(0) (fst !ggridorigin)), 
+		(snap (snd cor) ggrid.(0) (snd !ggridorigin)) in
 	(* mouse wheel corresponds to buttons 4 & 5 *)
 	let calcCursPos ?(worknet=0) ?(onlyworknet=false) ev pan dosnap = 
 		(*first map to screen, then translate and scale *)
@@ -1576,8 +1584,7 @@ let makemenu top togl filelist =
 		gratsnest#clearSel (); 
 		gsnapped := out ; 
 		if !ggridSnap then ( (* either you grid snap or you track snap. *)
-			let grd = ggrid.(0) in
-			gsnapped := (snap (fst out) grd), (snap (snd out) grd)
+			gsnapped := snapgrid out
 		); 
 		if dosnap && nonemoving && (not !ghithold) then (
 			(* set the hit flags& get a netnum *)
@@ -1975,8 +1982,7 @@ let makemenu top togl filelist =
 				(* simple method: try moving the tracks; if there is an error, 
 				snap back to last safe position *)
 				if !gsnapTracksToGrid then (
-					let grd = ggrid.(0) in
-					let p = (snap cx grd), (snap cy grd) in
+					let p = snapgrid (cx,cy) in 
 					List.iter (fun t -> 
 						let u = t#getU () in
 						t#move (0.0,0.0); 
@@ -2005,8 +2011,7 @@ let makemenu top togl filelist =
 				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
 				(* now, move the zones *)
 				let curspos = if !ggridSnap then (
-					let grd = ggrid.(0) in
-					(snap cx grd), (snap cy grd)
+					snapgrid (cx,cy)
 				) else cx,cy in
 				List.iter (fun z -> z#move curspos) !zones ; 
 				gcurnet := !workingnet;
@@ -2139,13 +2144,13 @@ let makemenu top togl filelist =
 				!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 				(* may want to snap to grid here (snap the center of the modules) *)
 				if !ggridSnap then (
-					let grd = ggrid.(0) in
 					List.iter (fun m -> 
 						m#move (0.0 , 0.0);
 						let ox, oy = m#getCenter true in
 						m#move !gdrag ; (* move it, then snap *)
 						let cx,cy = m#getCenter true in
-						m#move ((snap cx grd) -. ox,(snap cy grd) -. oy); 
+						let snp = snapgrid (cx,cy) in
+						m#move ((fst snp) -. ox, (snd snp) -. oy); 
 					)! modules ; 
 				) else (
 					List.iter (fun m -> m#move !gdrag ) !modules ;
@@ -2297,8 +2302,7 @@ let makemenu top togl filelist =
 						let cx,cy =  Pts2.sub prescurspos startPos in
 						if !ggridSnap then (
 							(* move it an integer multiple of the smallest grid *)
-							let grd = ggrid.(0) in
-							gdrag := (snap cx grd),(snap cy grd) ; 
+							gdrag := snapgrid (cx,cy) ; 
 						) else (
 							gdrag := cx,cy ; 
 						); 
@@ -3158,6 +3162,7 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  
 	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ;
 	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
+	bind ~events:[`KeyPressDetail("o")] ~action:(fun _ -> ggridorigin := !gsnapped; render togl nulfun) top; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 
@@ -3369,7 +3374,7 @@ let makemenu top togl filelist =
 	(* display them *)
 	pack ~side:`Left 
 		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; Tk.coe gridb ;  
-		Tk.coe infodisp; Tk.coe cursorbox ; Tk.coe snapbox ;Tk.coe mframe; Tk.coe layerframe];
+		Tk.coe infodisp; Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)
 	;;

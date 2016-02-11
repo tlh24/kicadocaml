@@ -2295,17 +2295,13 @@ let makemenu top togl filelist =
 					List.iter (fun m-> m#setU 0.5 ) tracks ; 
 					SI.iter (fun n -> gratsnest#updateTracks ~final:false n !gtracks ) worknets; 
 					gbutton1pressed := true ;
-					let startPos = calcCursPos evv !gpan true in
+					ignore( calcCursPos evv !gpan true ); 
+					let startPos = !gsnapped in
 					Mouse.bindMove 2221 top ~action:
 					(fun evv -> 
-						let prescurspos = calcCursPos evv !gpan true in
-						let cx,cy =  Pts2.sub prescurspos startPos in
-						if !ggridSnap then (
-							(* move it an integer multiple of the smallest grid *)
-							gdrag := snapgrid (cx,cy) ; 
-						) else (
-							gdrag := cx,cy ; 
-						); 
+						ignore( calcCursPos evv !gpan true ); 
+						let prescurspos = !gsnapped in
+						gdrag :=  Pts2.sub prescurspos startPos ;
 						!gcursordisp "d" (fst !gdrag) (snd !gdrag) ; 
 						List.iter (fun m -> m#move !gdrag ) modules ; 
 						List.iter (fun t -> t#move !gdrag ) tracks ;
@@ -3163,6 +3159,7 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ;
 	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
 	bind ~events:[`KeyPressDetail("o")] ~action:(fun _ -> ggridorigin := !gsnapped; render togl nulfun) top; 
+	bind ~events:[`Modified([`Shift],`KeyPressDetail"O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 

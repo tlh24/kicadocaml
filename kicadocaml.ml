@@ -541,6 +541,7 @@ let abouttext =
 " L - Switch (shift-selected) tracks to current layer\n" ^ 
 " m - move module \n" ^
 " o - set origin of grid to current snap. \n" ^
+" O - reset origin of grid to 0,0. \n" ^
 " <space> - toggle between add and move track modes\n" ^
 " t - move track mode\n" ^
 " v - insert a via (in add tracks mode) \n" ^

@@ -136,6 +136,7 @@ let gcrossProbeRX = ref true
 let gTrackAdd = ref (fun _ -> ())
 let gViaAdd = ref (fun _ _ -> ())
 let gpulling = ref true 
+let gcursorlock = ref (1e99,1e99)
 
 let readlines ic =
 	(*remove the old modules *)
@@ -550,6 +551,8 @@ let abouttext =
 " w - change width of highlited wire\n" ^
 " X - mirror along x axis\n" ^
 " Y - mirror along y axis\n" ^
+" | - restrict cursor to vertical motion\n" ^
+" _ - restrict cursor to horizontal motion\n" ^
 " .... \n" ^
 " page up - select copper layer \n" ^
 " page down - select component layer \n" ^
@@ -1576,7 +1579,9 @@ let makemenu top togl filelist =
 		let w2, h2 = (foi w) /. 2. , (foi h) /. 2. in
 		let x = ((foi ev.ev_MouseX) -. w2) /. w2 *. ar in
 		let y = ((foi ev.ev_MouseY) -. h2) /. h2 /. 1. in
-		let out = (x /. !gzoom -. (fst pan)) , (y /. !gzoom -. (snd pan)) in
+		let o = (x /. !gzoom -. (fst pan)) , (y /. !gzoom -. (snd pan)) in
+		let out = (if (fst !gcursorlock) > 1e90 then (fst o) else (fst !gcursorlock)), 
+					(if (snd !gcursorlock) > 1e90 then (snd o) else (snd !gcursorlock)) in 
 		
 		(* see how many modules are selected for movement; 
 		if there are any, don't hit any *)
@@ -3162,6 +3167,14 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
 	bind ~events:[`KeyPressDetail("o")] ~action:(fun _ -> ggridorigin := !gsnapped; render togl nulfun) top; 
 	bind ~events:[`Modified([`Shift],`KeyPressDetail"O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
+	bind ~events:[`Modified([`Shift],`KeyPressDetail"underscore")] ~action:
+		(fun _ -> 
+			gcursorlock := if (snd !gcursorlock) > 1e90 then (fst !gcursorlock),(snd !gcurspos) 
+				else (fst !gcursorlock),(1e99); ) top; 
+	bind ~events:[`Modified([`Shift],`KeyPressDetail"bar")] ~action:
+		(fun _ -> 
+			gcursorlock := if (fst !gcursorlock) > 1e90 then (fst !gcurspos),(snd !gcursorlock) 
+				else (1e99),(snd !gcursorlock); ) top; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 

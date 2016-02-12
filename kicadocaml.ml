@@ -3159,7 +3159,7 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ;
 	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
 	bind ~events:[`KeyPressDetail("o")] ~action:(fun _ -> ggridorigin := !gsnapped; render togl nulfun) top; 
-	bind ~events:[`Modified([`Shift],`KeyPressDetail("O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
+	bind ~events:[`Modified([`Shift],`KeyPressDetail"O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 

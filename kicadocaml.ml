@@ -541,11 +541,13 @@ let abouttext =
 " L - Switch (shift-selected) tracks to current layer\n" ^ 
 " m - move module \n" ^
 " o - set origin of grid to current snap. \n" ^
+" O - reset origin of grid to 0,0. \n" ^
 " <space> - toggle between add and move track modes\n" ^
 " t - move track mode\n" ^
 " v - insert a via (in add tracks mode) \n" ^
 " v - edit module value (in move module mode)\n"^
 " Ctrl-V - select via size \n" ^
+" w - change width of highlited wire\n" ^
 " X - mirror along x axis\n" ^
 " Y - mirror along y axis\n" ^
 " .... \n" ^
@@ -3159,7 +3161,7 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("h")] ~action:doToggleShow top ;
 	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
 	bind ~events:[`KeyPressDetail("o")] ~action:(fun _ -> ggridorigin := !gsnapped; render togl nulfun) top; 
-	bind ~events:[`Modified([`Shift],`KeyPressDetail("O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
+	bind ~events:[`Modified([`Shift],`KeyPressDetail"O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
 			let track,found = try 
@@ -3318,6 +3320,17 @@ let makemenu top togl filelist =
 					)
 					| None -> ()
 			)
+		) top; 
+	bind ~events:[`KeyPressDetail("w")] ~fields:[`MouseX; `MouseY] ~action:
+		(* change width of currently hit tracks *)
+		(fun ev -> 
+			ignore(  calcCursPos ev !gpan true ); 
+			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then (
+				let tracks = List.filter (fun t -> t#getHit() ) !gtracks in
+				List.iter (fun t -> t#setWidth !gtrackwidth ) tracks; 
+				List.iter (fun t -> t#update () ) tracks; 
+				render togl nulfun; 
+			); 
 		) top; 
 	bind ~events:[`KeyPressDetail("KP_Enter")] ~fields:[`MouseX; `MouseY] ~action:
 	(fun ev -> (* cross-probe *)

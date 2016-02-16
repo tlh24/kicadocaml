@@ -373,25 +373,26 @@ let exportGerber filename = (* testing, testing. *)
 		let pc = "%" in
 		fprintf oc "G04 (created by kicadocaml v 112)*\n"; 
 		fprintf oc "G01*\nG70*\nG90*\n" ; 
-		fprintf oc "%sMOIN*%s\n" pc pc;
-		fprintf oc "G04 Gerber Fmt 3.4, Leading zero omitted, Abs format*\n";
-		fprintf oc "%sFSLAX34Y34*%s\n" pc pc; 
+		fprintf oc "%sMOMM*%s\n" pc pc;
+		fprintf oc "G04 Gerber Fmt 2.5, Leading zero omitted, Abs format*\n";
+		fprintf oc "%sFSLAX25Y25*%s\n" pc pc; 
 		(* these won't be in order .. meh. *)
 		fprintf oc "G04 APERTURE LIST*\n"; 
+		let sc a = a *. 1.0 in (* 0.001in = 1um; 1in = 1mm *) 
 		Hashtbl.iter (fun k v -> 
 			let (w,h) = k in
 			if (h = 0.0) then (
-				fprintf oc "%sADD%dC,%1.6f*%s\n" pc v w pc
+				fprintf oc "%sADD%dC,%1.6f*%s\n" pc v (sc w) pc
 			) else (
-				fprintf oc "%sADD%dR,%1.6fX%1.6f*%s\n" pc v w h pc
+				fprintf oc "%sADD%dR,%1.6fX%1.6f*%s\n" pc v (sc w) (sc h) pc
 			)
 		) apertures; 
 		(* now iterate over the tracks / modules, flashing the apertures. *)
-		let cnvt d = round (d *. 10000.0) in
+		let cnvt d = round (d *. 100000.0) in
 		let gerbPrint x y flashcode = 
 			let six = if x < 0.0 then "-" else "" in
 			let siy = if y > 0.0 then "-" else "" in (*flip vertical axis .. not sure why.*)
-			fprintf oc "X%s%06dY%s%06dD%s*\n" 
+			fprintf oc "X%s%07dY%s%07dD%s*\n" 
 				six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
 		in
 		let gerbTrack (sx,sy) (ex,ey) = 
@@ -510,11 +511,11 @@ let exportGerber filename = (* testing, testing. *)
 	let npan = 28 in
 	saveGerberFile (rootname ^ "_metal_INVERT.gbr") [15] [23] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_outline.gbr") [24] [] npan pannelizeFun; 
-	saveGerberFile (rootname ^ "_TiEtch.gbr") [1] [23] npan pannelizeFun;
+(*	saveGerberFile (rootname ^ "_TiEtch.gbr") [1] [23] npan pannelizeFun;*)
 	saveGerberFile (rootname ^ "_copper.gbr") [22] [23] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_protect.gbr") [4] [] npan pannelizeFun;
-	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] [23] npan pannelizeFun;
-	saveGerberFile (rootname ^ "_wafer.gbr") [3] [23] 1 (fun _ x -> x); 
+	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] [2] npan pannelizeFun;
+	saveGerberFile (rootname ^ "_wafer.gbr") [3] [] 1 (fun _ x -> x); 
 	;;
 	
 (* UI stuff *)
@@ -2551,6 +2552,8 @@ let makemenu top togl filelist =
 	gridAdd 0.100 ;
 	gridAdd 0.120 ;
 	gridAdd 0.240 ;
+	gridAdd 0.200 ;
+	gridAdd 0.480 ;
 	gridAdd 0.500 ; 
 	gridAdd 1.000 ; 
 	

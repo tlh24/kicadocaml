@@ -536,6 +536,7 @@ let abouttext =
 " a - add track mode\n" ^
 " Ctrl-T - select track width \n" ^ 
 " b - break track under cursor \n" ^
+" c - turn selected track into circle \n" ^
 " e - edit (only text edit mplemented srry)\n" ^
 " f - In track editing/adding mode:\n\tfuse (join) tracks - two tracks must be highlighted \n" ^
 "     In module moving mode:\n\tflip a module from the top to the bottom of the board, and vice-versa\n"^
@@ -3337,6 +3338,33 @@ let makemenu top togl filelist =
 					| None -> ()
 			)
 		) top; 
+	bind ~events:[`KeyPressDetail("c")] ~fields:[`MouseX; `MouseY] ~action:
+		(* draw a circle using the current hit track + selected width. *)
+		(fun ev -> 
+			ignore(  calcCursPos ev !gpan true ); 
+			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then (
+				let track, found = try 
+					(List.find (fun t -> t#getHit() ) !gtracks),true
+					with Not_found -> (List.hd !gtracks), false
+				in
+				if found then (
+					track#setHit false; 
+					let c = track#getStart () in
+					let r = 0.5 *. ( track#getWidth () ) in
+					let t = ref 0. in
+					let dt = pi /. 16.0 in
+					for i = 0 to 31 do (
+						let tt = new pcb_track in
+						tt#setStart (Pts2.add c ( r *. sin(!t) , r *. cos(!t))); 
+						t := !t +. dt; 
+						tt#setEnd (Pts2.add c ( r *. sin(!t) , r *. cos(!t))); 
+						tt#setLayer !glayer ; 
+						tt#setWidth !gtrackwidth ; 
+						tt#update (); 
+						gtracks := (tt :: !gtracks); 
+					) done; 
+				)
+			)) top; 
 	bind ~events:[`KeyPressDetail("w")] ~fields:[`MouseX; `MouseY] ~action:
 		(* change width of currently hit tracks *)
 		(fun ev -> 

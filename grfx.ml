@@ -80,6 +80,9 @@ method updateLayers layers =
 	m_z <- zz; 
 	self#updateRaw() ; 
 	
+method appendVert v = 
+	vertx <- verts :: v ; 
+	
 method updateBBX () = 
 	(* let's update the bounding box *)
 	let (minx, miny) = try List.fold_left (

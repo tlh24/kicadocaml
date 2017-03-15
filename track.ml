@@ -108,6 +108,7 @@ object (self)
 		)
 		method setLayer l = m_layer <- l ; 
 		method getLayer () = m_layer ; 
+		method getGrfx () = m_g ; 
 		method getType () = m_type ;
 		method isVia() = m_type = Track_Via ;
 		method getWidth () = m_width

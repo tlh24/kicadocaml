@@ -103,6 +103,7 @@ let gnets = ref [] (*this must be a reference, as we are updating! *)
 let gtracks = ref []
 let gmodules = ref []
 let gzones = ref []
+let gcells = ref []
 let ggeneric = ref []
 let gzoom = ref 1.0
 let gdrag = ref (0.0, 0.0)
@@ -142,6 +143,7 @@ let readlines ic =
 	gnets := [] ; 
 	gmodules := [] ; 
 	gtracks := [] ; 
+	gcells := [] ;
 	gzones := [] ; 
 	ggeneric := [] ; 
 	let gitline ic = 
@@ -157,6 +159,17 @@ let readlines ic =
 			let t = new pcb_track in
 			t#read ic !line ; 
 			gtracks := (t :: !gtracks) ; 
+			line := input_line2 ic ; 
+		)
+		done ;
+	in
+	let readcells ic = 
+		let line = ref (input_line2 ic) in
+		while not (Pcre.pmatch ~pat:"\$EndCELL" !line) do 
+		(
+			let c = new pcb_cell in
+			c#read ic !line ; 
+			gcells := (t :: !gcells) ; 
 			line := input_line2 ic ; 
 		)
 		done ;
@@ -193,6 +206,9 @@ let readlines ic =
 				)
 				| "$TRACK" -> (
 					readtracks ic ; 
+				)
+				| "$CELL" -> (
+					readcells ic ; 
 				)
 				| "$CZONE_OUTLINE" -> (
 					let zon = new zone in
@@ -907,12 +923,14 @@ let makemenu top togl filelist =
 	and optionb = Menubutton.create ~text:"Options" menubar
 	and viab = Menubutton.create ~text:"Via" menubar 
 	and trackb = Menubutton.create ~text:"Track" menubar 
-	and gridb = Menubutton.create ~text:"Grid" menubar in
+	and gridb = Menubutton.create ~text:"Grid" menubar 
+	and cellb = Menubutton.create ~text:"Cells" menubar in
 	let filemenu = Menu.create ~tearoff:false fileb
 	and optionmenu = Menu.create ~tearoff:false optionb
 	and viamenu = Menu.create ~tearoff:false viab 
 	and trackmenu = Menu.create ~tearoff:false trackb
-	and gridmenu = Menu.create ~tearoff:false gridb in
+	and gridmenu = Menu.create ~tearoff:false gridb 
+	and cellmenu = Menu.create ~tearoff:false cellb in
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursorbox = Text.create ~width:17 ~height:2 menubar in
 	let snapbox = Text.create ~width:17 ~height:2 menubar in
@@ -2548,6 +2566,24 @@ let makemenu top togl filelist =
 	gridAdd 0.240 ;
 	gridAdd 0.500 ; 
 	gridAdd 1.000 ; 
+	
+	(* cells *)
+	let cellMenuRefresh () =
+		Menu.insert_command ~index:0 cellmenu ~label:"All" 
+			~command:(fun _ -> gcurrentcell <- None) ; 
+		List.iteri (fun i c -> 
+			Menu.insert_command ~index:(i+1) cellmenu 
+				~label:(c#getname ()) ~command: (fun _ ->
+					gcurrentcell <- Some c) ) 
+			(List.sort (fun a b -> String.compare (a#getname ()) (b#getname()))
+				!gcells); 
+	in
+	let cellMenuAdd () = 
+		let dlog = Toplevel.create top in
+		Wm.title_set dlog "Cells" ; 
+		XXXX
+	in
+	
 	
 	(* add in the sub-options menus .. *)
 	let displaySub = Menu.create optionmenu in (* pass the contatining menu as the final argument *)

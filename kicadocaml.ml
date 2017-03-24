@@ -1,4 +1,4 @@
-(* Copyright 2008-2011, Timothy L Hanson *)
+(* Copyright 2008-2017, Timothy L Hanson *)
 (* This file is part of Kicadocaml.
 
     Kicadocaml is free software: you can redistribute it and/or modify
@@ -31,6 +31,7 @@ open Drc
 open Schematic
 open Doarray
 open Netlist
+open Cell
 
 let nulfun _ = false ;;
 
@@ -136,7 +137,9 @@ let gcrossProbeTX = ref true
 let gcrossProbeRX = ref true
 let gTrackAdd = ref (fun _ -> ())
 let gViaAdd = ref (fun _ _ -> ())
+let gCellMenuRefresh = ref (fun _ -> ())
 let gpulling = ref true 
+let gcurrentcell = ref None
 
 let readlines ic =
 	(*remove the old modules *)
@@ -169,7 +172,7 @@ let readlines ic =
 		(
 			let c = new pcb_cell in
 			c#read ic !line ; 
-			gcells := (t :: !gcells) ; 
+			gcells := (c :: !gcells) ; 
 			line := input_line2 ic ; 
 		)
 		done ;
@@ -905,6 +908,9 @@ let openFile top fname =
 		)
 	) !gtracks; 
 	SI2.iter (fun tw -> !gViaAdd ((foi (fst tw)) /. 1000.0) ((foi (snd tw)) /. 1000.0) ) !viaSize; 
+	
+	(* and do the same for the cells. *)
+	!gCellMenuRefresh (); 
 	
 	linenum := 0 ; 
 	let schfil = selectSch top fname in
@@ -2568,22 +2574,55 @@ let makemenu top togl filelist =
 	gridAdd 1.000 ; 
 	
 	(* cells *)
-	let cellMenuRefresh () =
-		Menu.insert_command ~index:0 cellmenu ~label:"All" 
-			~command:(fun _ -> gcurrentcell <- None) ; 
-		List.iteri (fun i c -> 
-			Menu.insert_command ~index:(i+1) cellmenu 
-				~label:(c#getname ()) ~command: (fun _ ->
-					gcurrentcell <- Some c) ) 
-			(List.sort (fun a b -> String.compare (a#getname ()) (b#getname()))
-				!gcells); 
-	in
 	let cellMenuAdd () = 
 		let dlog = Toplevel.create top in
 		Wm.title_set dlog "Cells" ; 
-		XXXX
+		(* have a bunch of checkboxes per cell, plus a box for adding a new one. *)
+		let buttons = List.map (fun c -> 
+			let cframe = Frame.create dlog in (* horizontal *)
+			let v = Textvariable.create ~on:cframe () in
+			Textvariable.set v (if (c#getVisible ()) then "On" else "Off" ) ; 
+			let ckbutton = Checkbutton.create cframe ~text:(c#getName ())
+				~indicatoron:true ~variable:v 
+				~offvalue:"Off" ~onvalue:"On"
+				~command:(fun () -> 
+					c#setVisible ((Textvariable.get v)=="On")
+					) in
+			let swbutton = Button.create cframe ~text:(c#getName ())
+				~command:(fun () -> gcurrentcell := Some c) in
+			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
+			cframe 
+		) !gcells in
+		let f2 = Frame.create dlog in
+		let msg = Message.create ~text:"new cell:"  f2 in
+		let newcell = Entry.create ~width:10 f2 in
+		let button = Button.create ~text:("add") ~command: 
+			(fun () -> 
+				let cell = new pcb_cell in
+				cell#setName (Entry.get newcell) ; 
+				gcells := cell :: !gcells;  
+				!gCellMenuRefresh () ; 
+				Tk.destroy dlog; 
+				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
+			) f2 in
+		Tk.pack ~side:`Left ~fill:`Both ~expand:true [Tk.coe msg; Tk.coe newcell; Tk.coe button] ; 
+		let all = f2 :: buttons in
+		Tk.pack ~fill:`Both ~expand:true all; 
 	in
-	
+	let cellMenuRefresh () =
+		Menu.insert_command ~index:(`Num 0) cellmenu ~label:"All" 
+			~command:(fun _ -> gcurrentcell := None) ; 
+		List.iteri (fun i c -> 
+			Menu.insert_command ~index:(`Num (i+1)) cellmenu 
+				~label:(c#getName ()) ~command: (fun _ ->
+					gcurrentcell := Some c) ) 
+			(List.sort (fun a b -> String.compare (a#getName ()) (b#getName()))
+				!gcells); 
+		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
+			~label:"Add" ~command:cellMenuAdd ; 
+	in
+	gCellMenuRefresh := cellMenuRefresh ; 
+	cellMenuRefresh (); (* to get the 'all' and 'add' entries. *)
 	
 	(* add in the sub-options menus .. *)
 	let displaySub = Menu.create optionmenu in (* pass the contatining menu as the final argument *)
@@ -3019,7 +3058,8 @@ let makemenu top togl filelist =
 	Menubutton.configure optionb ~menu:optionmenu;
 	Menubutton.configure viab ~menu:viamenu;
 	Menubutton.configure trackb ~menu:trackmenu;
-	Menubutton.configure gridb ~menu:gridmenu; 
+	Menubutton.configure gridb ~menu:gridmenu;
+	Menubutton.configure cellb ~menu:cellmenu; 
 	(* bind the buttons?? *)
 	(* default *)
 	bind ~events:[`ButtonPressDetail(3)] ~fields:[`MouseX; `MouseY] ~action:
@@ -3419,8 +3459,9 @@ let makemenu top togl filelist =
 	) top; 
 	(* display them *)
 	pack ~side:`Left 
-		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; Tk.coe gridb ;  
-		Tk.coe infodisp; Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe mframe; Tk.coe layerframe];
+		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 
+		Tk.coe gridb ;  Tk.coe cellb; Tk.coe infodisp; 
+		Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)
 	;;

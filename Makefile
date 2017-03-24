@@ -11,7 +11,7 @@ OCAMOPT = ocamlfind ocamlopt -c -w x -w Z -inline 30
 endif
 OBJS1 = pts2.cmo comm.cmo grfonte.cmo grfx.cmo modtext.cmo grid2.cmo \
 	shape.cmo pad.cmo mod.cmo track.cmo ratnest.cmo drc.cmo align.cmo \
-	propagate.cmo schematic.cmo teardrop.cmo
+	propagate.cmo schematic.cmo teardrop.cmo cell.cmo
 OBJS2 = netlist.cmo doarray.cmo mouse.cmo glwindow.cmo \
 	mesh.cmo poly.cmo zone.cmo blockrotate.cmo find.cmo anneal.cmo pull.cmo kicadocaml.cmo 
 OBJS = $(OBJS1) $(OBJS2)
@@ -61,7 +61,10 @@ install:
 	
 deps:
 	sudo apt-get update
-	sudo apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib tk-dev tcl-dev
+	sudo apt-get install ocaml liblablgl-ocaml-dev libpcre-ocaml-dev ocaml-findlib tk-dev tcl-dev labltk
+	
+browse: 
+	ocamlfind ocamlbrowser $(OPTIONS)
 
 clean: 
 	rm -f $(OBJS) $(OPTOBJS)

@@ -110,5 +110,12 @@ method accumulate (gr:grfx) lay tm (cells : pcb_cell list) =
 		| _ -> ()
 	) m_cells ;
 	
+method draw bbx = (
+	if m_visible then (
+		List.iter (fun t -> 
+			t#draw bbx
+		) m_tracks; 
+	); 
+)
 	
 end

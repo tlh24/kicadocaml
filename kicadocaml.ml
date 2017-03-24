@@ -55,7 +55,7 @@ object
 		case-insensitive *)
 		(* pcbnew occasionally seems to mess up the layer list - 
 		just set it to 6 layers by default. *)
-		glayerPresent := [0; 1; 2; 3; 4; 15]; 
+		glayerPresent := [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15]; 
 		while not ( Pcre.pmatch ~rex:(Pcre.regexp ~flags:[`CASELESS] endpat) !line ) do
 			m_lines <- ( !line :: m_lines ) ; 
 			line := input_line2 ic ; 
@@ -138,8 +138,9 @@ let gcrossProbeRX = ref true
 let gTrackAdd = ref (fun _ -> ())
 let gViaAdd = ref (fun _ _ -> ())
 let gCellMenuRefresh = ref (fun _ -> ())
+let gCellMenuLength = ref 0
 let gpulling = ref true 
-let gcurrentcell = ref None
+let gCurrentCell = ref None
 
 let readlines ic =
 	(*remove the old modules *)
@@ -641,7 +642,7 @@ let render togl cb =
 					m#draw screenbbx z
 				) !gmodules ; 
 			);
-			(* draw the tracks.. *)
+			(* draw the top-cell tracks.. *)
 			if !gdrawtracks then (
 				List.iter (fun m -> 
 					if m#isVia() then (
@@ -651,6 +652,10 @@ let render togl cb =
 					); 
 				) !gtracks ; 
 			); 
+			(* draw the cells *)
+			List.iter (fun c -> 
+				c#draw screenbbx 
+			) !gcells ;
 			(* do the same on the zones. *)
 			if !gdrawzones then (
 				List.iter (fun zon -> 
@@ -1711,6 +1716,7 @@ let makemenu top togl filelist =
 			workingnet := !gcurnet ; 
 			if ((!glayer >= 20 && glayerEn.(!glayer)) || (not !gtrackDRC)) then (
 				workingnet := 0; (* the drawing net. *)
+				printf "working net 0\n%!"; 
 			);
 			if !workingnet > 0 || !glayer >= 20 || (not !gtrackDRC) then (
 				if List.exists (fun z -> z#getHit () ) !gzones then (
@@ -1758,7 +1764,9 @@ let makemenu top togl filelist =
 						(List.hd sorted)#getLayer() in
 					if lay <> !glayer then changelayercallback (layer_to_string lay); *)
 					let track = new pcb_track in
-					gtracks := (track :: !gtracks); 
+					(match !gCurrentCell with
+					| Some c -> c#addTrack track
+					| None -> gtracks := (track :: !gtracks)); 
 					gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true; 
 					track#setStart !gsnapped ; 
 					track#setEnd !gsnapped ; 
@@ -2574,7 +2582,10 @@ let makemenu top togl filelist =
 	gridAdd 1.000 ; 
 	
 	(* cells *)
-	let cellMenuAdd () = 
+	let cellSortName () = (List.sort (fun a b -> String.compare (a#getName ()) (b#getName()))
+				!gcells) in
+	
+	let cellAdd () = 
 		let dlog = Toplevel.create top in
 		Wm.title_set dlog "Cells" ; 
 		(* have a bunch of checkboxes per cell, plus a box for adding a new one. *)
@@ -2589,10 +2600,10 @@ let makemenu top togl filelist =
 					c#setVisible ((Textvariable.get v)=="On")
 					) in
 			let swbutton = Button.create cframe ~text:(c#getName ())
-				~command:(fun () -> gcurrentcell := Some c) in
+				~command:(fun () -> gCurrentCell := Some c) in
 			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
 			cframe 
-		) !gcells in
+		) (cellSortName ()) in
 		let f2 = Frame.create dlog in
 		let msg = Message.create ~text:"new cell:"  f2 in
 		let newcell = Entry.create ~width:10 f2 in
@@ -2610,16 +2621,17 @@ let makemenu top togl filelist =
 		Tk.pack ~fill:`Both ~expand:true all; 
 	in
 	let cellMenuRefresh () =
+		Menu.delete ~first:(`Num 0) ~last:(`Num !gCellMenuLength) cellmenu ; 
 		Menu.insert_command ~index:(`Num 0) cellmenu ~label:"All" 
-			~command:(fun _ -> gcurrentcell := None) ; 
+			~command:(fun _ -> gCurrentCell := None) ; 
 		List.iteri (fun i c -> 
 			Menu.insert_command ~index:(`Num (i+1)) cellmenu 
 				~label:(c#getName ()) ~command: (fun _ ->
-					gcurrentcell := Some c) ) 
-			(List.sort (fun a b -> String.compare (a#getName ()) (b#getName()))
-				!gcells); 
+					gCurrentCell := Some c) ) 
+			(cellSortName ());
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
-			~label:"Add" ~command:cellMenuAdd ; 
+			~label:"Add" ~command:cellAdd ; 
+		gCellMenuLength := (List.length !gcells) + 2; 
 	in
 	gCellMenuRefresh := cellMenuRefresh ; 
 	cellMenuRefresh (); (* to get the 'all' and 'add' entries. *)

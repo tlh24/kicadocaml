@@ -262,6 +262,9 @@ let saveall filename =
 	fprintf oc "$TRACK\n" ;
 	List.iter sv (List.rev  tracks ); 
 	fprintf oc "$EndTRACK\n" ;
+	fprintf oc "$CELL\n" ;
+	List.iter sv (List.rev  !gcells ); 
+	fprintf oc "$EndCELL\n" ;
 	List.iter sv zones;
 	List.iter sv (List.rev !gzones ); 
 	fprintf oc "$EndBOARD\n" ;
@@ -871,6 +874,7 @@ let openFile top fname =
 	List.iter (fun m -> m#update()) !gmodules ; 
 	List.iter (fun m -> m#update()) !gtracks ; 
 	List.iter (fun z -> z#update ()) !gzones ; 
+	List.iter (fun z -> z#update ()) !gcells ; 
 	updateLayers 15 true ; (* default to component layer *)
 	(* if the board was saved in pcbnew, then we need to propagate the netcodes to all tracks. *)
 	(* otherwise, adding tracks to existing ones becomes impossible ... *)
@@ -3714,7 +3718,7 @@ let _ =
 	); 
 	(* this for testing (so we can get a backtrace... *) 
 	(* use ocamlrun -b *)
-	(* openFile top "/home/tlh24/sewing_machine/layout3/layout3.brd"; *)
+	openFile top "/home/tlh24/kicadocaml/test_cell.brd"; 
 	
  	Printexc.record_backtrace true ; (* ocaml 3.11 *)
  	Printexc.print_backtrace stdout ; (* ocaml 3.11 *)

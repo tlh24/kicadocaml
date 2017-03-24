@@ -56,35 +56,57 @@ method getVisible () = m_visible;
 method setVisible v = m_visible <- v;
 	
 method addTrack track = (
+	printf "adding track to %s\n%!" m_name;
 	m_tracks <- track :: m_tracks
 )
 
 method read ic line = 
 	(* starts with $CELL *)
 	(* first, transformation matrix. *)
+	let line2 = ref line in 
+	let sp = Pcre.extract ~pat:"Cn (\w+)" !line2 in
+	m_name <- sp.(1); 
+	line2 := input_line2 ic ;
 	for j = 0 to 2 do 
-		let sp = Pcre.extract ~pat:"Tm ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
+		let sp = Pcre.extract ~pat:"Tm ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" !line2 in
 		for i = 0 to 2 do
 			m_tm.(j).(i) <- fos sp.(1+i) ; 
-		done
+		done ;
+		line2 := input_line2 ic ;
 	done;
-	let line2 = ref (input_line2 ic) in (* $TRACKS *)
 	(* read in the tracks *)
-	while not (Pcre.pmatch ~pat:"\$EndTRACKS" !line2) do 
+	line2 := input_line2 ic ; (* eat $TRACKS *)
+	while not (Pcre.pmatch ~pat:"EndTRACKS" !line2) do 
 	(
-		let t = new pcb_track in
-		t#read ic !line2 ; 
-		m_tracks <- (t :: m_tracks) ; 
-		line2 := input_line2 ic ; 
+		try( 
+			let t = new pcb_track in
+			t#read ic !line2 ; 
+			m_tracks <- (t :: m_tracks) ; 
+			line2 := input_line2 ic ; 
+		) with _ -> line2 := input_line2 ic ; 
 	)done ;
-	line2 := input_line2 ic;  (* $CELLINSTANCE *)
-	while not (Pcre.pmatch ~pat:"\$EndCELLINSTANCE" !line2) do 
+	line2 := input_line2 ic;  (* eat $CELLINSTANCE *)
+	while not (Pcre.pmatch ~pat:"EndCELLINSTANCE" !line2) do 
 	(
-		let t = new pcb_track in
-		t#read ic !line2 ; 
-		m_tracks <- (t :: m_tracks) ; 
-		line2 := input_line2 ic ; 
-	)done ;
+		try (
+			let sp = Pcre.extract ~pat:"Ci (\w+)" !line2 in
+			m_cells <- sp.(1) :: m_cells; 
+			line2 := input_line2 ic ; 
+		) with _ -> line2 := input_line2 ic ; 
+	) done ;
+
+method save oc = (
+	fprintf oc "Cn %s\n" m_name; 
+	for j = 0 to 2 do
+		fprintf oc "Tm %f %f %f\n" m_tm.(j).(0) m_tm.(j).(1) m_tm.(j).(2); 
+	done;
+	fprintf oc "$TRACKS\n";
+	List.iter (fun t -> t#save oc) m_tracks; 
+	fprintf oc "$EndTRACKS\n"; 
+	fprintf oc "$CELLINSTANCE\n"; 
+	List.iter (fun s -> fprintf oc "Ci %s\n" s ) m_cells; 
+	fprintf oc "$EndCELLINSTANCE\n"; 
+)
 
 method accumulate (gr:grfx) lay tm (cells : pcb_cell list) = 
 	(* iterate over the cells, accumulating the vertex information if the layers match. *)
@@ -115,7 +137,13 @@ method draw bbx = (
 		List.iter (fun t -> 
 			t#draw bbx
 		) m_tracks; 
-	); 
-)
+	);
+)	
+method update () = (
+	List.iter (fun t -> 
+		t#update ()
+	) m_tracks; 
+) 
+
 	
 end

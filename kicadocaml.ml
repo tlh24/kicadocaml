@@ -631,7 +631,7 @@ let render togl cb =
 	let more = cb () in
 	if not more then (
 		(* draw the tracks back to front so that the alpha-blending makes sense *)
-		(* this requires slightly more iteration but.. eh well, it is the correct way to do it*)
+		(* this requires slightly more iteration but.. eh well, it is the correct way to do it *)
 		let layerZlist = List.filter (fun a -> glayerEn.(a)) (List.rev !glayerZlist) in
 		let lastLayer = try List.hd (List.rev layerZlist) with _ -> 0 in
 		List.iter ( fun lay -> 
@@ -657,7 +657,7 @@ let render togl cb =
 			); 
 			(* draw the cells *)
 			List.iter (fun c -> 
-				c#draw screenbbx 
+				c#draw screenbbx lay
 			) !gcells ;
 			(* do the same on the zones. *)
 			if !gdrawzones then (
@@ -864,6 +864,7 @@ let openFile top fname =
 	glayerPresent := [] ; (* clear the old layer list, this file may have different layers present *)
 	readlines ic ; 
 	(* also add the other known layers -- see kicad!*)
+	glayerPresent := [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15]; (* debug, enable all *)
 	glayerPresent := [20;21;22;23;24] @ !glayerPresent; 
 	(* update the enabled list ... *)
 	for i = 0 to 31 do glayerEn.(i) <- false done;
@@ -949,6 +950,7 @@ let makemenu top togl filelist =
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursorbox = Text.create ~width:17 ~height:2 menubar in
 	let snapbox = Text.create ~width:17 ~height:2 menubar in
+	let cellbox = Text.create ~width:17 ~height:1 menubar in
 	let originbox = Text.create ~width:17 ~height:2 menubar in
 	(* information display callback *)
 	ginfodisp := ( fun s ->  
@@ -966,6 +968,17 @@ let makemenu top togl filelist =
 	gcursordisp := (fun str x y -> coorddisp cursorbox str x y; 
 		coorddisp snapbox "snap" (fst !gsnapped) (snd !gsnapped); 
 		coorddisp originbox "origin" (fst !ggridorigin) (snd !ggridorigin)); 
+		
+	(* update current cell *)
+	let updateCell cell = 
+		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (cellbox) ; 
+		let s = match cell with
+			| Some c -> c#getName ()
+			| _ -> "none" in
+		Text.insert  ~index:(`End, []) ~text:("cell: "^s) cellbox;
+		gCurrentCell := cell
+	in
+	updateCell None; 
 		
 	(*array callback ... *)
 	let arrayFun () = 
@@ -1634,8 +1647,16 @@ let makemenu top togl filelist =
 			let nn3,hitsize3,hitz3,hitclear3 = 
 				if !gdrawtracks && !gmode <> Mode_MoveText then (
 					List.fold_left (fun (netn1,hitsize,hitz,hitclear) track -> 
-						track#hit (out, onlyworknet, hitsize, hitz, hitclear, netn1)
+						track#hit (out, onlyworknet, netn1, hitsize, hitz, hitclear)
 					) (nn,hitsize2,hitz2,[hitclear2]) !gtracks 
+				) else nn,hitsize2,hitz2,[]
+			in
+			(* and the cells -- assume all are editable *)
+			let nn4,hitsize4,hitz4,hitclear4 = 
+				if !gdrawtracks && !gmode <> Mode_MoveText then (
+					List.fold_left (fun (netn1,hitsize,hitz,hitclear) cell -> 
+						cell#hit (out, onlyworknet, netn1, hitsize, hitz, hitclear)
+					) (nn3,hitsize3,hitz3,hitclear3) !gcells 
 				) else nn,hitsize2,hitz2,[]
 			in
 			(* and do the zones .. *)
@@ -1643,8 +1664,8 @@ let makemenu top togl filelist =
 				if !gdrawzones && !gmode <> Mode_MoveText then (
 					List.fold_left (fun (netnum,hitsize,hitz,hitclear) zon -> 
 						zon#hit out netnum hitsize hitz hitclear
-					) (nn3,hitsize3,hitz3,hitclear3) !gzones  
-				) else nn3,hitsize3,hitz3,hitclear3
+					) (nn4,hitsize4,hitz4,hitclear4) !gzones  
+				) else nn4,hitsize4,hitz4,hitclear4
 			in
 			gcurnet := netn2 ; 
 		); 
@@ -1910,6 +1931,15 @@ let makemenu top togl filelist =
 		) ; 
 	)in
 	
+	let allTracks () = 
+		(* cell list is flat -- instances are not! *)
+		List.fold_left (fun tt c -> 
+			List.rev_append (c#getTracks ()) tt) (!gtracks) !gcells 
+	in
+	let getHitTracks () = 
+		List.filter (fun t -> t#getHit() ) (allTracks ())
+	in
+	
 	let bindMouseMoveTrack () = (
 		gmode := Mode_MoveTrack ;
 		bindVtoVia () ; 
@@ -1923,7 +1953,7 @@ let makemenu top togl filelist =
 			workingnet := !gcurnet ; 
 			ignore(  calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true ); 
 			startPoint := !gsnapped ;
-			tracks := List.filter (fun t -> t#getHit() ) !gtracks ; 
+			tracks := getHitTracks (); 
 			zones := List.filter (fun z -> z#getHit ()) !gzones ;
 			List.iter (fun z -> z#setMoving true false) !zones ; 
 			if List.length !tracks > 0 then (
@@ -2590,6 +2620,7 @@ let makemenu top togl filelist =
 				!gcells) in
 	
 	let cellAdd () = 
+		(* dialog for adding a cell to the design *)
 		let dlog = Toplevel.create top in
 		Wm.title_set dlog "Cells" ; 
 		(* have a bunch of checkboxes per cell, plus a box for adding a new one. *)
@@ -2604,7 +2635,7 @@ let makemenu top togl filelist =
 					c#setVisible ((Textvariable.get v)=="On")
 					) in
 			let swbutton = Button.create cframe ~text:(c#getName ())
-				~command:(fun () -> gCurrentCell := Some c) in
+				~command:(fun () -> updateCell (Some c) ) in
 			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
 			cframe 
 		) (cellSortName ()) in
@@ -2617,6 +2648,7 @@ let makemenu top togl filelist =
 				cell#setName (Entry.get newcell) ; 
 				gcells := cell :: !gcells;  
 				!gCellMenuRefresh () ; 
+				updateCell (Some cell);
 				Tk.destroy dlog; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 			) f2 in
@@ -2627,11 +2659,11 @@ let makemenu top togl filelist =
 	let cellMenuRefresh () =
 		Menu.delete ~first:(`Num 0) ~last:(`Num !gCellMenuLength) cellmenu ; 
 		Menu.insert_command ~index:(`Num 0) cellmenu ~label:"All" 
-			~command:(fun _ -> gCurrentCell := None) ; 
+			~command:(fun _ -> updateCell None) ; 
 		List.iteri (fun i c -> 
 			Menu.insert_command ~index:(`Num (i+1)) cellmenu 
 				~label:(c#getName ()) ~command: (fun _ ->
-					gCurrentCell := Some c) ) 
+					updateCell (Some c) ) ) 
 			(cellSortName ());
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
 			~label:"Add" ~command:cellAdd ; 
@@ -3128,22 +3160,23 @@ let makemenu top togl filelist =
 	let switchSelectTrack ev = 
 		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules .. rollover for that*)
 		(* first see if nothing is selected .. *)
-		let lay = try (List.find (fun t -> t#getHit()) !gtracks)#getLayer ()
-			with _ -> ( 
-				(* look at the modules *)
-				let ll,_ = List.fold_left (fun d m-> 
-					List.fold_left (fun (lay,siz) p -> 
-						let bbx = p#getBBX() in
-						if bbxInside bbx !gcurspos then (
-							printf "inside pad\n%!"; 
-							let psiz = bbxSize bbx in
-							if  psiz < siz then (p#getLayer(),psiz)
-							else (lay,siz)
-						) else (lay,siz)
-					) d (m#getPads ())
-				) (!glayer,1e24) !gmodules in
-				ll
-			) in
+		let trks = getHitTracks () in
+		let lay = if List.length trks > 0 then (
+			(List.hd trks)#getLayer ()
+		) else (
+			let ll,_ = List.fold_left (fun d m-> 
+				List.fold_left (fun (lay,siz) p -> 
+					let bbx = p#getBBX() in
+					if bbxInside bbx !gcurspos then (
+						printf "inside pad\n%!"; 
+						let psiz = bbxSize bbx in
+						if  psiz < siz then (p#getLayer(),psiz)
+						else (lay,siz)
+					) else (lay,siz)
+				) d (m#getPads ())
+			) (!glayer,1e24) !gmodules in
+			ll
+		) in
 		changelayercallback (layer_to_string lay); 
 		(* 
 		if (List.exists (fun t -> t#getHit()) !gtracks) then (
@@ -3477,7 +3510,8 @@ let makemenu top togl filelist =
 	pack ~side:`Left 
 		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 
 		Tk.coe gridb ;  Tk.coe cellb; Tk.coe infodisp; 
-		Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe mframe; Tk.coe layerframe];
+		Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe cellbox;
+		Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)
 	;;

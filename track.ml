@@ -196,7 +196,7 @@ object (self)
 		method getHit () = m_hit ; 
 		method setHit h = m_hit <- h ; 
 		method hitclear () = m_hit <- false
-		method hit (p, onlyworknet, hitsize, hitz, hitclear, netnum) = 
+		method hit (p, onlyworknet, netnum, hitsize, hitz, hitclear) = 
 			(* do not update 'hit' if the first mouse button is down. *)
 			(* hit bazed on z-sorting. *)
 			(* hitclear is a list as we can hit more than one track at a time *)

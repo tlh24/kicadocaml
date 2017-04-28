@@ -101,10 +101,9 @@ object
 end;;
 
 let gnets = ref [] (*this must be a reference, as we are updating! *)
-let gtracks = ref []
+let gtracks = ref [] (* for mask layout, most cells should be in cells now. *)
 let gmodules = ref []
 let gzones = ref []
-let gcells = ref []
 let ggeneric = ref []
 let gzoom = ref 1.0
 let gdrag = ref (0.0, 0.0)
@@ -140,7 +139,6 @@ let gViaAdd = ref (fun _ _ -> ())
 let gCellMenuRefresh = ref (fun _ -> ())
 let gCellMenuLength = ref 0
 let gpulling = ref true 
-let gCurrentCell = ref None
 
 let readlines ic =
 	(*remove the old modules *)
@@ -235,6 +233,7 @@ let readlines ic =
 	print_endline ( "file version:" ^ (soi !gfver) ^ " scale:" ^ (string_of_float !gscl) ); 
 	print_endline ( "number of nets:" ^ string_of_int(List.length !gnets) ) ; 
 	print_endline ( "number of modules:" ^ string_of_int(List.length !gmodules) ) ; 
+	print_endline ( "number of cells:" ^ string_of_int(List.length !gcells) ) ; 
 	print_endline ( "number of tracks:" ^ string_of_int(
 		List.length (List.filter (fun t-> not(t#is_drawsegment())) !gtracks) )) ; 
 	print_endline ( "number of drawsegments:" ^ string_of_int(
@@ -557,6 +556,8 @@ let abouttext =
 " a - add track mode\n" ^
 " Ctrl-T - select track width \n" ^ 
 " b - break track under cursor \n" ^
+" c - move selected tracks to current cell. \n" ^
+" d - duplicate selected tracks\n"^
 " e - edit (only text edit mplemented srry)\n" ^
 " f - In track editing/adding mode:\n\tfuse (join) tracks - two tracks must be highlighted \n" ^
 "     In module moving mode:\n\tflip a module from the top to the bottom of the board, and vice-versa\n"^
@@ -659,6 +660,8 @@ let render togl cb =
 			List.iter (fun c -> 
 				c#draw screenbbx lay
 			) !gcells ;
+			(* draw the cell instances *)
+			ignore (Cell.drawInstances screenbbx lay);
 			(* do the same on the zones. *)
 			if !gdrawzones then (
 				List.iter (fun zon -> 
@@ -836,6 +839,38 @@ let selectSch top fname =
 		if not ok then selectSchFile() else schfile 
 	with Not_found -> selectSchFile ()
 	;;
+	
+(* track functions! *)
+let allTracks () = 
+	(* cell list is flat -- instances are not! *)
+	(* returns a list of pairs (track, cell option) *)
+	let globalTracks = List.map (fun t -> (t, None)) !gtracks in
+	List.fold_left (fun tt c -> 
+		if c#getVisible () then 
+			List.rev_append 
+				(List.map (fun t -> (t, Some c)) (c#getTracks()))
+				tt
+			else tt)
+		globalTracks !gcells 
+	;;
+let trackFilter f = 
+	(* for e.g. deleting *)
+	gtracks := List.filter f !gtracks ; 
+	List.iter (fun c -> 
+			c#filterTracks f 
+		) !gcells; 
+	;;
+let trackHit () = 
+	List.filter (fun (t,_) -> t#getHit() ) (allTracks ())
+	;;
+let addTrack track cell = 
+	(match cell with
+		| Some c -> c#addTrack track
+		| None -> gtracks := (track :: !gtracks)); 
+	;;
+let deleteTrack t = 
+	trackFilter (fun t2 -> t <> t2)
+	;;
 
 let updateLayers layer b = 
 	if glayerEn.(layer) != b  || b then (
@@ -846,10 +881,10 @@ let updateLayers layer b =
 		gviaColor := layers_to_color copperlayers glayerEn ; 
 		List.iter (fun m -> m#updateLayers() ) !gmodules ;
 		List.iter (fun m -> m#updateLayers() ) !gzones ; 
-		List.iter (fun m -> 
-			m#setHit false; 
-			if m#isVia() then m#updateColor () ; 
-		) !gtracks ;
+		List.iter (fun (t,_) -> 
+			t#setHit false; 
+			if t#isVia() then t#updateColor () ; 
+		) (allTracks ()) ;
 		(* render togl nulfun; *)
 	) ;;
 	
@@ -875,7 +910,7 @@ let openFile top fname =
 	List.iter (fun m -> m#update()) !gmodules ; 
 	List.iter (fun m -> m#update()) !gtracks ; 
 	List.iter (fun z -> z#update ()) !gzones ; 
-	List.iter (fun z -> z#update ()) !gcells ; 
+	List.iter (fun c -> c#update ()) !gcells ; 
 	updateLayers 15 true ; (* default to component layer *)
 	(* if the board was saved in pcbnew, then we need to propagate the netcodes to all tracks. *)
 	(* otherwise, adding tracks to existing ones becomes impossible ... *)
@@ -950,7 +985,7 @@ let makemenu top togl filelist =
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursorbox = Text.create ~width:17 ~height:2 menubar in
 	let snapbox = Text.create ~width:17 ~height:2 menubar in
-	let cellbox = Text.create ~width:17 ~height:1 menubar in
+	let cellbox = Text.create ~width:20 ~height:2 menubar in
 	let originbox = Text.create ~width:17 ~height:2 menubar in
 	(* information display callback *)
 	ginfodisp := ( fun s ->  
@@ -970,13 +1005,24 @@ let makemenu top togl filelist =
 		coorddisp originbox "origin" (fst !ggridorigin) (snd !ggridorigin)); 
 		
 	(* update current cell *)
-	let updateCell cell = 
+	let updateCellDisp () = 
 		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (cellbox) ; 
-		let s = match cell with
+		let s = match !gCurrentCell with
 			| Some c -> c#getName ()
 			| _ -> "none" in
-		Text.insert  ~index:(`End, []) ~text:("cell: "^s) cellbox;
-		gCurrentCell := cell
+		let tracklist = trackHit () in
+		let hitname = match tracklist with 
+			| (hd::_) -> 
+				(match (snd hd) with
+				| Some ce -> ce#getName ()
+				| _ -> "")
+			| [] -> "" in
+		let s2 = s ^ "\n" ^ "hit cell: " ^ hitname in
+		Text.insert  ~index:(`End, []) ~text:("active cell: "^s2) cellbox;
+	in
+	let updateCell cell = 
+		gCurrentCell := cell; 
+		updateCellDisp ()
 	in
 	updateCell None; 
 		
@@ -1675,6 +1721,7 @@ let makemenu top togl filelist =
 	let updatecurspos ev = 
 		gcurspos :=  calcCursPos ev !gpan true; 
 		!gcursordisp "cursor" (fst !gcurspos) (snd !gcurspos) ;
+		updateCellDisp () ; 
 		render togl nulfun;
 	in
 	let modfind cb = (
@@ -1789,9 +1836,7 @@ let makemenu top togl filelist =
 						(List.hd sorted)#getLayer() in
 					if lay <> !glayer then changelayercallback (layer_to_string lay); *)
 					let track = new pcb_track in
-					(match !gCurrentCell with
-					| Some c -> c#addTrack track
-					| None -> gtracks := (track :: !gtracks)); 
+					addTrack track !gCurrentCell ;
 					gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true; 
 					track#setStart !gsnapped ; 
 					track#setEnd !gsnapped ; 
@@ -1801,7 +1846,7 @@ let makemenu top togl filelist =
 					track#setMoving true ; 
 					let track2 = new pcb_track in
 					(* don't add the second track unless we are doing 135 routing. *)
-					if !groute135 then gtracks := (track2 :: !gtracks); 
+					if !groute135 then addTrack track !gCurrentCell ;
 					track2#setStart !gsnapped ; 
 					track2#setEnd !gsnapped ; 
 					track2#setNet !workingnet ; 
@@ -1931,15 +1976,6 @@ let makemenu top togl filelist =
 		) ; 
 	)in
 	
-	let allTracks () = 
-		(* cell list is flat -- instances are not! *)
-		List.fold_left (fun tt c -> 
-			List.rev_append (c#getTracks ()) tt) (!gtracks) !gcells 
-	in
-	let getHitTracks () = 
-		List.filter (fun t -> t#getHit() ) (allTracks ())
-	in
-	
 	let bindMouseMoveTrack () = (
 		gmode := Mode_MoveTrack ;
 		bindVtoVia () ; 
@@ -1953,7 +1989,7 @@ let makemenu top togl filelist =
 			workingnet := !gcurnet ; 
 			ignore(  calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true ); 
 			startPoint := !gsnapped ;
-			tracks := getHitTracks (); 
+			tracks := List.map fst (trackHit ()); 
 			zones := List.filter (fun z -> z#getHit ()) !gzones ;
 			List.iter (fun z -> z#setMoving true false) !zones ; 
 			if List.length !tracks > 0 then (
@@ -1965,8 +2001,8 @@ let makemenu top togl filelist =
 				let net = !gcurnet in
 				let layer = (List.hd !tracks)#getLayer() in
 				let nettracks = List.filter (
-					fun t-> t#getNet() = net
-				) !gtracks in
+					fun (t,_)-> t#getNet() = net
+				) (allTracks ()) in
 				let addtracks = ref [] in
 				(* set the move flags on all selected tracks *)
 				List.iter (fun ht -> ht#setMoving true; ) !tracks ; 
@@ -1980,8 +2016,11 @@ let makemenu top togl filelist =
 						let st = ht#getStart () in
 						let en = ht#getEnd () in
 						let width2 = ht#getWidth() *. 0.5 in
-						List.iter (fun t -> 
-							if (t#getLayer() = layer || alllayers) && (not (t#getMoving())) then (
+						List.iter (fun (t,c) -> 
+							let vis = match c with 
+								| Some ce -> ce#getVisible () 
+								| _ -> true in
+							if (t#getLayer() = layer || alllayers) && (not (t#getMoving())) && vis then (
 								let ost = t#getStart() in
 								let oen = t#getEnd() in
 								let hitstart = Pts2.tracktouch st en ost width2 
@@ -2034,7 +2073,8 @@ let makemenu top togl filelist =
 						) nettracks ; 
 					)
 				in
-				if !gTrackDragConnected then List.iter hitTrack !tracks; 
+				if !gTrackDragConnected then 
+					List.iter hitTrack !tracks; 
 				tracks := List.rev_append !addtracks !tracks ; 
 				List.iter (fun t-> t#setHit true) !tracks ; 
 				(* untracks := List.filter (fun t -> not (t#getHit())) !gtracks; *)
@@ -2270,7 +2310,7 @@ let makemenu top togl filelist =
 				let (sx,sy)  = calcCursPos ev !gpan true in
 				if not !gbutton3pressed then (
 					List.iter (fun m-> m#setHit false) !gmodules; 
-					List.iter (fun t -> t#setMoving false) !gtracks ; 
+					List.iter (fun (t,_) -> t#setMoving false) (allTracks ()) ; 
 					Mouse.bindMove 1979 top ~action:
 					(fun evinf -> 
 						let (px,py) = calcCursPos evinf !gpan true in
@@ -2285,11 +2325,11 @@ let makemenu top togl filelist =
 							) !gmodules ; 
 						);
 						(* same for the tracks *)
-						List.iter (fun t-> 
+						List.iter (fun (t,_) -> 
 							if t#selectHit !gselectRect then 
 								t#setHit true
 							else t#setHit false
-						) !gtracks ; 
+						) (allTracks ()) ; 
 						(* same for the zones *)
 						List.iter (fun t-> 
 							if t#selectHit !gselectRect then 
@@ -2314,9 +2354,9 @@ let makemenu top togl filelist =
 				printf "known bug: do not rotate and drag at the same time!\n%!" ; 
 
 				(* also add in 'c' for copy tracks *)
-				bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:
+				bind ~events:[`Modified([`Shift], `KeyPressDetail"D")] ~action:
 				(fun _ ->
-					printf "copying %d tracks and %d zones in drag...\n%!" 
+					printf "duplicating %d tracks and %d zones in drag...\n%!" 
 						(List.length tracks) (List.length zones); 
 					let newtracks = List.map (fun t -> Oo.copy t) tracks in
 					let newzones = List.map (fun z -> Oo.copy z) zones in
@@ -2348,6 +2388,21 @@ let makemenu top togl filelist =
 						t#update ()) tracks ;
 					render togl nulfun; 
 				) top;
+				(* button for changing the cell *)
+				bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:
+				(fun ev -> 
+					ignore( calcCursPos ev !gpan true ); 
+					(* move all currently hit tracks to the presently selected cell. *)
+					let tracklist = trackHit () in 
+					printf "moving %d tracks to cell %s...\n%!" 
+						(List.length tracklist) (
+							match !gCurrentCell with
+							| Some cell -> cell#getName ()
+							| _ -> "None" ); 
+					List.iter (fun (t,_) -> deleteTrack t) tracklist; 
+					List.iter (fun (t,_) -> addTrack t !gCurrentCell) tracklist; 
+					render togl nulfun; 
+				) top; 
 				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
 				let zones = List.filter (fun t-> t#getHit ()) !gzones in
 				(* release the old press .. yes this is confusing now *)
@@ -2403,6 +2458,7 @@ let makemenu top togl filelist =
 			Mouse.releasePress top ; 
 			(* clear the old binding *)
 			bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:(fun _ -> ()) top ; 
+			bind ~events:[`Modified([`Shift], `KeyPressDetail"E")] ~action:(fun _ -> ()) top ; 
 		in
 		
 		bind ~events:[`KeyPressDetail("Shift_R")] ~action:selectPress top ; 
@@ -2632,7 +2688,10 @@ let makemenu top togl filelist =
 				~indicatoron:true ~variable:v 
 				~offvalue:"Off" ~onvalue:"On"
 				~command:(fun () -> 
-					c#setVisible ((Textvariable.get v)=="On")
+					(match (String.lowercase (Textvariable.get v)) with
+					| "on" -> c#setVisible true
+					| _ -> c#setVisible false); 
+					render togl nulfun;
 					) in
 			let swbutton = Button.create cframe ~text:(c#getName ())
 				~command:(fun () -> updateCell (Some c) ) in
@@ -2667,6 +2726,9 @@ let makemenu top togl filelist =
 			(cellSortName ());
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
 			~label:"Add" ~command:cellAdd ; 
+		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
+			~label:"Refresh" ~command:(fun _ -> 
+				Cell.accumulateInstances !gcells); 
 		gCellMenuLength := (List.length !gcells) + 2; 
 	in
 	gCellMenuRefresh := cellMenuRefresh ; 
@@ -3160,9 +3222,9 @@ let makemenu top togl filelist =
 	let switchSelectTrack ev = 
 		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules .. rollover for that*)
 		(* first see if nothing is selected .. *)
-		let trks = getHitTracks () in
+		let trks = trackHit () in
 		let lay = if List.length trks > 0 then (
-			(List.hd trks)#getLayer ()
+			(fst (List.hd trks))#getLayer ()
 		) else (
 			let ll,_ = List.fold_left (fun d m-> 
 				List.fold_left (fun (lay,siz) p -> 
@@ -3213,10 +3275,10 @@ let makemenu top togl filelist =
 		); *)
 		(* now that we've changed layers, update the hit / track size / via size accordingly *)
 		gcurspos := calcCursPos ev !gpan true; 
-		let width = List.fold_left (fun default track -> 
+		let width = List.fold_left (fun default (track,_) -> 
 			if track#getHit() && track#getType() = Track_Track then 
 				track#getWidth() else default
-		) !gtrackwidth !gtracks in
+		) !gtrackwidth trks in
 		if width <> !gtrackwidth then (
 			gtrackwidth := width; 
 			printf "track width updated to %s\n%!" (tomm width) ;
@@ -3287,17 +3349,10 @@ let makemenu top togl filelist =
 	bind ~events:[`KeyPressDetail("Escape")] ~action:(fun _ -> Mouse.releaseMove 2959 top) top; 
 	bind ~events:[`KeyPressDetail("o")] ~action:(fun _ -> ggridorigin := !gsnapped; render togl nulfun) top; 
 	bind ~events:[`Modified([`Shift],`KeyPressDetail"O")] ~action:(fun _ -> ggridorigin := (0.0,0.0); render togl nulfun) top; 
+	
 	bind ~events:[`KeyPressDetail("BackSpace")] ~action:
 		(fun _ -> (* remove any tracks that were hit *)
-			let track,found = try 
-				( List.find (fun t -> t#getHit ()) !gtracks ), true
-				with Not_found -> (List.hd !gtracks), false
-			in
-			if found then (
-				let nn = track#getNet () in
-				gtracks := List.filter (fun t -> not (t#getHit () ) ) !gtracks ; (*so easy :) *)
-				gratsnest#updateTracks nn !gtracks ; 
-			) ; 
+			trackFilter (fun t -> not (t#getHit () ) ) ;
 			(* and also zone corners *)
 			let zones = List.filter (fun z -> z#getHit ()) !gzones in
 			List.iter (fun z -> z#delete ()) zones ; 
@@ -3305,10 +3360,6 @@ let makemenu top togl filelist =
 		) top ; 
 	bind ~events:[`KeyPressDetail("Delete")] ~action:
 		(fun _ -> (* remove any tracks that were hit, AND ones that they connect to*)
-			let track,found = try 
-				( List.find (fun t -> t#getHit ()) !gtracks ), true
-				with Not_found -> (List.hd !gtracks), false
-			in
 			let rec trackdelete tracks = 
 				let tracks2 = ref [] in
 				List.iter (fun t1 -> 
@@ -3318,8 +3369,11 @@ let makemenu top togl filelist =
 					let tvia = t1#getType() = Track_Via in
 					let bbx = t1#getDrcBBX () in
 					let w = t1#getWidth() *. 0.5 in
-					List.iter (fun t2 -> 
-						if bbxIntersect bbx (t2#getDrcBBX()) then (
+					List.iter (fun (t2,c2) -> 
+						let vis = match c2 with 
+							| Some ce -> ce#getVisible () 
+							| _ -> true in
+						if bbxIntersect bbx (t2#getDrcBBX()) && vis then (
 							if t1 != t2 then (
 								if t2#getLayer() = layer || t2#getType() = Track_Via || tvia then (
 									let w2 = t2#getWidth() *. 0.5 in
@@ -3328,24 +3382,24 @@ let makemenu top togl filelist =
 										Pts2.distance2 st (t2#getEnd()) < dd ||
 										Pts2.distance2 en (t2#getStart()) < dd ||
 										Pts2.distance2 en (t2#getEnd()) < dd  then (
-										gtracks := List.filter (fun t -> t <> t2) !gtracks ;
-										tracks2 := (t2 :: !tracks2); 
+											trackFilter (fun t -> t <> t2);
+											tracks2 := (t2 :: !tracks2); 
 									); 
 								); 
 							); 
 						); 
-					) !gtracks ; 
+					) (allTracks ()) ; 
 				) tracks ; 
 				if(List.length !tracks2) > 0 then trackdelete !tracks2
 			in
-			
-			if found then (
-				let nn = track#getNet () in
-				gtracks := List.filter (fun t -> t <> track) !gtracks ;
-				trackdelete [track]; 
-				gratsnest#updateTracks nn !gtracks ; 
-				render togl nulfun; 
-			)
+			let tracklist = trackHit () in
+			trackdelete (List.map (fun (t,_) -> t) tracklist);  
+			if List.length tracklist > 0 then (
+				let tr,_ = (List.hd tracklist) in
+				let nn = tr#getNet () in
+				gratsnest#updateTracks nn (List.map fst (allTracks ())) ; 
+			);
+			render togl nulfun; 
 		) top ; 
 	bind ~events:[`KeyPressDetail("b")] ~fields:[`MouseX; `MouseY] ~action:
 		(* break track under cursor *)
@@ -3353,18 +3407,18 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			ignore( calcCursPos ev !gpan true ); 
 			let midpoint = !gsnapped in
-			let track, found = try 
-				(List.find (fun t -> t#getHit() ) !gtracks),true
-				with Not_found -> (List.hd !gtracks), false
-			in
-			if found then (
+			let tracklist = trackHit () in
+			if List.length tracklist > 0 then (
 				print_endline "breaking track...";
+				let track,c = List.hd tracklist in
 				let track2 = Oo.copy track in
 				track2#setU 0.5 ; 
 				track2#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
 				track#setEnd midpoint ; 
 				track2#setStart midpoint ; 
-				gtracks := (track2 :: !gtracks); 
+				(match c with
+				| Some cell -> cell#addTrack track2
+				| _ -> gtracks := (track2 :: !gtracks) ); 
 				track#update () ; 
 				track2#update () ; 
 				gratsnest#updateTracks (track#getNet()) !gtracks ; 
@@ -3386,52 +3440,46 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			ignore(  calcCursPos ev !gpan true ); 
 			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then (
-				let track, found = try 
-					(List.find (fun t -> t#getHit() ) !gtracks),true
-					with Not_found -> (List.hd !gtracks), false
-				in
-				if found then (
+				let tracklist = trackHit () in
+				if List.length tracklist == 2 then (
+					let trackar = Array.of_list tracklist in
+					let track,_ = trackar.(0) in
+					let track2,_ = trackar.(1) in
 					track#setHit false; 
-					let track2, found2 = try 
-						(List.find (fun t -> t#getHit() ) !gtracks),true
-						with Not_found -> (List.hd !gtracks), false
+					(* need to determine the common point *)
+					(* make it the end of track & start of track2 *)
+					let st1 = track#getStart() in
+					let en1 = track#getEnd() in
+					let st2 = track2#getStart() in
+					let en2 = track2#getEnd() in
+					let w = ((track#getWidth()) +. (track2#getWidth())) *. 0.5 in
+					let st, _, en, touch = 
+						if Pts2.distance st1 st2 < w then (
+							(* the starts are touching *)
+							en1, st1, en2, true
+						) else if Pts2.distance st1 en2 < w then (
+							en1, st1, st2, true
+						) else if Pts2.distance en1 st2 < w then (
+							st1, en1, en2, true
+						) else if Pts2.distance en1 en2 < w then (
+							st1, en1, st2, true
+						) else (0. , 0.),(0. , 0.),(0. , 0.),false
 					in
-					if found2 then (
-						(* need to determine the common point *)
-						(* make it the end of track & start of track2 *)
-						let st1 = track#getStart() in
-						let en1 = track#getEnd() in
-						let st2 = track2#getStart() in
-						let en2 = track2#getEnd() in
-						let w = ((track#getWidth()) +. (track2#getWidth())) *. 0.5 in
-						let st, _, en, touch = 
-							if Pts2.distance st1 st2 < w then (
-								(* the starts are touching *)
-								en1, st1, en2, true
-							) else if Pts2.distance st1 en2 < w then (
-								en1, st1, st2, true
-							) else if Pts2.distance en1 st2 < w then (
-								st1, en1, en2, true
-							) else if Pts2.distance en1 en2 < w then (
-								st1, en1, st2, true
-							) else (0. , 0.),(0. , 0.),(0. , 0.),false
-						in
-						if touch then (
-							(*try it! (only move the first one)*)
-							track#setStart st; 
-							track#setEnd en; 
-							if testdrc2 track !gtracks !gmodules then (
-								(* it didn't work, revert *)
-								track#setStart st1; 
-								track#setEnd en1; 
-							)else (
-								(* it did work! *)
-								(* remove the other track *)
-								gtracks := List.filter (fun t-> t != track2) !gtracks; 
-								track#update(); 
-							);
-							render togl nulfun; 
-						); 
+					if touch then (
+						(*try it! (only move the first one)*)
+						track#setStart st; 
+						track#setEnd en; 
+						if testdrc2 track !gtracks !gmodules then (
+							(* it didn't work, revert *)
+							track#setStart st1; 
+							track#setEnd en1; 
+						)else (
+							(* it did work! *)
+							(* remove the other track *)
+							gtracks := List.filter (fun t-> t != track2) !gtracks; 
+							track#update(); 
+						);
+						render togl nulfun; 
 					); 
 				); 
 			) else (
@@ -3451,9 +3499,9 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			ignore(  calcCursPos ev !gpan true ); 
 			if !gmode = Mode_AddTrack || !gmode = Mode_MoveTrack then (
-				let tracks = List.filter (fun t -> t#getHit() ) !gtracks in
-				List.iter (fun t -> t#setWidth !gtrackwidth ) tracks; 
-				List.iter (fun t -> t#update () ) tracks; 
+				let tracklist = trackHit () in
+				List.iter (fun (t,_) -> t#setWidth !gtrackwidth ) tracklist; 
+				List.iter (fun (t,_) -> t#update () ) tracklist; 
 				render togl nulfun; 
 			); 
 		) top; 
@@ -3623,7 +3671,7 @@ let _ =
 	(* setup the netnumber -> name lookup function *) 
 	let netlookup n =  
 		try (List.find (fun nn -> nn#getNet() = n) !gnets)#getName()
-		with Not_found -> "unkown"
+		with Not_found -> "unknown"
 	in
 	let invNetLookup n =
 		try (List.find (fun nn -> nn#getName () = n) !gnets)#getNet()

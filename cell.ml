@@ -55,12 +55,17 @@ method getName () = m_name;
 method setName s = m_name <- s; 
 method getVisible () = m_visible;
 method setVisible v = m_visible <- v;
+method getCells () = m_cells ; 
+method getCellsTm () = m_cells_tm ; 
 	
 method addTrack track = (
 	printf "adding track to %s\n%!" m_name;
-	m_tracks <- track :: m_tracks
+	m_tracks <- track :: m_tracks; 
+	track#update ()
 )
 method getTracks () = m_tracks
+method filterTracks f = 
+	m_tracks <- List.filter f m_tracks 
 
 method read ic line = 
 	(* starts with $CELL *)
@@ -112,34 +117,6 @@ method save oc = (
 	) m_cells m_cells_tm; 
 	fprintf oc "$EndCELLINSTANCE\n"; 
 )
-
-method accumulate (gr:grfx) lay tm (cells : pcb_cell list) toplevel = 
-	(* iterate over the cells, accumulating the vertex information if the layers match. *)
-	(* that is, there is one accumulator per layer at the toplevel. *)
-	(* cells is a toplevel list of all cells. *)
-	if not toplevel then (
-		List.iter (fun t -> 
-			if t#getLayer () == lay then (
-				let g = t#getGrfx () in
-				let v = g#getVerts () in
-				List.iter(fun (x,y) -> 
-					(* matrix - column product *)
-					let xx = tm.(0).(0) *. x +. tm.(0).(1) *. y +. tm.(0).(2) in
-					let yy = tm.(1).(0) *. x +. tm.(1).(1) *. y +. tm.(1).(2) in
-					gr#appendVert (xx,yy)
-				) v
-			)
-		) m_tracks ; 
-	); 
-	List.iter2 (fun ci mi -> 
-		let cr = try Some (List.filter (fun a -> a#getName () == ci) cells)
-			with Not_found -> None in
-		match cr with 
-		| Some (hd::_) -> 
-			let m = matrix_multiply tm mi in
-			hd#accumulate gr lay m cells false
-		| _ -> ()
-	) m_cells m_cells_tm;
 	
 method draw bbx lay = (
 	if m_visible then (
@@ -161,14 +138,60 @@ method hit (p, onlyworknet, netn_, hitsize_, hitz_, hitclear_) = (
 	) (netn_, hitsize_, hitz_, hitclear_) m_tracks
 )
 end
-	
-(* accumulator -- try to draw lots of polygons fast *)
 
-let accumulateAll (cells : pcb_cell list) = 
-	let accg = Array.init 32 (fun i -> 
-		let gr = new grfx in 
-		List.iter (fun c -> 
-			c#accumulate gr i (matrix_identity 3) cells true
+(* global section -- better here than in the main file. *)
+let gcells : pcb_cell list ref = ref []
+let gCurrentCell : pcb_cell option ref = ref None
+let gAccg = Array.init 32 (fun _ -> new grfx)
+
+
+let rec accumulate ce (gr:grfx) lay tm (cells : pcb_cell list) toplevel = 
+	(* iterate over the cells, accumulating the vertex information if the layers match. *)
+	(* that is, there is one accumulator per layer at the toplevel. *)
+	(* cells is a toplevel list of all cells. *)
+	if not toplevel then (
+		List.iter (fun t -> 
+			if t#getLayer () == lay then (
+				let g = t#getGrfx () in
+				let v = g#getVerts () in
+				List.iter(fun (x,y) -> 
+					(* matrix - column product *)
+					let xx = tm.(0).(0) *. x +. tm.(0).(1) *. y +. tm.(0).(2) in
+					let yy = tm.(1).(0) *. x +. tm.(1).(1) *. y +. tm.(1).(2) in
+					gr#appendVert (xx,yy)
+				) v
+			)
+		) (ce#getTracks ()) ; 
+	); (* otherwise, the tracks are drawn conventionally *)
+	printf "accumulating %s layer %d n=%d ..\n%!" (ce#getName ()) lay (List.length (ce#getCells ())); 
+	List.iter2 (fun ci mi -> 
+		printf "cell instance %s\n%!" ci; 
+		let cr = try Some (List.find (fun a -> a#getName () = ci) cells)
+			with Not_found -> None in
+		match cr with 
+		| Some hd -> 
+			printf "found.\n%!"; 
+			let m = matrix_multiply tm mi in
+			accumulate hd gr lay m cells false
+		| _ -> ()
+	) (ce#getCells ()) (ce#getCellsTm ())
+	;;
+
+(* accumulator -- try to draw lots of polygons fast! *)
+let accumulateInstances cells = 
+	Array.iter (fun gr -> gr#empty () ) gAccg; 
+	Array.iteri (fun lay gr -> 
+		List.iter (fun ce -> 
+			accumulate ce gr lay (matrix_identity 3) cells true
 		) cells ; 
-		gr) in
-	accg; 
+	) gAccg ;
+	Array.iteri (fun lay gr -> gr#updateLayer lay ) gAccg; 
+	;;
+
+let drawInstances bbox lay = 
+	(* need to sort based on current layer *)
+	if lay >= 0 && lay <= 31 then (
+		(gAccg.(lay))#draw bbox
+	) else true
+	;;
+

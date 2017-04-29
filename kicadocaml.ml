@@ -628,7 +628,6 @@ let render togl cb =
 		) ggrid ;
 		(* if the depth buffer is disabled we don't need to change the alpha level. *)
 	) ; 
-	!ginfodisp( "" ) ;
 	let more = cb () in
 	if not more then (
 		(* draw the tracks back to front so that the alpha-blending makes sense *)
@@ -868,6 +867,9 @@ let addTrack track cell =
 		| Some c -> c#addTrack track
 		| None -> gtracks := (track :: !gtracks)); 
 	;;
+let addTracks tracks cell = 
+	List.iter (fun t -> addTrack t cell) tracks
+	;;
 let deleteTrack t = 
 	trackFilter (fun t2 -> t <> t2)
 	;;
@@ -958,13 +960,13 @@ let openFile top fname =
 	!gCellMenuRefresh (); 
 	
 	linenum := 0 ; 
-	let schfil = selectSch top fname in
+	(*let schfil = selectSch top fname in
 	if testfile schfil then (
 		printf "reading schematic ... %!"; 
 		gschema#openFile schfil "00000000" "root" (ref []); 
 		gschema#collapseAr ""; 
 		printf " done.\n%!"; 
-	) ;
+	) ;*)
 	;;
 
 let makemenu top togl filelist = 
@@ -975,18 +977,20 @@ let makemenu top togl filelist =
 	and viab = Menubutton.create ~text:"Via" menubar 
 	and trackb = Menubutton.create ~text:"Track" menubar 
 	and gridb = Menubutton.create ~text:"Grid" menubar 
-	and cellb = Menubutton.create ~text:"Cells" menubar in
+	and cellb = Menubutton.create ~text:"Cells" menubar 
+	and transformb = Menubutton.create ~text:"Transform" menubar in
 	let filemenu = Menu.create ~tearoff:false fileb
 	and optionmenu = Menu.create ~tearoff:false optionb
 	and viamenu = Menu.create ~tearoff:false viab 
 	and trackmenu = Menu.create ~tearoff:false trackb
 	and gridmenu = Menu.create ~tearoff:false gridb 
-	and cellmenu = Menu.create ~tearoff:false cellb in
+	and cellmenu = Menu.create ~tearoff:false cellb 
+	and transformmenu = Menu.create ~tearoff:false transformb in
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
-	let cursorbox = Text.create ~width:17 ~height:2 menubar in
-	let snapbox = Text.create ~width:17 ~height:2 menubar in
-	let cellbox = Text.create ~width:20 ~height:2 menubar in
-	let originbox = Text.create ~width:17 ~height:2 menubar in
+	let cursorbox = Text.create ~width:30 ~height:2 menubar in
+	let snapbox = Text.create ~width:30 ~height:2 menubar in
+	let cellbox = Text.create ~width:27 ~height:2 menubar in
+	let originbox = Text.create ~width:30 ~height:2 menubar in
 	(* information display callback *)
 	ginfodisp := ( fun s ->  
 		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (infodisp) ; 
@@ -996,11 +1000,13 @@ let makemenu top togl filelist =
 		Text.insert  ~index:(`End, []) ~text:s infodisp;
 	 ); 
 	let coorddisp txtbx str x y =
-		let s = Printf.sprintf "%s x %2.4f\n%s y %2.4f" str x str y in
+		let s = Printf.sprintf "%s x %2.4f ( %2.5f )\n%s y %2.4f ( %2.5f )" 
+			str x (x /. 5.0) str y (y /. 5.0) in
 		Text.delete ~start:(`Linechar (1, 1) , [`Linestart]) ~stop:(`End, []) (txtbx) ; 
 		Text.insert  ~index:(`End, []) ~text:s txtbx; 
 	in
-	gcursordisp := (fun str x y -> coorddisp cursorbox str x y; 
+	gcursordisp := (fun str x y -> 
+		coorddisp cursorbox str x y; 
 		coorddisp snapbox "snap" (fst !gsnapped) (snd !gsnapped); 
 		coorddisp originbox "origin" (fst !ggridorigin) (snd !ggridorigin)); 
 		
@@ -1537,6 +1543,8 @@ let makemenu top togl filelist =
 		) ; 
 	Menu.add_command filemenu ~label:"Save (Ctrl-S)" ~command:
 		(fun () -> saveall !gfname; ) ; 
+	Menu.add_command filemenu ~label:"Revert (Ctrl-R)" ~command:
+		(fun () -> openFile top !gfname; ) ; 
 	Menu.add_command filemenu ~label:"Quit" ~command:
 		(fun () -> 
 			(!gclosesock) () ; 
@@ -1699,7 +1707,7 @@ let makemenu top togl filelist =
 			in
 			(* and the cells -- assume all are editable *)
 			let nn4,hitsize4,hitz4,hitclear4 = 
-				if !gdrawtracks && !gmode <> Mode_MoveText then (
+				if !gmode <> Mode_MoveText then (
 					List.fold_left (fun (netn1,hitsize,hitz,hitclear) cell -> 
 						cell#hit (out, onlyworknet, netn1, hitsize, hitz, hitclear)
 					) (nn3,hitsize3,hitz3,hitclear3) !gcells 
@@ -1857,7 +1865,7 @@ let makemenu top togl filelist =
 						track#setMoving false ; 
 						track2#setMoving false ; ) ; 
 					track#update (); 
-					render togl nulfun; 
+					updatecurspos ev; (* calls render *)
 					let lastgood = ref (!gsnapped) in
 					let lastgoodmp = ref (!gsnapped) in
 					let start = !gsnapped in
@@ -1952,11 +1960,12 @@ let makemenu top togl filelist =
 						gratsnest#highlight node !workingnet (); 
 						track#setEnd !lastgoodmp ; 
 						track#update () ; 
+						track#dispinfo (); 
 						track2#setStart !lastgoodmp ; 
 						track2#setEnd !lastgood ; 
 						if !groute135 then track2#update () ; 
 						gcurnet := !workingnet;
-						render togl nulfun; 
+						updatecurspos evinf; 
 					); 
 				) ;
 			);
@@ -2116,14 +2125,14 @@ let makemenu top togl filelist =
 					safemove := !gdrag ; 
 				); 
 				(* update the tracks moved by the pushdrc *)
-				List.iter (fun t -> if t#getDirty() then t#update () ) !gtracks ; 
+				List.iter (fun (t,_) -> if t#getDirty() then t#update () ) (allTracks ()) ; 
 				(* now, move the zones *)
 				let curspos = if !ggridSnap then (
 					snapgrid (cx,cy)
 				) else cx,cy in
 				List.iter (fun z -> z#move curspos) !zones ; 
 				gcurnet := !workingnet;
-				render togl nulfun;
+				updatecurspos evinf; 
 			) ; 
 		)
 		~onRelease:
@@ -2325,8 +2334,11 @@ let makemenu top togl filelist =
 							) !gmodules ; 
 						);
 						(* same for the tracks *)
-						List.iter (fun (t,_) -> 
-							if t#selectHit !gselectRect then 
+						List.iter (fun (t,c) -> 
+							let vis = match c with 
+							| Some c -> c#getVisible () 
+							| _ -> !gdrawtracks in
+							if vis && t#selectHit !gselectRect then 
 								t#setHit true
 							else t#setHit false
 						) (allTracks ()) ; 
@@ -2343,7 +2355,7 @@ let makemenu top togl filelist =
 			~onRelease: 
 			(fun evinf -> 
 				let modules = List.filter (fun m-> m#getHit ()) !gmodules in
-				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
+				let tracks = List.map fst (trackHit ()) in
 				let zones = List.filter (fun t-> t#getHit ()) !gzones in
 				let worknets = List.fold_right (fun t -> SI.add (t#getNet () ))  tracks (SI.empty) in
 				gselectRect := (1e99,1e99,1e99,1e99) ; 
@@ -2353,9 +2365,9 @@ let makemenu top togl filelist =
 				printf "please drag the selected modules .. (or release shift) \n%!" ; 
 				printf "known bug: do not rotate and drag at the same time!\n%!" ; 
 
-				(* also add in 'c' for copy tracks *)
+				(* also add in 'd' for duplicate tracks *)
 				bind ~events:[`Modified([`Shift], `KeyPressDetail"D")] ~action:
-				(fun _ ->
+				(fun evinf ->
 					printf "duplicating %d tracks and %d zones in drag...\n%!" 
 						(List.length tracks) (List.length zones); 
 					let newtracks = List.map (fun t -> Oo.copy t) tracks in
@@ -2370,23 +2382,23 @@ let makemenu top togl filelist =
 						t#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
 						t#update (); 
 						t#setHit true) newtracks ;
-					gtracks := List.rev_append newtracks !gtracks; (* add them to the global list *)
+					addTracks newtracks !gCurrentCell; 
 					List.iter (fun t -> 
 						t#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
 						t#update (); 
 						t#setHit true) newzones ;
 					gzones := List.rev_append newzones !gzones; (* add them to the global list *)
-					render togl nulfun; 
+					updatecurspos evinf; 
 				) top;
 				(* and a function to shift tracks between layers *)
 				bind ~events:[`Modified([`Shift], `KeyPressDetail"L")] ~action:
-				(fun _ ->
+				(fun evinf ->
 					printf "moving %d tracks to current layer %d...\n%!" 
 						(List.length tracks) (List.hd !glayerZlist); 
 					List.iter (fun t -> 
 						t#setLayer (List.hd !glayerZlist); 
 						t#update ()) tracks ;
-					render togl nulfun; 
+					updatecurspos evinf;  
 				) top;
 				(* button for changing the cell *)
 				bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:
@@ -2401,10 +2413,8 @@ let makemenu top togl filelist =
 							| _ -> "None" ); 
 					List.iter (fun (t,_) -> deleteTrack t) tracklist; 
 					List.iter (fun (t,_) -> addTrack t !gCurrentCell) tracklist; 
-					render togl nulfun; 
+					updatecurspos ev; 
 				) top; 
-				let tracks = List.filter (fun t-> t#getHit ()) !gtracks in
-				let zones = List.filter (fun t-> t#getHit ()) !gzones in
 				(* release the old press .. yes this is confusing now *)
 				Mouse.releasePress top ; (* unbind this function even though it is executing! *)
 				Mouse.bindPress top ~onPress:
@@ -2502,7 +2512,7 @@ let makemenu top togl filelist =
 	Tk.pack ~side:`Left ~fill:`X mlist;
 	
 	(* to milimeter function *)
-	let tomm gg = (sof gg) ^ " (" ^ (sof (gg *. 25.4)) ^ " mm)" in
+	let tomm gg = (sof gg) ^ " (" ^ (sof (gg /. 5.0)) ^ ")" in
 	let viaprint pad drill = "pad " ^ (tomm pad) ^ " drill " ^ (tomm drill) in
 	
 	let trackAdd w = 
@@ -2698,6 +2708,23 @@ let makemenu top togl filelist =
 			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
 			cframe 
 		) (cellSortName ()) in
+		(* add a button for global (non-cell) on/off *)
+		let globbutton = 
+			let cframe = Frame.create dlog in (* horizontal *)
+			let v = Textvariable.create ~on:cframe () in
+			Textvariable.set v (if !gdrawtracks then "On" else "Off" ) ; 
+			let ckbutton = Checkbutton.create cframe ~text:"global"
+				~indicatoron:true ~variable:v 
+				~offvalue:"Off" ~onvalue:"On"
+				~command:(fun () -> 
+					(match (String.lowercase (Textvariable.get v)) with
+					| "on" -> gdrawtracks := true
+					| _ -> gdrawtracks := false); 
+					render togl nulfun;
+					) in
+			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton]; 
+			cframe 
+		in
 		let f2 = Frame.create dlog in
 		let msg = Message.create ~text:"new cell:"  f2 in
 		let newcell = Entry.create ~width:10 f2 in
@@ -2712,7 +2739,7 @@ let makemenu top togl filelist =
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 			) f2 in
 		Tk.pack ~side:`Left ~fill:`Both ~expand:true [Tk.coe msg; Tk.coe newcell; Tk.coe button] ; 
-		let all = f2 :: buttons in
+		let all = f2 :: (globbutton :: buttons) in
 		Tk.pack ~fill:`Both ~expand:true all; 
 	in
 	let cellMenuRefresh () =
@@ -2725,7 +2752,7 @@ let makemenu top togl filelist =
 					updateCell (Some c) ) ) 
 			(cellSortName ());
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
-			~label:"Add" ~command:cellAdd ; 
+			~label:"Add..." ~command:cellAdd ; 
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 1)) cellmenu
 			~label:"Refresh" ~command:(fun _ -> 
 				Cell.accumulateInstances !gcells); 
@@ -2734,6 +2761,23 @@ let makemenu top togl filelist =
 	gCellMenuRefresh := cellMenuRefresh ; 
 	cellMenuRefresh (); (* to get the 'all' and 'add' entries. *)
 	
+	(* transform menu *)
+	Menu.insert_command ~index:(`Num 0) transformmenu ~label:"Scale"
+		~command:(fun _ -> 
+			let dlog = Toplevel.create top in
+			Wm.title_set dlog "Scale" ; 
+			let f2 = Frame.create dlog in
+			let msg = Message.create ~text:"factor:" f2 in
+			let sclentry = Entry.create ~width:10 f2 in
+			let button = Button.create ~text:("apply") ~command: 
+				(fun () -> 
+					let sclf = fos (Entry.get sclentry) in
+					Blockrotate.scale (List.map fst (trackHit ())) sclf; 
+					render togl nulfun
+				) f2 in
+			Tk.pack ~side:`Left ~fill:`Both ~expand:true [Tk.coe msg; Tk.coe sclentry; Tk.coe button] ; 
+			Tk.pack ~fill:`Both ~expand:true [f2]; 
+		) ; 
 	(* add in the sub-options menus .. *)
 	let displaySub = Menu.create optionmenu in (* pass the contatining menu as the final argument *)
 	let tracksSub = Menu.create optionmenu in
@@ -3170,6 +3214,7 @@ let makemenu top togl filelist =
 	Menubutton.configure trackb ~menu:trackmenu;
 	Menubutton.configure gridb ~menu:gridmenu;
 	Menubutton.configure cellb ~menu:cellmenu; 
+	Menubutton.configure transformb ~menu:transformmenu; 
 	(* bind the buttons?? *)
 	(* default *)
 	bind ~events:[`ButtonPressDetail(3)] ~fields:[`MouseX; `MouseY] ~action:
@@ -3195,7 +3240,7 @@ let makemenu top togl filelist =
 		(* if shift is down, do the blockrotate *)
 		if !ghithold then ( 
 			(* printf "rotate modules\n%!"; *)
-			let tracks = List.filter (fun t -> t#getHit()) !gtracks in
+			let tracks = List.map fst (trackHit ()) in
 			Blockrotate.rotate 
 				(List.filter (fun m -> m#getHit()) !gmodules)
 				tracks ; 
@@ -3220,11 +3265,12 @@ let makemenu top togl filelist =
 		render togl nulfun;
 	in
 	let switchSelectTrack ev = 
+		(* middle mouse button / button2 *)
 		gcurspos := calcCursPos ev !gpan false; (* don't update the list of hit modules .. rollover for that*)
 		(* first see if nothing is selected .. *)
 		let trks = trackHit () in
-		let lay = if List.length trks > 0 then (
-			(fst (List.hd trks))#getLayer ()
+		let lay,cell = if List.length trks > 0 then (
+			(fst (List.hd trks))#getLayer () , snd (List.hd trks)
 		) else (
 			let ll,_ = List.fold_left (fun d m-> 
 				List.fold_left (fun (lay,siz) p -> 
@@ -3237,9 +3283,10 @@ let makemenu top togl filelist =
 					) else (lay,siz)
 				) d (m#getPads ())
 			) (!glayer,1e24) !gmodules in
-			ll
+			ll, !gCurrentCell
 		) in
 		changelayercallback (layer_to_string lay); 
+		gCurrentCell := cell ; 
 		(* 
 		if (List.exists (fun t -> t#getHit()) !gtracks) then (
 			(* then we want to switch layers to whichever would hit the smallest track *) 
@@ -3283,6 +3330,8 @@ let makemenu top togl filelist =
 			gtrackwidth := width; 
 			printf "track width updated to %s\n%!" (tomm width) ;
 		); 
+		(* update the cell .. *)
+		
 		(* do the same for the vias *)
 		(* might be cool if you could copy any through-hole pad.. *)
 		let viadefault = (!gviapad, !gviadrill) in
@@ -3342,6 +3391,8 @@ let makemenu top togl filelist =
 	bind ~events:[`Modified([`Control], `KeyPressDetail"v")] ~action:viasFun top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"s")] ~action:(fun _ -> saveall !gfname; ) top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"o")] ~action:(fun _ -> openCommand ()) top; 
+	bind ~events:[`Modified([`Control], `KeyPressDetail"r")] 
+		~action:(fun _ -> openFile top !gfname;) top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"f")] ~action:
 		(fun _ -> Find.find_dlg top !gmodules center_found) top ; 
 	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  
@@ -3372,7 +3423,7 @@ let makemenu top togl filelist =
 					List.iter (fun (t2,c2) -> 
 						let vis = match c2 with 
 							| Some ce -> ce#getVisible () 
-							| _ -> true in
+							| _ -> !gdrawtracks in
 						if bbxIntersect bbx (t2#getDrcBBX()) && vis then (
 							if t1 != t2 then (
 								if t2#getLayer() = layer || t2#getType() = Track_Via || tvia then (
@@ -3557,7 +3608,7 @@ let makemenu top togl filelist =
 	(* display them *)
 	pack ~side:`Left 
 		[Tk.coe fileb; Tk.coe optionb; Tk.coe viab ; Tk.coe trackb ; 
-		Tk.coe gridb ;  Tk.coe cellb; Tk.coe infodisp; 
+		Tk.coe gridb ;  Tk.coe cellb; Tk.coe transformb; Tk.coe infodisp; 
 		Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe cellbox;
 		Tk.coe mframe; Tk.coe layerframe];
 	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
@@ -3800,7 +3851,7 @@ let _ =
 	); 
 	(* this for testing (so we can get a backtrace... *) 
 	(* use ocamlrun -b *)
-	openFile top "/home/tlh24/kicadocaml/test_cell.brd"; 
+(* 	openFile top "/home/tlh24/kicadocaml/test_cell.brd";  *)
 	
  	Printexc.record_backtrace true ; (* ocaml 3.11 *)
  	Printexc.print_backtrace stdout ; (* ocaml 3.11 *)

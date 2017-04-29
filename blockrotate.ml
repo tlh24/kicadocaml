@@ -97,3 +97,24 @@ let mirror tracks vertical =
 	) else (
 	 printf "mirror: no tracks!\n%!"
 	)
+	
+let scale tracks sclf = 
+	if (List.length tracks) > 0 then (
+		let bbx0 = (List.hd tracks)#getDrcBBX () in
+		let bbx1 = List.fold_left 
+			(fun bbx t -> bbxMerge (t#getDrcBBX()) bbx) 
+			bbx0 tracks in 
+		let center = bbxCenter bbx1 in
+		printf "blockscale: center @ %f %f\n%!" (fst center) (snd center); 
+		(* iterate over tracks, scale the endpoints, scale the width. *)
+		List.iter (fun t -> 
+			let doscl a = Pts2.add (Pts2.scl (Pts2.sub a center) sclf) center in
+			let st2 = doscl (t#getStart ()) in
+			let en2 = doscl (t#getEnd ()) in
+			let w2 = (t#getWidth ()) *. sclf in
+			t#setStart st2 ; 
+			t#setEnd en2 ; 
+			t#setWidth w2 ; 
+			t#update (); 
+		) tracks; 
+	)

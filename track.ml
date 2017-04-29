@@ -33,7 +33,7 @@ object (self)
 		val mutable m_type = Track_Track
 		val mutable m_net = 0
 		val mutable m_status = "0" 
-		val mutable	m_drawsegment = false (*for drawsegments*)
+(* 		val mutable	m_drawsegment = false (*for drawsegments*) *)
 		val mutable	m_angle = 0
 		val mutable m_g = new grfx
 		val mutable m_hit = false
@@ -163,16 +163,22 @@ object (self)
 				| Track_Track -> m_g#setColor (layer_to_color m_layer) ; 
 				| Track_Via -> m_g#setColor !gviaColor ; (* for now, all vias are through-hole vias.. *)
 		)
+		method dispinfo () = (
+			let len = self#getLength () in
+			let s = match m_type with
+				| Track_Track -> "track, width: "
+				| Track_Via -> "via, diameter: "
+			in
+			let wafer = sprintf "%4.4f" ( m_width /. 5.0) in
+			let lens = sprintf "%2.4f ( %2.5f )" len (len /. 5.0) in
+			!ginfodisp ( s ^ (sof m_width) ^ " ( " ^ wafer ^
+				")\nlength:" ^ lens )
+				(* used to have netname in here  ^ " netname:" ^ (!glookupnet m_net) *)
+		)
 		method draw bbox = (
 			if m_visible then (
 				if m_hit then (
-					let s = match m_type with
-						| Track_Track -> "track, width: "
-						| Track_Via -> "via, diameter: "
-					in
-					let mm = sprintf "%4.4f" ( m_width *. 25.4) in
-					!ginfodisp ( s ^ (sof m_width) ^ " mm: " ^ mm ^
-						"\nnet:" ^ (soi m_net) ^ " netname:" ^ (!glookupnet m_net) )
+					self#dispinfo ()
 				); 
 				if !gcurnet = m_net && !gcurnet != 0 then (
 					m_g#setAlpha 0.78
@@ -377,33 +383,32 @@ object (self)
 			); 
 			m_net <- ios sp.(3) ; 
 			m_status <- sp.(4) ; 
-			if m_layer = 24 (*drawings *) then m_drawsegment <- true ; 
+(* 			if m_layer = 24 (*drawings *) then m_drawsegment <- true ;  *)
 			if m_type = Track_Via then m_shape <- 3 ;  (* this seems to be a requirement for importing .brd files with the new version of pcbnew (4.0.0) *)
-			(* tracks don't make sense on the drawings layer. *)
 		)
 		method save oc = (
-			if not m_drawsegment then (
-				fprintf oc "Po %d %s %s %s %s %s %s\n"
-					m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) 
-					(sofs m_width) (sofs m_drill);
-				(* pcbnew expects vias to be on layer 15 (component) *)
-				let layer = if m_type = Track_Via then 15 else m_layer in
-				fprintf oc "De %d %d %d 0 %s\n" layer 
-					(match m_type with
-						| Track_Via -> 1
-						| Track_Track -> 0 ) m_net m_status; 
-				flush oc ; 
-			) else (
+(* 			if not m_drawsegment then ( *)
+			fprintf oc "Po %d %s %s %s %s %s %s\n"
+				m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) 
+				(sofs m_width) (sofs m_drill);
+			(* pcbnew expects vias to be on layer 15 (component) *)
+			let layer = if m_type = Track_Via then 15 else m_layer in
+			fprintf oc "De %d %d %d 0 %s\n" layer 
+				(match m_type with
+					| Track_Via -> 1
+					| Track_Track -> 0 ) m_net m_status; 
+			flush oc ; 
+			(* ) else (
 				fprintf oc "$DRAWSEGMENT\n" ; 
 				fprintf oc "Po %d %s %s %s %s %s\n" 
 					m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) (sofs m_width) ; 
 				fprintf oc "De %d %d %d 0 0\n" 
 					m_layer 0 m_angle ; 
 				fprintf oc "$EndDRAWSEGMENT\n" ; 
-			)
+			)*)
 		)
 		(* treat drawsegments as tracks, too - this allows easier editing! *)
-		method is_drawsegment () = m_drawsegment
+		method is_drawsegment () =  false (* m_drawsegment *)
 		
 		method read_drawsegment ic = (
 			let line = input_line2 ic in
@@ -423,6 +428,6 @@ object (self)
 			let d = ref "" in
 			d := input_line2 ic ; 
 			m_net <- 0;
-			m_drawsegment <- true; 
+(* 			m_drawsegment <- true;  *)
 		)
 end

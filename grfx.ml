@@ -42,7 +42,7 @@ method getNumVerts () = numverts
 
 method updateRaw () = 
 	(* update the raw list *)
-	numverts <- List.length verts ; 
+	numverts <- List.length verts ;
 	if(numverts > 2) then (
 		Raw.free_static rawv ; 
 		rawv <- Raw.create_static `float (2 * numverts) ; 
@@ -305,7 +305,7 @@ method hit (x,y) =
 	
 method draw ?(hit=false) ?(hcolor=(1.,1.,1.)) bbox = 
 	(* do some visibility checking  .. *)
-	if  bbxIntersect bbox bbx  && color != (0. , 0. , 0.) then (
+	if  bbxIntersect bbox bbx && color != (0. , 0. , 0.) then (
 		let col = 
 			if hit then 
 				hcolor

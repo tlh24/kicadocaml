@@ -48,15 +48,19 @@ object
 	val mutable m_g = new grfx (* say, for showing the bounding box.. *)
 	val mutable m_tracks : pcb_track list = []
 	val mutable m_cells : string list = [] (* instances *)
-	val mutable m_cells_tm : float array array list = [] 
-		(* transformation matrices for each cell instance. *)
+	val mutable m_cells_offset : float array array list = [] 
+	val mutable m_cells_n : int list = [] 
+	val mutable m_cells_iter : float array array list = []
+		(* transformation matrix (offset, iter) for each cell instance. *)
 	
 method getName () = m_name;
 method setName s = m_name <- s; 
 method getVisible () = m_visible;
 method setVisible v = m_visible <- v;
 method getCells () = m_cells ; 
-method getCellsTm () = m_cells_tm ; 
+method getCellsOffset () = m_cells_offset ; 
+method getCellsN () = m_cells_n ; 
+method getCellsIter () = m_cells_iter ; 
 	
 method addTrack track = (
 	printf "adding track to %s\n%!" m_name;
@@ -90,16 +94,22 @@ method read ic line =
 		try (
 			let sp = Pcre.extract ~pat:"Ci (\w+)" !line2 in
 			m_cells <- sp.(1) :: m_cells; 
-			line2 := input_line2 ic ; 
-			let mat = matrix_identity 3 in
-			for j = 0 to 2 do 
-				let sp = Pcre.extract ~pat:"Tm ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" !line2 in
-				for i = 0 to 2 do
-					mat.(j).(i) <- fos sp.(1+i) ; 
-				done ;
-				line2 := input_line2 ic ;
-			done;
-			m_cells_tm <- mat :: m_cells_tm;
+			let read_matrix () = 
+				line2 := input_line2 ic ; 
+				let mat = matrix_identity 3 in
+				for j = 0 to 2 do 
+					let sp = Pcre.extract ~pat:"Tm ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" !line2 in
+					for i = 0 to 2 do
+						mat.(j).(i) <- fos sp.(1+i) ; 
+					done ;
+					line2 := input_line2 ic ;
+				done;
+				mat 
+			in
+			m_cells_offset <- read_matrix () :: m_cells_offset; 
+			let sp = Pcre.extract ~pat:"Ni ([\.\d-]+)" !line2 in
+			m_cells_n <- (ios sp.(1)) :: m_cells_n; 
+			m_cells_iter <- read_matrix () :: m_cells_iter; 
 		) with _ -> line2 := input_line2 ic ; 
 	) done ;
 
@@ -109,12 +119,23 @@ method save oc = (
 	List.iter (fun t -> t#save oc) m_tracks; 
 	fprintf oc "$EndTRACKS\n"; 
 	fprintf oc "$CELLINSTANCE\n"; 
-	List.iter2 (fun s m -> 
-		fprintf oc "Ci %s\n" s; 
-		for j = 0 to 2 do
-			fprintf oc "Tm %f %f %f\n" m.(j).(0) m.(j).(1) m.(j).(2); 
-		done;
-	) m_cells m_cells_tm; 
+	let rec print_instances cells offset n iter = 
+		match cells with 
+		| hd :: _ -> (
+			fprintf oc "Ci %s\n" hd; 
+			let print_matrix m = 
+				for j = 0 to 2 do
+					fprintf oc "Tm %f %f %f\n" m.(j).(0) m.(j).(1) m.(j).(2); 
+				done;
+			in
+			print_matrix (List.hd offset); 
+			fprintf oc "Ni %d\n" (List.hd n); 
+			print_matrix (List.hd iter) ;
+			print_instances (List.tl cells) (List.tl offset) (List.tl n) (List.tl iter); )
+		| _ -> ()
+	in
+	print_instances (List.rev m_cells) (List.rev m_cells_offset) 
+		(List.rev m_cells_n) (List.rev m_cells_iter); 
 	fprintf oc "$EndCELLINSTANCE\n"; 
 )
 	
@@ -133,9 +154,11 @@ method update () = (
 ) 
 
 method hit (p, onlyworknet, netn_, hitsize_, hitz_, hitclear_) = (
+	if m_visible then 
 	List.fold_left (fun (netn, hitsize, hitz, hitclear) t -> 
 		t#hit (p, onlyworknet, netn, hitsize, hitz, hitclear)
 	) (netn_, hitsize_, hitz_, hitclear_) m_tracks
+	else (netn_, hitsize_, hitz_, hitclear_)
 )
 end
 
@@ -164,17 +187,28 @@ let rec accumulate ce (gr:grfx) lay tm (cells : pcb_cell list) toplevel =
 		) (ce#getTracks ()) ; 
 	); (* otherwise, the tracks are drawn conventionally *)
 	printf "accumulating %s layer %d n=%d ..\n%!" (ce#getName ()) lay (List.length (ce#getCells ())); 
-	List.iter2 (fun ci mi -> 
-		printf "cell instance %s\n%!" ci; 
-		let cr = try Some (List.find (fun a -> a#getName () = ci) cells)
-			with Not_found -> None in
-		match cr with 
-		| Some hd -> 
-			printf "found.\n%!"; 
-			let m = matrix_multiply tm mi in
-			accumulate hd gr lay m cells false
-		| _ -> ()
-	) (ce#getCells ()) (ce#getCellsTm ())
+	let rec accCells cell offset n iter = 
+		(match cell with 
+		| ci :: _ -> (
+			printf "cell instance %s\n%!" ci; 
+			let m_off = matrix_multiply tm (List.hd offset) in
+			let cr = try Some (List.find (fun a -> a#getName () = ci) cells)
+				with Not_found -> None in
+			match cr with 
+			| Some cv -> (
+				printf "found.\n%!"; 
+				let rec accIter mp np = 
+					if np > 0 then (
+						accumulate cv gr lay mp cells false; 
+						accIter (matrix_multiply mp (List.hd iter)) (np - 1)
+					) else ()
+				in
+				accIter m_off (List.hd n); 
+				accCells (List.tl cell) (List.tl offset) (List.tl n) (List.tl iter) )
+			| _ -> () )
+		| _ -> () )
+	in
+	accCells (ce#getCells()) (ce#getCellsOffset()) (ce#getCellsN()) (ce#getCellsIter()); 
 	;;
 
 (* accumulator -- try to draw lots of polygons fast! *)
@@ -182,10 +216,13 @@ let accumulateInstances cells =
 	Array.iter (fun gr -> gr#empty () ) gAccg; 
 	Array.iteri (fun lay gr -> 
 		List.iter (fun ce -> 
+			if ce#getVisible () then 
 			accumulate ce gr lay (matrix_identity 3) cells true
+			else ()
 		) cells ; 
 	) gAccg ;
 	Array.iteri (fun lay gr -> gr#updateLayer lay ) gAccg; 
+	Array.iter (fun gr -> gr#updateBBX () ) gAccg; 
 	;;
 
 let drawInstances bbox lay = 

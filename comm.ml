@@ -55,7 +55,7 @@ let input_line2 ic =
 let nothingxy (_:float) (_:float) = () ;;
 let nothingsxy (_:string) (_:float) (_:float) = () ; 
 
-type pcb_mode_type = Mode_MoveModule | Mode_MoveText |
+type pcb_mode_type = Mode_MoveModule | Mode_MoveCell | Mode_MoveText |
 		Mode_MoveTrack | Mode_AddTrack
 
 let gwindowsize = ref (0, 0)
@@ -104,6 +104,7 @@ let convert_units x y w h =
 	let fh = (foss h) /. 2. in
 	(fx, fy, fw, fh)
 	
+(* Z sorting: positive is on top. *)
 let layer_to_z layer = 
 	let count = ref 0 in
 	ignore (List.find (fun l -> 
@@ -291,6 +292,9 @@ let bbxRotate (xl,yl,xh,yh) r =
 	(min yln yhn),
 	(max xln xhn),
 	(max yln yhn))
+	;;
+let bbxAdd bbx (px,py) = 
+	bbxMerge bbx (px,py,px,py)
 	;;
 let fmin (a:float) (b:float) = if a < b then a else b ;;
 let fmax (a:float) (b:float) = if a > b then a else b ;;

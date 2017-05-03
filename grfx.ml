@@ -118,6 +118,14 @@ method makeRectFloat ?(accumulate=false) fx fy fw fh =
 		self#updateRaw() ; 
 	)
 	
+method makeRectBBX (mx, my, nx, ny) = 
+	verts <- List.rev_append 
+		[ (mx , my) ; (mx , ny) ; 
+		  (nx , ny) ; (nx , my) ] 
+		verts ; 
+	self#updateBBX (); 
+	self#updateRaw() ; 
+	
 method makeCircle ?(accumulate=false) x y w h = 
 	(* for convienence, will make this drawable with quads not triangles. *)
 	let fw,fh = w/.2.0, h/.2.0 in

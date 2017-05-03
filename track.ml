@@ -57,6 +57,7 @@ object (self)
 		method getDirty () = m_dirty
 		method setVisible b = m_visible <- b 
 		method getVisible () = m_visible
+		method getBBX () = m_g#getBBX ()
 		method getStart () = 
 			if m_type = Track_Track then (
 				if m_hasStartConstraint then (

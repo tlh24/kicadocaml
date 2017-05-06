@@ -104,6 +104,18 @@ let convert_units x y w h =
 	let fh = (foss h) /. 2. in
 	(fx, fy, fw, fh)
 	
+let format_dim x = 
+	let y = x /. 4.000 in
+	let z,unit = if y > 0.5 then (
+		(y, "mm")
+	) else (
+		if y > 0.001 then 
+		(y *. 1000.0, "um")
+		else (y *. 1000000.0, "nm")
+	) in
+	Printf.sprintf "%2.4f ( %2.3f %s )" x z unit
+	;;
+	
 (* Z sorting: positive is on top. *)
 let layer_to_z layer = 
 	let count = ref 0 in

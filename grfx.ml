@@ -196,6 +196,19 @@ method makeTrack (sx,sy) (ex,ey) width =
 	endcap (n/2) n ex ey ; 
 	self#updateBBX (); 
 	self#updateRaw() ; 
+method makeRectTrack (sx,sy) (ex,ey) width = 
+	(*functionally the same as verts_circle_make, though the middle is stretched out. *)
+	let dx = ex -. sx in
+	let dy = ey -. sy in
+	let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
+	let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
+	let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
+	verts <- ( (Pts2.add (sx,sy) (mx,my)) :: verts ) ; 
+	verts <- ( (Pts2.add (ex,ey) (mx,my)) :: verts ) ; 
+	verts <- ( (Pts2.sub (ex,ey) (mx,my)) :: verts ) ; 
+	verts <- ( (Pts2.sub (sx,sy) (mx,my)) :: verts ) ; 
+	self#updateBBX (); 
+	self#updateRaw() ; 
 method makeOval o w h = 
 	if w > h then (
 		self#makeTrack 

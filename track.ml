@@ -22,7 +22,7 @@ type pcb_track_type = Track_Track | Track_Via
 
 class pcb_track = 
 object (self)
-		val mutable m_shape = 0
+		val mutable m_shape = 0 (* 0 = rounded; 1 = rectangle *)
 		val mutable m_stx = 0. (* need these stored as floats so we don't run into *)
 		val mutable m_sty = 0. (* roundoff issues when drc auomatically moves them *)
 		val mutable m_enx = 0.
@@ -58,6 +58,12 @@ object (self)
 		method setVisible b = m_visible <- b 
 		method getVisible () = m_visible
 		method getBBX () = m_g#getBBX ()
+		method getShape () = m_shape; 
+		method setShape s = 
+			if s <> m_shape then (
+				m_shape <- s; 
+				self#update ()
+			)
 		method getStart () = 
 			if m_type = Track_Track then (
 				if m_hasStartConstraint then (
@@ -151,7 +157,10 @@ object (self)
 						if Pts2.distance2 st en = 0. then (
 							m_g#makeCircle (fst st) (snd st) m_width m_width
 						) else (
-							m_g#makeTrack st en m_width ) )
+							if m_shape = 1 then (
+								m_g#makeRectTrack st en m_width
+							) else (
+							m_g#makeTrack st en m_width ) ) )
 					| Track_Via -> 
 						m_g#makeRing st m_drill m_width; 
 			);
@@ -170,10 +179,7 @@ object (self)
 				| Track_Track -> "track, width: "
 				| Track_Via -> "via, diameter: "
 			in
-			let wafer = sprintf "%4.4f" ( m_width /. 5.0) in
-			let lens = sprintf "%2.4f ( %2.5f )" len (len /. 5.0) in
-			!ginfodisp ( s ^ (sof m_width) ^ " ( " ^ wafer ^
-				")\nlength:" ^ lens )
+			!ginfodisp ( s ^ (format_dim m_width) ^"\nlength: "^ (format_dim len) )
 				(* used to have netname in here  ^ " netname:" ^ (!glookupnet m_net) *)
 		)
 		method draw bbox = (

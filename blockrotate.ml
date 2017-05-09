@@ -115,6 +115,8 @@ let scale tracks sclf =
 			t#setStart st2 ; 
 			t#setEnd en2 ; 
 			t#setWidth w2 ; 
+			t#setHit false; 
+			t#setMoving false; 
 			t#update (); 
 		) tracks; 
 	)

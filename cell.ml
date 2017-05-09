@@ -216,7 +216,7 @@ let ce_draw ce bbx lay firstLayer =
 				t#draw bbx
 		) ce.tracks; 
 	);
-	if lay = firstLayer then 
+	if lay = firstLayer && !gmode = Mode_MoveCell then 
 		List.iter (fun ci -> ci_draw ci bbx) ce.cells ; 
 	;;
 let ce_update ce = 
@@ -239,9 +239,11 @@ let ce_hit ce (p, onlyworknet, netn_, hitsize_, hitz_, hitclear_) =
 		) (netn_, hitsize_, hitz_, hitclear_) ce.tracks in
 		(* see if we hit any (immediate, first-level) instances *)
 		(* hitting deeper nodes doesn't make sense, too confusing to edit.*)
-		List.fold_left (fun (netn, hitsize, hitz, hitclear) ci -> 
-			ci_hit ci (p, netn, hitsize, hitz, hitclear)
-		) (nn, hitsize2, hitz2, hitclear2) (ce.cells)
+		if !gmode = Mode_MoveCell then (
+			List.fold_left (fun (netn, hitsize, hitz, hitclear) ci -> 
+				ci_hit ci (p, netn, hitsize, hitz, hitclear)
+			) (nn, hitsize2, hitz2, hitclear2) (ce.cells)
+		) else (nn, hitsize2, hitz2, hitclear2)
 	) else (netn_, hitsize_, hitz_, hitclear_)
 	;;
 	

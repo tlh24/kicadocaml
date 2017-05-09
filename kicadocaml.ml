@@ -2678,16 +2678,19 @@ let makemenu top togl filelist =
 	gridAdd 0.001 ;  (* useful defaults; modified for 4x stepper *)
 	gridAdd 0.002 ; 
 	gridAdd 0.004 ;
+	gridAdd 0.008 ;
 	gridAdd 0.006 ; 
 	gridAdd 0.010 ; 
 	gridAdd 0.020 ; 
 	gridAdd 0.040 ; 
 	gridAdd 0.060 ; 
+	gridAdd 0.080 ; 
 	gridAdd 0.100 ;
 	gridAdd 0.200 ;
 	gridAdd 0.300 ;
 	gridAdd 0.400 ;
 	gridAdd 0.600 ; 
+	gridAdd 0.800 ; 
 	gridAdd 1.000 ; 
 	gridAdd 2.000 ; 
 	
@@ -2754,22 +2757,22 @@ let makemenu top togl filelist =
 	in
 	let cellMenuRefresh () =
 		Menu.delete ~first:(`Num 0) ~last:(`Num !gCellMenuLength) cellmenu ; 
-		Menu.insert_command ~index:(`Num 0) cellmenu ~label:"All" 
+		Menu.insert_command ~index:(`Num 0) cellmenu
+			~label:"Cells Dialog" ~command:cellAdd ; 
+		Menu.insert_command ~index:(`Num 1) cellmenu ~label:"Global" 
 			~command:(fun _ -> updateCell None) ; 
 		List.iteri (fun i ce -> 
-			Menu.insert_command ~index:(`Num (i+1)) cellmenu 
+			Menu.insert_command ~index:(`Num (i+2)) cellmenu 
 				~label:ce.name ~command: (fun _ ->
 					updateCell (Some ce) ) ) 
 			(cellSortName ());
-		Menu.insert_command ~index:(`Num ((List.length !gcells) + 4)) cellmenu
-			~label:"Add..." ~command:cellAdd ; 
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 3)) cellmenu
 			~label:"Regenerate (Ctrl-G)" ~command:(fun _ -> 
 				Cell.accumulate !gcells); 
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 2)) cellmenu
 			~label:"Empty (Ctrl-E)" ~command:(fun _ -> 
 				Cell.empty () ); 
-		gCellMenuLength := (List.length !gcells) + 5; 
+		gCellMenuLength := (List.length !gcells) + 4; 
 	in
 	gCellMenuRefresh := cellMenuRefresh ; 
 	cellMenuRefresh (); (* to get the 'all' and 'add' entries. *)

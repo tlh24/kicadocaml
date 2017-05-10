@@ -2697,11 +2697,19 @@ let makemenu top togl filelist =
 	(* cells *)
 	let cellSortName () = (List.sort (fun a b -> String.compare a.name b.name )
 				!gcells) in
-	
-	let cellAdd () = 
-		(* dialog for adding a cell to the design *)
+	let gCellCheckbuttons = ref [] in
+	let updateCellCheckbuttons () = 
+		List.iter (fun (nm,ck) -> 
+			let ce = List.find (fun c -> c.name = nm) !gcells in
+			if ce.visible then Checkbutton.select ck
+			else Checkbutton.deselect ck
+			) !gCellCheckbuttons ; 
+			render togl nulfun in
+	let cellDialog () = 
+		(* dialog for doing cell things *)
 		let dlog = Toplevel.create top in
 		Wm.title_set dlog "Cells" ; 
+		gCellCheckbuttons := [] ; 
 		(* have a bunch of checkboxes per cell, plus a box for adding a new one. *)
 		let buttons = List.map (fun ce -> 
 			let cframe = Frame.create dlog in (* horizontal *)
@@ -2716,9 +2724,16 @@ let makemenu top togl filelist =
 					| _ -> ce.visible <- false); 
 					render togl nulfun;
 					) in
-			let swbutton = Button.create cframe ~text:ce.name
+			gCellCheckbuttons := (ce.name, ckbutton) :: !gCellCheckbuttons ; 
+			let swbutton = Button.create cframe ~text:("select "^ce.name)
 				~command:(fun () -> updateCell (Some ce) ) in
-			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
+			let onlybutton = Button.create cframe ~text:"only"
+				~command:(fun () -> 
+					List.iter (fun c -> if c.name = ce.name then ce.visible <- true
+						else ce.visible <- false) !gcells; 
+						updateCellCheckbuttons () 
+					) in
+			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton; Tk.coe onlybutton]; 
 			cframe 
 		) (cellSortName ()) in
 		(* add a button for global (non-cell) on/off *)
@@ -2735,7 +2750,16 @@ let makemenu top togl filelist =
 					| _ -> gdrawtracks := false); 
 					render togl nulfun;
 					) in
-			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton]; 
+			let allbutton = Button.create cframe ~text:"all visible"
+				~command:(fun () -> 
+					List.iter (fun c -> c.visible <- true) !gcells; 
+					updateCellCheckbuttons () ) in
+			let nonebutton = Button.create cframe ~text:"none visible"
+				~command:(fun () -> 
+					List.iter (fun c -> c.visible <- false) !gcells; 
+					updateCellCheckbuttons () )in
+			Tk.pack ~side:`Left ~fill:`Y ~expand:true 
+				[Tk.coe ckbutton; Tk.coe allbutton; Tk.coe nonebutton]; 
 			cframe 
 		in
 		let f2 = Frame.create dlog in
@@ -2758,7 +2782,7 @@ let makemenu top togl filelist =
 	let cellMenuRefresh () =
 		Menu.delete ~first:(`Num 0) ~last:(`Num !gCellMenuLength) cellmenu ; 
 		Menu.insert_command ~index:(`Num 0) cellmenu
-			~label:"Cells Dialog" ~command:cellAdd ; 
+			~label:"Cells Dialog" ~command:cellDialog ; 
 		Menu.insert_command ~index:(`Num 1) cellmenu ~label:"Global" 
 			~command:(fun _ -> updateCell None) ; 
 		List.iteri (fun i ce -> 
@@ -3427,44 +3451,59 @@ let makemenu top togl filelist =
 			List.iter (fun z -> z#delete ()) zones ; 
 			render togl nulfun; 
 		) top ; 
-	bind ~events:[`KeyPressDetail("Delete")] ~action:
-		(fun _ -> (* remove any tracks that were hit, AND ones that they connect to*)
-			let rec trackdelete tracks = 
-				let tracks2 = ref [] in
-				List.iter (fun t1 -> 
-					let st = t1#getStart () in
-					let en = t1#getEnd () in
-					let layer = t1#getLayer() in
-					let tvia = t1#getType() = Track_Via in
-					let bbx = t1#getDrcBBX () in
-					let w = t1#getWidth() *. 0.5 in
-					List.iter (fun (t2,c2) -> 
-						let vis = match c2 with 
-							| Some ce -> ce.visible 
-							| _ -> !gdrawtracks in
-						if bbxIntersect bbx (t2#getDrcBBX()) && vis then (
-							if t1 != t2 then (
-								if t2#getLayer() = layer || t2#getType() = Track_Via || tvia then (
-									let w2 = t2#getWidth() *. 0.5 in
-									let dd = (w +. w2) *. (w +. w2) in
-									if Pts2.distance2 st (t2#getStart()) < dd ||
-										Pts2.distance2 st (t2#getEnd()) < dd ||
-										Pts2.distance2 en (t2#getStart()) < dd ||
-										Pts2.distance2 en (t2#getEnd()) < dd  then (
-											trackFilter (fun t -> t <> t2);
-											tracks2 := (t2 :: !tracks2); 
-									); 
-								); 
+	let rec trackPropagate tracks fn = 
+		let tracks2 = ref [] in
+		List.iter (fun t1 -> 
+			fn t1; 
+			let st = t1#getStart () in
+			let en = t1#getEnd () in
+			let layer = t1#getLayer() in
+			let tvia = t1#getType() = Track_Via in
+			let bbx = t1#getDrcBBX () in
+			let w = t1#getWidth() *. 0.5 in
+			List.iter (fun (t2,c2) -> 
+				let vis = match c2 with 
+					| Some ce -> ce.visible 
+					| _ -> !gdrawtracks in
+				if bbxIntersect bbx (t2#getDrcBBX()) && vis then (
+					if t1 != t2 && t2#getHit () = false then (
+						if t2#getLayer() = layer || t2#getType() = Track_Via || tvia then (
+							let w2 = t2#getWidth() *. 0.5 in
+							let dd = (w +. w2) *. (w +. w2) in
+							if Pts2.distance2 st (t2#getStart()) < dd ||
+								Pts2.distance2 st (t2#getEnd()) < dd ||
+								Pts2.distance2 en (t2#getStart()) < dd ||
+								Pts2.distance2 en (t2#getEnd()) < dd  then (
+									t2#setHit true; 
+									tracks2 := (t2 :: !tracks2); 
 							); 
 						); 
-					) (allTracks ()) ; 
-				) tracks ; 
-				if(List.length !tracks2) > 0 then trackdelete !tracks2
-			in
+					); 
+				); 
+			) (allTracks ()) ; 
+		) tracks ; 
+		if(List.length !tracks2) > 0 then trackPropagate !tracks2 fn
+	in
+	bind ~events:[`KeyPressDetail("Delete")] ~action:
+		(fun _ -> (* remove any tracks that were hit, AND ones that they connect to*)
 			let tracklist = trackHit () in
-			trackdelete (List.map (fun (t,_) -> t) tracklist);  
+			trackPropagate (List.map (fun (t,_) -> t) tracklist)
+				(fun t2 -> trackFilter (fun t -> t <> t2));  
 			if List.length tracklist > 0 then (
 				let tr,_ = (List.hd tracklist) in
+				let nn = tr#getNet () in
+				gratsnest#updateTracks nn (List.map fst (allTracks ())) ; 
+			);
+			render togl nulfun; 
+		) top ; 
+	bind ~events:[`Modified([`Shift], `KeyPressDetail"W")] ~action:
+		(fun _ -> (* change the width of tracks that were hit, AND ones that they connect to*)
+			let tracklist = List.map (fun (t,_) -> t) (trackHit ()) in
+			trackPropagate tracklist 
+				(fun t2 -> t2#setWidth !gtrackwidth; 
+					t2#update () );  
+			if List.length tracklist > 0 then (
+				let tr = (List.hd tracklist) in
 				let nn = tr#getNet () in
 				gratsnest#updateTracks nn (List.map fst (allTracks ())) ; 
 			);

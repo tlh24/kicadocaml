@@ -109,7 +109,7 @@ let format_dim x =
 	let z,unit = if y > 0.5 then (
 		(y, "mm")
 	) else (
-		if y > 0.001 then 
+		if y >= 0.001 then 
 		(y *. 1000.0, "um")
 		else (y *. 1000000.0, "nm")
 	) in

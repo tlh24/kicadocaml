@@ -2391,10 +2391,10 @@ let makemenu top togl filelist =
 						t#update (); 
 						t#setHit true) newtracks ;
 					addTracks newtracks !gCurrentCell; 
-					List.iter (fun t -> 
-						t#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
-						t#update (); 
-						t#setHit true) newzones ;
+					List.iter (fun z -> 
+						z#newGrfx (); (* need to make a new graphics b/c the track is copied. *)
+						z#update (); 
+						z#setHit true) newzones ;
 					gzones := List.rev_append newzones !gzones; (* add them to the global list *)
 				) top;
 				(* and a function to shift tracks between layers *)
@@ -2677,6 +2677,7 @@ let makemenu top togl filelist =
 	in 
 	gridAdd 0.001 ;  (* useful defaults; modified for 4x stepper *)
 	gridAdd 0.002 ; 
+	gridAdd 0.003 ;
 	gridAdd 0.004 ;
 	gridAdd 0.008 ;
 	gridAdd 0.006 ; 
@@ -2693,6 +2694,7 @@ let makemenu top togl filelist =
 	gridAdd 0.800 ; 
 	gridAdd 1.000 ; 
 	gridAdd 2.000 ; 
+	gridAdd 4.000 ; 
 	
 	(* cells *)
 	let cellSortName () = (List.sort (fun a b -> String.compare a.name b.name )
@@ -2880,8 +2882,9 @@ let makemenu top togl filelist =
 	addOption tracksSub "drag connected tracks too" (fun b -> gTrackDragConnected := b) !gTrackDragConnected; 
 	Menu.add_command tracksSub ~label:"Remove duplicate tracks" ~command:
 	(fun () -> 
-		List.iter (fun t -> t#setDirty false) !gtracks; (* dirty flag for removal *)
-		let maxlayer = List.fold_left (fun l t -> max l (t#getLayer())) 0 !gtracks in
+		let tracks = List.map fst (allTracks ()) in
+		List.iter (fun t -> t#setDirty false) tracks; (* dirty flag for removal *)
+		let maxlayer = List.fold_left (fun l t -> max l (t#getLayer())) 0 tracks in
 		for lay = 0 to maxlayer do
 			printf "working on layer %s\n%!" (layer_to_string lay); 
 			let rec recmatch trks =
@@ -2940,10 +2943,10 @@ let makemenu top togl filelist =
 					recmatch tl; 
 				)
 				| [] -> () in
-			recmatch (List.filter (fun t -> t#getLayer() == lay) !gtracks)
+			recmatch (List.filter (fun t -> t#getLayer() == lay) tracks)
 		done; 
-		printf "removed %d tracks\n%!" (List.length (List.filter (fun t -> t#getDirty () ) !gtracks));
-		gtracks := List.filter (fun t -> not (t#getDirty () )) !gtracks; 
+		printf "removed %d tracks\n%!" (List.length (List.filter (fun t -> t#getDirty () ) tracks));
+		trackFilter (fun t -> not (t#getDirty ()) ) ; 
 	); 
 	
 	Menu.add_command viasSub ~label:"Vias dialog (Ctrl-V)" ~command:viasFun ;
@@ -3501,6 +3504,19 @@ let makemenu top togl filelist =
 			let tracklist = List.map (fun (t,_) -> t) (trackHit ()) in
 			trackPropagate tracklist 
 				(fun t2 -> t2#setWidth !gtrackwidth; 
+					t2#update () );  
+			if List.length tracklist > 0 then (
+				let tr = (List.hd tracklist) in
+				let nn = tr#getNet () in
+				gratsnest#updateTracks nn (List.map fst (allTracks ())) ; 
+			);
+			render togl nulfun; 
+		) top ; 
+	bind ~events:[`Modified([`Shift], `KeyPressDetail"L")] ~action:
+		(fun _ -> (* change the layer of tracks that were hit, AND ones that they connect to*)
+			let tracklist = List.map (fun (t,_) -> t) (trackHit ()) in
+			trackPropagate tracklist 
+				(fun t2 -> t2#setLayer !glayer; 
 					t2#update () );  
 			if List.length tracklist > 0 then (
 				let tr = (List.hd tracklist) in

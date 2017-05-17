@@ -1582,6 +1582,7 @@ let makemenu top togl filelist =
 			writebool "gdrawText" gdrawText;
 			writebool "gdosnap" gdosnap; 
 			writebool "gTrackEndpointOnly" gTrackEndpointOnly;
+			writebool "gTrackOnlyOne" gTrackOnlyOne;
 			writebool "gTrackDragConnected" gTrackDragConnected; 
 			writebool "gtrackDRC" gtrackDRC; 
 			writefloat "ggrid0" ggrid.(0);
@@ -1711,15 +1712,32 @@ let makemenu top togl filelist =
 					List.fold_left (fun (netn1,hitsize,hitz,hitclear) cell -> 
 						Cell.ce_hit cell (out, onlyworknet, netn1, hitsize, hitz, hitclear)
 					) (nn3,hitsize3,hitz3,hitclear3) !gcells 
-				) else nn,hitsize2,hitz2,[]
+				) else nn,hitsize3,hitz3,[]
 			in
+			(* if we only want to hit one, sort and shorten this list *)
+			let nn5,hitsize5,hitz5,hitclear5 = 
+			if !gTrackOnlyOne then (
+				let tracks = List.map fst 
+					(List.filter (fun (t,_) -> t#getHit ()) (allTracks ())) in
+				if (List.length tracks) > 0 then (
+					List.iter (fun t -> t#hitclear () ) tracks; 
+					let tracks2 = List.sort (fun t1 t2 -> 
+						let a1 = (t1#getArea ()) *. 1000.0 +. (t1#centerDistance out) in
+						let a2 = (t2#getArea ()) *. 1000.0 +. (t2#centerDistance out) in
+						compare a1 a2 ) tracks in
+					let trk = List.hd tracks2 in
+					trk#hit (out,onlyworknet,nn4,hitsize4,hitz4,[])
+				) else (
+					nn4,hitsize4,hitz4,hitclear4
+				)
+			) else nn4,hitsize4,hitz4,hitclear4 in
 			(* and do the zones .. *)
 			let netn2,_,_,_ = 
 				if !gdrawzones && !gmode <> Mode_MoveText then (
 					List.fold_left (fun (netnum,hitsize,hitz,hitclear) zon -> 
 						zon#hit out netnum hitsize hitz hitclear
-					) (nn4,hitsize4,hitz4,hitclear4) !gzones  
-				) else nn4,hitsize4,hitz4,hitclear4
+					) (nn5,hitsize5,hitz5,hitclear5) !gzones  
+				) else nn5,hitsize5,hitz5,hitclear5
 			in
 			gcurnet := netn2 ; 
 		); 
@@ -2397,16 +2415,6 @@ let makemenu top togl filelist =
 						z#setHit true) newzones ;
 					gzones := List.rev_append newzones !gzones; (* add them to the global list *)
 				) top;
-				(* and a function to shift tracks between layers *)
-				bind ~events:[`Modified([`Shift], `KeyPressDetail"L")] ~action:
-				(fun evinf ->
-					printf "moving %d tracks to current layer %d...\n%!" 
-						(List.length tracks) (List.hd !glayerZlist); 
-					List.iter (fun t -> 
-						t#setLayer (List.hd !glayerZlist); 
-						t#update ()) tracks ;
-					updatecurspos evinf;  
-				) top;
 				(* button for changing the cell *)
 				bind ~events:[`Modified([`Shift], `KeyPressDetail"C")] ~action:
 				(fun ev -> 
@@ -2879,6 +2887,8 @@ let makemenu top togl filelist =
 	addOption tracksSub "enable DRC on tracks" (fun b -> gtrackDRC := b) !gtrackDRC;
 	addOption tracksSub "snap tracks to eachother" (fun b -> gdosnap := b) !gdosnap; 
 	addOption tracksSub "only track endpoints active" (fun b -> gTrackEndpointOnly := b) !gTrackEndpointOnly;
+	addOption tracksSub "select only one track" (fun b -> gTrackOnlyOne := b) 
+		!gTrackOnlyOne;
 	addOption tracksSub "drag connected tracks too" (fun b -> gTrackDragConnected := b) !gTrackDragConnected; 
 	Menu.add_command tracksSub ~label:"Remove duplicate tracks" ~command:
 	(fun () -> 
@@ -3798,6 +3808,7 @@ let _ =
 					extract line "gdrawText" gdrawText;
 					extract line "gdosnap" gdosnap;
 					extract line "gTrackEndpointOnly" gTrackEndpointOnly;
+					extract line "gTrackOnlyOne" gTrackOnlyOne;
 					extract line "gTrackDragConnected" gTrackDragConnected; 
 					extract line "gtrackDRC" gtrackDRC; 
 					ggrid.(0) <- fextract line "ggrid0" ggrid.(0);

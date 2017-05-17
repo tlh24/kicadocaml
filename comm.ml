@@ -93,6 +93,7 @@ let gsnapTracksToGrid = ref false
 let gdrawText= ref true 
 let gdosnap = ref true
 let gTrackEndpointOnly = ref false
+let gTrackOnlyOne = ref false
 let gTrackDragConnected = ref false
 
 let random_timestamp () = Printf.sprintf "%x" (Int32.to_int(Random.int32 (Int32.max_int))) ;;

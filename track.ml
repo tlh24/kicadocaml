@@ -22,7 +22,7 @@ type pcb_track_type = Track_Track | Track_Via
 
 class pcb_track = 
 object (self)
-		val mutable m_shape = 0 (* 0 = rounded; 1 = rectangle *)
+		val mutable m_shape = 0 (* 0 = rounded ends; 1 = rectangle ends *)
 		val mutable m_stx = 0. (* need these stored as floats so we don't run into *)
 		val mutable m_sty = 0. (* roundoff issues when drc auomatically moves them *)
 		val mutable m_enx = 0.
@@ -37,7 +37,6 @@ object (self)
 		val mutable	m_angle = 0
 		val mutable m_g = new grfx
 		val mutable m_hit = false
-		val mutable m_washit = false
 		val mutable m_u = 0.
 		val mutable m_move = (0. , 0.)
 		val mutable m_moving = false
@@ -128,6 +127,16 @@ object (self)
 		method setHighlight b = m_highlight <- b ;
 		method setType t = m_type <- t ; 
 		method getLength () = Pts2.distance (self#getStart()) (self#getEnd())
+		method getArea () = (
+			let a = 3.1415926 *. (m_width /. 2.0) *. (m_width /. 2.0) in
+			if m_type = Track_Via then (
+				a
+			) else (
+				let len = self#getLength () in
+				let b = len *. m_width in
+				if m_shape = 1 then b else a +. b
+			)
+		)
 	
 		method setMoveStartConstraint f = (
 			m_moveStartConstraint <- f ; 
@@ -233,7 +242,6 @@ object (self)
 				(* don't update the hit variable if we are moving*)
 				(* don't hit if onlyworknet (e.g. when adding or removing a track)
 				is true and we are not the workingnet. *)
-				m_washit <- m_hit ; 
 				m_hit <- self#touch p ; 
 				
 				let st = self#getStart()  in
@@ -291,6 +299,11 @@ object (self)
 			)else if glayerEn.(m_layer) then (
 				Pts2.tracktouch st en p w2
 			) else false
+		)
+		method centerDistance p = (
+			let st = self#getStart()  in
+			let en = self#getEnd() in
+			Pts2.distance (Pts2.scl (Pts2.add st en) 0.5) p
 		)
 		method updateDrcBBX () = (
 			let stx,sty = self#getStart () in

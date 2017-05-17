@@ -41,20 +41,20 @@ object
 		match m_type with
 			| Shape_Polygon -> ( (*doesn't look like I have any, but write some sort of handler here ..*)
 				m_g#empty () ; (*clear the list, all Grfx functions add to it.. *)
-				m_g#makeTrack (m_stx,m_sty) (m_enx,m_eny) m_width ; 
+				m_g#makeTrack (m_stx,m_sty) (m_enx,m_eny) m_width m_width; 
 				let p = List.combine m_polyX m_polyY in
 				let rec drawpoly plist sx sy = 
 					match plist with
 					| [] -> () ; 
 					| h::t -> (
 						let (hx, hy) = h in
-						m_g#makeTrack (sx,sy) (hx,hy) m_width;
+						m_g#makeTrack (sx,sy) (hx,hy) m_width m_width;
 						drawpoly t hx hy 
 						); 
 				in
 				drawpoly p m_enx m_eny ; 
 			)
-			| _ -> m_g#makeTrack (m_stx,m_sty) (m_enx,m_eny) m_width ; 
+			| _ -> m_g#makeTrack (m_stx,m_sty) (m_enx,m_eny) m_width m_width; 
 		); 
 		m_g#rotateTranslate rot x y ; 
 	)

@@ -3377,7 +3377,7 @@ let makemenu top togl filelist =
 		gcurspos := calcCursPos ev !gpan true; 
 		let width = List.fold_left (fun default (track,_) -> 
 			if track#getHit() && track#getType() = Track_Track then 
-				track#getWidth() else default
+				track#getWidthU () else default
 		) !gtrackwidth trks in
 		if width <> !gtrackwidth then (
 			gtrackwidth := width; 
@@ -3520,6 +3520,26 @@ let makemenu top togl filelist =
 				let nn = tr#getNet () in
 				gratsnest#updateTracks nn (List.map fst (allTracks ())) ; 
 			);
+			render togl nulfun; 
+		) top ; 
+	bind ~events:[`Modified([`Control], `KeyPressDetail"w")] ~action:
+		(fun _ -> (* trapezoid the tracks that were hit*)
+			let tracklist = List.map (fun (t,_) -> t) (trackHit ()) in
+			List.iter (fun t -> 
+				t#setWidthU !gtrackwidth; 
+				t#update (); 
+			) tracklist; 
+			render togl nulfun; 
+		) top ; 
+	bind ~events:[`Modified([`Control], `KeyPressDetail"r")] ~action:
+		(fun _ -> (* switch between rectangle and round tracks *)
+			let tracklist = List.map (fun (t,_) -> t) (trackHit ()) in
+			List.iter (fun t -> 
+				if (t#getShape ()) = 0 then
+					t#setShape 1
+				else
+					t#setShape 0
+			) tracklist; 
 			render togl nulfun; 
 		) top ; 
 	bind ~events:[`Modified([`Shift], `KeyPressDetail"L")] ~action:
@@ -3968,7 +3988,7 @@ let _ =
 	); 
 	(* this for testing (so we can get a backtrace... *) 
 	(* use ocamlrun -b *)
-(* 	openFile top "/home/tlh24/kicadocaml/test_cell.brd";  *)
+(* 	openFile top "/home/tlh24/kicadocaml/trapezoid_test.brd";  *)
 	
  	Printexc.record_backtrace true ; (* ocaml 3.11 *)
  	Printexc.print_backtrace stdout ; (* ocaml 3.11 *)

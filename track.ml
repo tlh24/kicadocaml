@@ -27,7 +27,8 @@ object (self)
 		val mutable m_sty = 0. (* roundoff issues when drc auomatically moves them *)
 		val mutable m_enx = 0.
 		val mutable m_eny = 0.
-		val mutable m_width = 0.
+		val mutable m_stw = 0.
+		val mutable m_enw = 0.
 		val mutable m_drill = 0.
 		val mutable m_layer = 0
 		val mutable m_type = Track_Track
@@ -117,8 +118,10 @@ object (self)
 		method getGrfx () = m_g ; 
 		method getType () = m_type ;
 		method isVia() = m_type = Track_Via ;
-		method getWidth () = m_width
-		method setWidth w = m_width <- w; 
+		method getWidth () = m_stw
+		method getWidthU () = if m_u < 0.5 then m_stw else m_enw ; 
+		method setWidth w = m_stw <- w; m_enw <- w; 
+		method setWidthU w = if m_u < 0.5 then m_stw <- w else m_enw <- w; 
 		method getDrill () = m_drill
 		method setDrill d = m_drill <- d ;
 		method getU () = m_u 
@@ -128,13 +131,14 @@ object (self)
 		method setType t = m_type <- t ; 
 		method getLength () = Pts2.distance (self#getStart()) (self#getEnd())
 		method getArea () = (
-			let a = 3.1415926 *. (m_width /. 2.0) *. (m_width /. 2.0) in
+			let ast = 3.1415926 *. (m_stw /. 2.0) *. (m_stw /. 2.0) *. 0.5 in
+			let aen = 3.1415926 *. (m_enw /. 2.0) *. (m_enw /. 2.0) *. 0.5 in
 			if m_type = Track_Via then (
-				a
+				ast *. 2.0
 			) else (
 				let len = self#getLength () in
-				let b = len *. m_width in
-				if m_shape = 1 then b else a +. b
+				let b = len *. m_stw *. m_enw *. 0.5 in
+				if m_shape = 1 then b else ast +. aen +. b
 			)
 		)
 	
@@ -164,14 +168,14 @@ object (self)
 				match m_type with 
 					| Track_Track -> (
 						if Pts2.distance2 st en = 0. then (
-							m_g#makeCircle (fst st) (snd st) m_width m_width
+							m_g#makeCircle (fst st) (snd st) m_stw m_stw
 						) else (
 							if m_shape = 1 then (
-								m_g#makeRectTrack st en m_width
+								m_g#makeRectTrack st en m_stw m_enw
 							) else (
-							m_g#makeTrack st en m_width ) ) )
+							m_g#makeTrack st en m_stw m_enw ) ) )
 					| Track_Via -> 
-						m_g#makeRing st m_drill m_width; 
+						m_g#makeRing st m_drill m_stw; 
 			);
 			self#updateDrcBBX(); 
 			self#updateColor (); 
@@ -188,7 +192,9 @@ object (self)
 				| Track_Track -> "track, width: "
 				| Track_Via -> "via, diameter: "
 			in
-			!ginfodisp ( s ^ (format_dim m_width) ^"\nlength: "^ (format_dim len) )
+			let wid = if m_stw = m_enw then (format_dim m_stw)
+				else (format_dim m_stw) ^ "," ^ (format_dim m_enw) in
+			!ginfodisp ( s ^ wid ^"\nlength: "^ (format_dim len) )
 				(* used to have netname in here  ^ " netname:" ^ (!glookupnet m_net) *)
 		)
 		method draw bbox = (
@@ -207,14 +213,6 @@ object (self)
 				));
 			); 
 		)
-		method getSize () = (
-			let w2 = m_width /. 2. in
-			match m_type with
-			| Track_Track -> 
-				(Pts2.distance (m_stx,m_sty) (m_enx,m_eny)) *. m_width +.
-				w2 *. w2 *. 3.1415926
-			| Track_Via -> w2 *. w2 *. 3.1415926
-		)
 		method getHit () = m_hit ; 
 		method setHit h = m_hit <- h ; 
 		method hitclear () = m_hit <- false
@@ -232,8 +230,9 @@ object (self)
 					!max
 				)
 			in
-			let w2 = m_width /. 2. in
-			let ms = self#getSize () in (* area or size of track *)
+			let stw2 = m_stw /. 2. in
+			let enw2 = m_enw /. 2. in
+			let ms = self#getArea () in
 			(* z-sorting: want to be able to hit small items in the background *)
 			(* don't want to allow hitting tracks on more than one layer - 
 			if we do, must clear the previous *)
@@ -251,9 +250,10 @@ object (self)
 					(* need to update u, the position on the track that we were hit. *)
 					if m_type = Track_Track then (
 						let u = Pts2.closestuonline st en p true in
-						let tol = w2 /. (Pts2.distance st en) in
-						m_u <- if u < tol then 0.
-							else if u > 1. -. tol then 1. 
+						let tolst = stw2 /. (Pts2.distance st en) in
+						let tolen = enw2 /. (Pts2.distance st en) in
+						m_u <- if u < tolst then 0.
+							else if u > 1. -. tolen then 1. 
 							else u ; 
 						(* note we snap it to the endpoints. *)
 					); 
@@ -264,9 +264,9 @@ object (self)
 							| Track_Track -> (
 								gsnapped := Pts2.closestpointonline st en p true ; 
 								(* snap to the end caps *)
-								if Pts2.distance !gsnapped st < w2 then
+								if Pts2.distance !gsnapped st < stw2 then
 									gsnapped := st ; 
-								if Pts2.distance !gsnapped en < w2 then
+								if Pts2.distance !gsnapped en < enw2 then
 									gsnapped := en ; ); 
 							| Track_Via -> gsnapped := st ;
 						); 
@@ -289,15 +289,33 @@ object (self)
 			it only sees if the point is within the track area. 
 			it does not update anything, just returns a bool 
 			only works if track is visible.*)
-			let w2 = m_width /. 2. in
-			let st = self#getStart()  in
-			let en = self#getEnd() in
-			if m_type = Track_Via then (
-				(Pts2.distance st p ) < w2
-			) else if !gTrackEndpointOnly then (
-				(Pts2.distance st p ) < w2 || (Pts2.distance en p ) < w2
-			)else if glayerEn.(m_layer) then (
-				Pts2.tracktouch st en p w2
+			if glayerEn.(m_layer) then (
+				let stw2 = m_stw /. 2. in
+				let enw2 = m_enw /. 2. in
+				let st = self#getStart()  in
+				let en = self#getEnd() in
+				let u = Pts2.closestuonline st en p true in
+				let w2 = u *. enw2 +. (1.0 -. u) *. stw2 in
+				let d = Pts2.closestpointonline st en p true in
+				if m_type = Track_Via then (
+					(Pts2.distance st p ) < stw2
+				) else (
+					if !gTrackEndpointOnly then (
+						if m_shape = 1 then (
+							u > 0.0 && u < 1.0 && 
+							((Pts2.distance st p ) < stw2 || (Pts2.distance en p ) < enw2)
+						) else (
+							(Pts2.distance st p ) < stw2 || (Pts2.distance en p ) < enw2
+						)
+					)else (
+						if m_shape = 1 then (
+							u > 0.0 && u < 1.0 && (Pts2.distance d p) < w2
+						) else (
+							(Pts2.distance st p ) < stw2 || (Pts2.distance en p ) < enw2
+							|| (Pts2.distance d p) < w2
+						)
+					) 
+				)
 			) else false
 		)
 		method centerDistance p = (
@@ -310,7 +328,8 @@ object (self)
 			let enx,eny = self#getEnd () in
 			let minx,maxx = if stx < enx then stx,enx else enx,stx in
 			let miny,maxy = if sty < eny then sty,eny else eny,sty in
-			let g = !gclearance +. self#getWidth() *. 0.5 in
+			let w2 = max m_stw m_enw in
+			let g = !gclearance +. w2 *. 0.5 in
 			m_drcBBX <- ( minx -. g , miny -. g, maxx +. g, maxy +. g); 
 		)
 		method getDrcBBX () = m_drcBBX 
@@ -333,18 +352,19 @@ object (self)
 						(Pts2.linedistance st en (xl,yl) (xh,yl) ) ; (* horizontal bottom *)
 						(Pts2.linedistance st en (xl,yh) (xh,yh) )  (* horizontal top *)
 						|] in
-					let min = ref 1e24 in
+					let mn = ref 1e24 in
 					let ee = ref (0. ,0.) in
 					let ff = ref (0. ,0.) in
 					Array.iter (fun (l,e,f) -> 
-						if l < !min then (
-							min := l; 
+						if l < !mn then (
+							mn := l; 
 							ee := e; 
 							ff := f; 
 						); 
 					) ar; 
 					(* print_endline ("pad testdrc: min = " ^ (sof !min)) ; *)
-					!min < self#getWidth() *. 0.5 
+					let w2 = max m_stw m_enw in
+					!mn < w2 *. 0.5 
 				)
 			)
 		)
@@ -381,14 +401,35 @@ object (self)
 		(*below, timestamp and status always seem to be 0 - not including *)
 		method read ic line = 
 		(
-			let sp = Pcre.extract ~pat:"Po (\d+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" line in
-			m_shape <- ios sp.(1) ; 
-			m_stx <- foss sp.(2) ; 
-			m_sty <- foss sp.(3) ; 
-			m_enx <- foss sp.(4) ; 
-			m_eny <- foss sp.(5) ; 
-			m_width <- foss sp.(6) ; 
-			m_drill <- foss sp.(7) ; 
+			(* add in trapezoidal tracks.  so useful. *)
+			printf "track line: %s \n%!" line; 
+			let trap = try (
+				let sp = Pcre.extract ~pat:
+"Po (\d+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" 					line in
+				m_shape <- ios sp.(1) ; 
+				m_stx <- foss sp.(2) ; 
+				m_sty <- foss sp.(3) ; 
+				m_enx <- foss sp.(4) ; 
+				m_eny <- foss sp.(5) ; 
+				m_stw <- foss sp.(6) ; 
+				m_enw <- foss sp.(8) ;
+				m_drill <- foss sp.(7) ; 
+				true
+			) with _ -> (
+				let sp = Pcre.extract ~pat:
+"Po (\d+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" 
+				line in
+				m_shape <- ios sp.(1) ; 
+				m_stx <- foss sp.(2) ; 
+				m_sty <- foss sp.(3) ; 
+				m_enx <- foss sp.(4) ; 
+				m_eny <- foss sp.(5) ; 
+				m_stw <- foss sp.(6) ; 
+				m_enw <- foss sp.(6) ;
+				m_drill <- foss sp.(7) ; 
+				false
+			) in
+			if trap then printf "trapezoid OK\n%!"; 
 			let line2 = input_line2 ic in (*the De ... line*)
 			let sp = if !gfver = 1 then 
 				Pcre.extract ~pat:"De (\d+) (\d+) (\d+) \d+ (\w+)" line2 
@@ -403,14 +444,12 @@ object (self)
 			); 
 			m_net <- ios sp.(3) ; 
 			m_status <- sp.(4) ; 
-(* 			if m_layer = 24 (*drawings *) then m_drawsegment <- true ;  *)
 			if m_type = Track_Via then m_shape <- 3 ;  (* this seems to be a requirement for importing .brd files with the new version of pcbnew (4.0.0) *)
 		)
 		method save oc = (
-(* 			if not m_drawsegment then ( *)
-			fprintf oc "Po %d %s %s %s %s %s %s\n"
+			fprintf oc "Po %d %s %s %s %s %s %s %s\n"
 				m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) 
-				(sofs m_width) (sofs m_drill);
+				(sofs m_stw) (sofs m_drill) (sofs m_enw);
 			(* pcbnew expects vias to be on layer 15 (component) *)
 			let layer = if m_type = Track_Via then 15 else m_layer in
 			fprintf oc "De %d %d %d 0 %s\n" layer 
@@ -418,14 +457,6 @@ object (self)
 					| Track_Via -> 1
 					| Track_Track -> 0 ) m_net m_status; 
 			flush oc ; 
-			(* ) else (
-				fprintf oc "$DRAWSEGMENT\n" ; 
-				fprintf oc "Po %d %s %s %s %s %s\n" 
-					m_shape (sofs m_stx) (sofs m_sty) (sofs m_enx) (sofs m_eny) (sofs m_width) ; 
-				fprintf oc "De %d %d %d 0 0\n" 
-					m_layer 0 m_angle ; 
-				fprintf oc "$EndDRAWSEGMENT\n" ; 
-			)*)
 		)
 		(* treat drawsegments as tracks, too - this allows easier editing! *)
 		method is_drawsegment () =  false (* m_drawsegment *)
@@ -438,7 +469,8 @@ object (self)
 			m_sty <- foss sp.(3) ; 
 			m_enx <- foss sp.(4) ; 
 			m_eny <- foss sp.(5) ; 
-			m_width <- foss sp.(6) ; 
+			m_stw <- foss sp.(6) ; 
+			m_enw <- foss sp.(6) ; 
 			let line2 = input_line2 ic in
 			let sp2 = Pcre.extract ~pat:"De (\d+) (\d+) (\d+)" line2 in
 			m_layer <- ios sp2.(1) ;

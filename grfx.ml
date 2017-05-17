@@ -165,59 +165,63 @@ method makeRing (fx,fy) id od =
 	self#updateRaw() ; 
 	(* print_endline( "initializing verts: " ^ string_of_int(List.length b.verts)) *)
 
-method makeTrack (sx,sy) (ex,ey) width = 
+method makeTrack (sx,sy) (ex,ey) stw enw  = 
 	(*functionally the same as verts_circle_make, though the middle is stretched out. *)
 	let dx = ex -. sx in
 	let dy = ey -. sy in
-	let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
-	let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
+	let len = sqrt(dx *. dx +. dy *. dy) in
+	let (nx, ny) = ( dx /. len, dy /. len) in (*normalized line between them.*)
 	let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
 	let n = 6 in
 	let t = ref (pi /. foi((n+1) * 2)) in
 	let dt = pi /. foi(n+1) in
-	let pnt t x y = ( x -. cos(t)*.nx +. sin(t)*.mx, y -. cos(t)*.ny +. sin(t)*.my) in
-	let endcap sta en x y = 
+	let pnt t x y w = ( x -. cos(t)*.nx*.w +. sin(t)*.mx*.w, y -. cos(t)*.ny*.w +. sin(t)*.my*.w) in
+	let endcap sta en x y w = 
 		for i = sta to en do (
-			verts <- ( (pnt (-1. *. !t) x y ) :: verts ) ; 
-			verts <- ( (pnt (-1. *. !t -. dt) x y ) :: verts ) ; 
-			verts <- ( (pnt ( 1. *. !t +. dt) x y ) :: verts ) ; 
-			verts <- ( (pnt ( 1. *. !t) x y ) :: verts ) ; 
+			verts <- ( (pnt (-1. *. !t) x y w) :: verts ) ; 
+			verts <- ( (pnt (-1. *. !t -. dt) x y w) :: verts ) ; 
+			verts <- ( (pnt ( 1. *. !t +. dt) x y w) :: verts ) ; 
+			verts <- ( (pnt ( 1. *. !t) x y w) :: verts ) ; 
 			t := !t +. dt ; 
 		)done; 
 	in
+	let stw2 = stw /. 2.0 in
+	let enw2 = enw /. 2.0 in
 	(* rounded end cap @ start *)
-	endcap 1 (n/2) sx sy ; 
+	endcap 1 (n/2) sx sy stw2; 
 	(* center section *)
-	verts <- ( (pnt (-1. *. !t) sx sy ) :: verts ) ; 
-	verts <- ( (pnt (-1. *. !t) ex ey ) :: verts ) ; 
-	verts <- ( (pnt ( 1. *. !t) ex ey ) :: verts ) ; 
-	verts <- ( (pnt ( 1. *. !t) sx sy ) :: verts ) ; 
+	verts <- ( (pnt (-1. *. !t) sx sy stw2) :: verts ) ; 
+	verts <- ( (pnt (-1. *. !t) ex ey enw2) :: verts ) ; 
+	verts <- ( (pnt ( 1. *. !t) ex ey enw2) :: verts ) ; 
+	verts <- ( (pnt ( 1. *. !t) sx sy stw2) :: verts ) ; 
 	(* rounded end cap @ end *)
-	endcap (n/2) n ex ey ; 
+	endcap (n/2) n ex ey enw2; 
 	self#updateBBX (); 
 	self#updateRaw() ; 
-method makeRectTrack (sx,sy) (ex,ey) width = 
+method makeRectTrack (sx,sy) (ex,ey) stw enw = 
 	(*functionally the same as verts_circle_make, though the middle is stretched out. *)
 	let dx = ex -. sx in
 	let dy = ey -. sy in
-	let len = sqrt(dx *. dx +. dy *. dy) /. (0.5 *. width) in
-	let (nx, ny) = ( dx /. len, dy /. len) in (*line between them normalized to width.*)
+	let len = sqrt(dx *. dx +. dy *. dy)  in
+	let (nx, ny) = ( dx /. len, dy /. len) in (*normalized line between them*)
 	let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
-	verts <- ( (Pts2.add (sx,sy) (mx,my)) :: verts ) ; 
-	verts <- ( (Pts2.add (ex,ey) (mx,my)) :: verts ) ; 
-	verts <- ( (Pts2.sub (ex,ey) (mx,my)) :: verts ) ; 
-	verts <- ( (Pts2.sub (sx,sy) (mx,my)) :: verts ) ; 
+	let stw2 = stw /. 2.0 in
+	let enw2 = enw /. 2.0 in
+	verts <- ( (Pts2.add (sx,sy) (Pts2.scl (mx,my) stw2)) :: verts ) ; 
+	verts <- ( (Pts2.add (ex,ey) (Pts2.scl (mx,my) enw2)) :: verts ) ; 
+	verts <- ( (Pts2.sub (ex,ey) (Pts2.scl (mx,my) enw2)) :: verts ) ; 
+	verts <- ( (Pts2.sub (sx,sy) (Pts2.scl (mx,my) stw2)) :: verts ) ; 
 	self#updateBBX (); 
 	self#updateRaw() ; 
 method makeOval o w h = 
 	if w > h then (
 		self#makeTrack 
 			(Pts2.add o ((w -. h) *. -0.5,0.0)) 
-			(Pts2.add o ((w -. h) *. 0.5,0.0)) h
+			(Pts2.add o ((w -. h) *. 0.5,0.0)) h h
 	) else (
 		self#makeTrack 
 			(Pts2.add o (0.0,(h -. w) *. -0.5)) 
-			(Pts2.add o (0.0,(h -. w) *. 0.5)) w
+			(Pts2.add o (0.0,(h -. w) *. 0.5)) w w
 	)
 method makeOvalRing n (ox,oy) w h id = 
 	(* make this drawable with quads. *)

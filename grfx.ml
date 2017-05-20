@@ -186,7 +186,7 @@ method makeTrack (sx,sy) (ex,ey) stw enw  =
 		)done; 
 	in
 	let stw2 = stw /. 2.0 in
-	let enw2 = enw /. 2.0 in
+	let enw2 = enw /. 2.0 in 
 	(* rounded end cap @ start *)
 	endcap 1 (n/2) sx sy stw2; 
 	(* center section *)

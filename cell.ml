@@ -299,7 +299,37 @@ and ci_updateBBX (ci:cell_instance) (cells:cell list) tm =
 	ci.gr#setAlpha 0.1; 
 	;;
 	
-let rec ci_accumulate (ci:cell_instance) (gr:grfx) (cells:cell list) lay tm = 
+let trapezoidal_track t transfn = 
+	let (sx,sy) = t#getStart () in
+	let stw = t#getWidthSt () in
+	let ex,ey = t#getEnd () in
+	let enw = t#getWidthEn () in 
+	let shape = t#getShape () in
+	let dx = ex -. sx in
+	let dy = ey -. sy in
+	let len = sqrt(dx *. dx +. dy *. dy) in
+	let (nx, ny) = ( dx /. len, dy /. len) in (*normalized line between them.*)
+	let (mx, my) = (-1. *. ny , nx) in (*rotate pi/2 ccw *)
+	let n = if shape = 0 then 16 else 2 in
+	let t = ref (pi /. 2.0) in (* 90 deg, vertical.. *)
+	let dt = pi /. foi(n) in
+	let pnt t x y w = ( x +. cos(t)*.nx*.w +. sin(t)*.mx*.w, 
+							y +. cos(t)*.ny*.w +. sin(t)*.my*.w) in
+	let endcap sta en x y w = 
+		for i = sta to en do (
+			transfn (pnt !t x y w) ;
+			t := !t +. dt; 
+		)done; 
+	in
+	let stw2 = stw /. 2.0 in
+	let enw2 = enw /. 2.0 in 
+	(* rounded end cap @ start *)
+	endcap 1 n sx sy stw2; 
+	(* rounded end cap @ end *)
+	endcap 1 n ex ey enw2; 
+	;;
+	
+let rec ci_accumulate (ci:cell_instance) (gr:grfx) (cells:cell list) lay tm gds2 = 
 	let cr = try Some (List.find (fun ce -> ce.name = ci.name) cells)
 		with Not_found -> None in
 	(match cr with 
@@ -307,39 +337,75 @@ let rec ci_accumulate (ci:cell_instance) (gr:grfx) (cells:cell list) lay tm =
 			let moff = matrix_multiply tm ci.offset in
 			let rec accIter mp np = 
 				if np > 0 then (
-					ce_accumulate ce gr cells lay mp false; 
+					ce_accumulate ce gr cells lay mp false gds2; 
 					accIter (matrix_multiply mp ci.iter) (np - 1)
 				) else ()
 			in
 			accIter moff ci.n); 
 		| _ -> printf "Cell %s not found \n%!" ci.name; 
 	)
-and ce_accumulate (ce:cell) (gr:grfx) (cells:cell list) lay tm toplevel = 
-	if not toplevel then (
-		(*let ox,oy = bbxCenter ce.bbx in
-		let mctr = matrix_identity 3 in 
-		mctr.(0).(2) <- -1.0 *. ox;
-		mctr.(1).(2) <- -1.0 *. oy; 
-		let munctr = matrix_identity 3 in
-		munctr.(0).(2) <- ox;
-		munctr.(1).(2) <- oy; 
-		let tmm = matrix_multiply (matrix_multiply munctr tm) mctr in*)
-		let tmm = tm in
-		List.iter (fun t -> 
-			if t#getLayer () == lay then (
+and ce_accumulate (ce:cell) (gr:grfx) (cells:cell list) lay tm toplevel gds2 = 
+	(*let ox,oy = bbxCenter ce.bbx in
+	let mctr = matrix_identity 3 in 
+	mctr.(0).(2) <- -1.0 *. ox;
+	mctr.(1).(2) <- -1.0 *. oy; 
+	let munctr = matrix_identity 3 in
+	munctr.(0).(2) <- ox;
+	munctr.(1).(2) <- oy; 
+	let tmm = matrix_multiply (matrix_multiply munctr tm) mctr in*)
+	let tmm = tm in
+	List.iter (fun t -> 
+		if t#getLayer () = lay then (
+			let transform (x,y) = 
+				(* matrix - column product *)
+				( tmm.(0).(0) *. x +. tmm.(0).(1) *. y +. tmm.(0).(2) , 
+				tmm.(1).(0) *. x +. tmm.(1).(1) *. y +. tmm.(1).(2) )
+			in
+			(match gds2 with 
+			| Some oc -> (
+				let st = t#getStart () in
+				let stw = t#getWidthSt () in
+				let en = t#getEnd () in
+				let enw = t#getWidthEn () in 
+				let shape = t#getShape () in
+				let transform2 p = 
+					let x,y = transform p in
+					let xx,yy = (iof (x *. 1000000.0)), (iof (y *. 1000000.0)) in
+						fprintf oc "%d: %d\n" xx yy; 
+				in
+				if stw = enw then (
+					fprintf oc "PATH\n"; 
+					fprintf oc "LAYER %d\n" lay; 
+					fprintf oc "DATATYPE 0\n"; 
+					fprintf oc "PATHTYPE %d\n" (if shape = 0 then 1 else 0); 
+					fprintf oc "WIDTH %d\n" (iof (stw *. 1000000.0)); 
+					fprintf oc "XY "; 
+					transform2 st; 
+					transform2 en; 
+					fprintf oc "ENDEL\n\n"; 
+				) else ( 
+				(* polygon output; have to duplicate code here as opengl order is different . *)
+					fprintf oc "BOUNDARY\n"; 
+					fprintf oc "LAYER %d\n" lay; 
+					fprintf oc "DATATYPE 0\n"; 
+					fprintf oc "XY "; 
+					trapezoidal_track t transform2;
+					fprintf oc "ENDEL\n\n"; 
+				); )
+			| _ -> ()
+			);
+			if not toplevel then (
+				(* tracks are already displayed, editable. *)
 				let g = t#getGrfx () in
 				let v = g#getVerts () in
-				List.iter(fun (x,y) -> 
-					(* matrix - column product *)
-					let xx = tmm.(0).(0) *. x +. tmm.(0).(1) *. y +. tmm.(0).(2) in
-					let yy = tmm.(1).(0) *. x +. tmm.(1).(1) *. y +. tmm.(1).(2) in
-					gr#appendVert (xx,yy)
-				) v
-			)
-		) ce.tracks ; 
-	); 
-	printf "accumulating %s layer %d n=%d ..\n%!" ce.name lay (List.length ce.cells); 
-	List.iter (fun ci -> ci_accumulate ci gr cells lay tm) ce.cells
+				List.iter (fun p -> 
+					gr#appendVert (transform p)
+				) v ;
+			); 
+		); 
+	) ce.tracks ; 
+(* 	printf "accumulating %s layer %d n=%d ..\n%!" ce.name lay (List.length ce.cells);  *)
+	List.iter (fun ci -> ci_accumulate ci gr cells lay tm gds2) ce.cells
 	;;
 	
 (* global section -- better here than in the main file. *)
@@ -353,13 +419,13 @@ let empty () =
 	Array.iter (fun gr -> gr#updateBBX () ) gAccg; 
 	;;
 	
-let accumulate cells = 
+let accumulate cells gds2 = 
 	List.iter (fun ce -> ce_update ce) cells ; 
 	Array.iter (fun gr -> gr#empty () ) gAccg; 
 	Array.iteri (fun lay gr -> 
 		List.iter (fun ce -> 
 			if ce.visible then 
-			ce_accumulate ce gr cells lay (matrix_identity 3) true
+			ce_accumulate ce gr cells lay (matrix_identity 3) true gds2
 			else ()
 		) cells ; 
 	) gAccg ;

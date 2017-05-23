@@ -120,6 +120,8 @@ object (self)
 		method isVia() = m_type = Track_Via ;
 		method getWidth () = m_stw
 		method getWidthU () = if m_u < 0.5 then m_stw else m_enw ; 
+		method getWidthSt () = m_stw; 
+		method getWidthEn () = m_enw; 
 		method setWidth w = m_stw <- w; m_enw <- w; 
 		method setWidthU w = if m_u < 0.5 then m_stw <- w else m_enw <- w; 
 		method getDrill () = m_drill

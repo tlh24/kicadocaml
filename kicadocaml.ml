@@ -477,7 +477,6 @@ let exportGerber filename = (* testing, testing. *)
 		) apertures ; 
 		fprintf oc "M02*\n";
 		flush oc ; (* this is necessary!!! *)
-		(* addToFilelist filename ; *)
 		close_out_noerr oc ; 
 	in
 	(* only layers that have tracks on them *)
@@ -534,6 +533,23 @@ let exportGerber filename = (* testing, testing. *)
 	saveGerberFile (rootname ^ "_protect.gbr") [4] [] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] [23] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_wafer.gbr") [3] [23] 1 (fun _ x -> x); 
+	;;
+	
+let exportGDS2 fnm = 
+	(* this is not going to be efficient... *)
+	(* basically, run through accumulate, and print out tracks as we go *)
+	let oc = open_out fnm in
+	fprintf oc "HEADER 600\n"; 
+	fprintf oc "BGNLIB 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
+	fprintf oc "LIBNAME LIB\n"; 
+	fprintf oc "UNITS 0.001 1e-09\n"; 
+	fprintf oc "BGNSTR 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
+	fprintf oc "STRNAME top\n"; 
+	Cell.accumulate !gcells (Some oc); 
+	fprintf oc "ENDSTR\n"; 
+	fprintf oc "ENDLIB\n"; 
+	flush oc ; (* this is necessary!!! *)
+	close_out_noerr oc ; 
 	;;
 	
 (* UI stuff *)
@@ -2321,7 +2337,7 @@ let makemenu top togl filelist =
 			(match !cell with 
 			| Some ci -> 
 				Cell.ci_applyMove ci; 
-				Cell.accumulate !gcells;
+				Cell.accumulate !gcells None;
 			| _ -> ()); 
 			updatecurspos evinf ; 
 		) ; 
@@ -2802,7 +2818,7 @@ let makemenu top togl filelist =
 			(cellSortName ());
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 3)) cellmenu
 			~label:"Regenerate (Ctrl-G)" ~command:(fun _ -> 
-				Cell.accumulate !gcells); 
+				Cell.accumulate !gcells None); 
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 2)) cellmenu
 			~label:"Empty (Ctrl-E)" ~command:(fun _ -> 
 				Cell.empty () ); 
@@ -3258,6 +3274,13 @@ let makemenu top togl filelist =
 			~filetypes:filetyp ~title:"Save gerber plot" ()) in
 		exportGerber fname2; 
 	); 
+	Menu.add_command miscSub ~label:"Export GDS2 (currently visible)" ~command:
+	(fun () -> 
+		let filetyp = [ {typename="GDS2 txt";extensions=[".txt"];mactypes=[]} ] in
+		let fname2 = (getSaveFile ~defaultextension:".txt" 
+			~filetypes:filetyp ~title:"Save GDS2 text format" ()) in
+		exportGDS2 fname2; 
+	); 
 
 	Menu.add_command optionmenu ~label:"About" ~command:(helpbox "about" abouttext top) ; 
 	(* get the menus working *)
@@ -3447,7 +3470,7 @@ let makemenu top togl filelist =
 	bind ~events:[`Modified([`Control], `KeyPressDetail"f")] ~action:
 		(fun _ -> Find.find_dlg top !gmodules center_found) top ; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"g")] ~action:
-		(fun _ -> Cell.accumulate !gcells) top ; 
+		(fun _ -> Cell.accumulate !gcells None) top ; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"e")] ~action:
 		(fun _ -> Cell.empty () ) top ; 
 	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  

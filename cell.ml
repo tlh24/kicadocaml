@@ -139,10 +139,13 @@ let ci_draw ci bbx =
 	if ci.moving then (
 		GlMat.push () ; 
 		GlMat.translate ~x:(fst ci.move) ~y:(snd ci.move) ~z (); 
+		ci.gr#setAlpha 0.25; 
+		ci.gr#setColor (1.0, 0.6, 0.4);
+	) else (
+		ci.gr#setAlpha 0.15; 
+		if ci.hit then ci.gr#setColor (1.0, 0.3, 0.0)
+		else ci.gr#setColor (0.0, 0.3, 0.8);
 	); 
-	if ci.hit then ci.gr#setColor (0.0, 0.3, 1.0)
-	else ci.gr#setColor (1.0, 0.3, 0.0);
-	ci.gr#setAlpha 0.1; 
 	ignore(ci.gr#draw bbx); 
 	if ci.moving then (
 		GlMat.pop () ; 
@@ -157,6 +160,7 @@ let ci_applyMove ci =
 	)
 	;;
 let ci_hit (ci:cell_instance) (p, nn, hitsize_, hitz_, hitclear_) = 
+	(* the original cell must be visible *)
 	if bbxInside ci.bbx p then (
 		if (bbxSize ci.bbx) < hitsize_ then (
 			List.iter (fun f -> f ()) hitclear_; 
@@ -215,9 +219,9 @@ let ce_draw ce bbx lay firstLayer =
 			if(t#getLayer() == lay) then
 				t#draw bbx
 		) ce.tracks; 
+		if lay = firstLayer && !gmode = Mode_MoveCell then 
+			List.iter (fun ci -> ci_draw ci bbx) ce.cells ; 
 	);
-	if lay = firstLayer && !gmode = Mode_MoveCell then 
-		List.iter (fun ci -> ci_draw ci bbx) ce.cells ; 
 	;;
 let ce_update ce = 
 	List.iter (fun t -> 
@@ -370,7 +374,7 @@ and ce_accumulate (ce:cell) (gr:grfx) (cells:cell list) lay tm toplevel gds2 =
 				let shape = t#getShape () in
 				let transform2 p = 
 					let x,y = transform p in
-					let xx,yy = (iof (x *. 1000000.0)), (iof (y *. 1000000.0)) in
+					let xx,yy = (iof (x *. 1000000.0)), (iof (y *. -1000000.0)) in
 						fprintf oc "%d: %d\n" xx yy; 
 				in
 				if stw = enw then (
@@ -439,4 +443,7 @@ let drawInstances bbox lay =
 	if lay >= 0 && lay <= 31 then (
 		(gAccg.(lay))#draw bbox
 	) else true
+	;;
+let updateLayers () = 
+	Array.iteri (fun lay gr -> gr#updateLayer lay ) gAccg; 
 	;;

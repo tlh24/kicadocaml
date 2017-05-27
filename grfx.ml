@@ -56,7 +56,7 @@ method updateRaw () =
 	
 method updateLayer layer = 
 	color <- (0. , 0., 0. ); 
-	let l2 = if layer > 31 then 24 else layer in (* map unkown to drawings *)
+	let l2 = if layer > 31 then 24 else layer in (* map unknown to drawings *)
 	if glayerEn.(l2) then (
 		color <- layer_to_color l2 ; 
 	);

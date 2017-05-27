@@ -903,6 +903,7 @@ let updateLayers layer b =
 			t#setHit false; 
 			if t#isVia() then t#updateColor () ; 
 		) (allTracks ()) ;
+		Cell.updateLayers (); 
 		(* render togl nulfun; *)
 	) ;;
 	
@@ -2886,7 +2887,7 @@ let makemenu top togl filelist =
 	addOption displaySub "z buffer" (fun b -> genabledepth := b ) !genabledepth; 
 	addOption displaySub "draw tracks" (fun b -> gdrawtracks := b) !gdrawtracks ; 
 	addOption displaySub "draw zones" (fun b -> gdrawzones := b) !gdrawzones ; 
-	addOption displaySub "grid draw" (fun b -> ggridDraw := b ) !ggridDraw; 
+	addOption displaySub "draw grid" (fun b -> ggridDraw := b ) !ggridDraw; 
 	addOption displaySub "draw module text" (fun b -> gdrawText := b) !gdrawText ; 
 	addOption displaySub "draw hidden text" (fun b -> gshowHiddenText := b) !gshowHiddenText ; 
 	addOption displaySub "draw modules" (fun b -> gdrawmods := b) !gdrawmods ; 

@@ -81,7 +81,7 @@ method updateLayers layers =
 	self#updateRaw() ; 
 	
 method appendVert v = 
-	vertx <- verts :: v ; 
+	verts <- v :: verts ; 
 	
 method updateBBX () = 
 	(* let's update the bounding box *)

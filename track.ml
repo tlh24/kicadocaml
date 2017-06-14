@@ -143,7 +143,23 @@ object (self)
 				if m_shape = 1 then b else ast +. aen +. b
 			)
 		)
-	
+		method getWHR () = ( (* used for generating gerber files -- 
+			rectangular tracks have their own aperture *)
+			if m_shape = 0 then (
+				(m_stw, m_stw, 0)
+			) else (
+				if m_stx = m_enx (* vertical *) then (
+					(m_stw, (fabs (m_sty -. m_eny)), 1)
+				) else (
+					if m_sty = m_eny then (
+						((fabs (m_stx -. m_enx)), m_stw, 1)
+					) else (
+						(* have to treat it as a polygon, alas. *)
+						(m_stw, m_stw, 2)
+					)
+				)
+			)
+		)
 		method setMoveStartConstraint f = (
 			m_moveStartConstraint <- f ; 
 			m_hasStartConstraint <- true ; 
@@ -405,7 +421,7 @@ object (self)
 		(
 			(* add in trapezoidal tracks.  so useful. *)
 			printf "track line: %s \n%!" line; 
-			let trap = try (
+			ignore ( try (
 				let sp = Pcre.extract ~pat:
 "Po (\d+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" 					line in
 				m_shape <- ios sp.(1) ; 
@@ -430,8 +446,8 @@ object (self)
 				m_enw <- foss sp.(6) ;
 				m_drill <- foss sp.(7) ; 
 				false
-			) in
-			if trap then printf "trapezoid OK\n%!"; 
+			) ); 
+(* 			if trap then printf "trapezoid OK\n%!";  *)
 			let line2 = input_line2 ic in (*the De ... line*)
 			let sp = if !gfver = 1 then 
 				Pcre.extract ~pat:"De (\d+) (\d+) (\d+) \d+ (\w+)" line2 

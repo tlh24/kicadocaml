@@ -138,6 +138,7 @@ let gTrackAdd = ref (fun _ -> ())
 let gViaAdd = ref (fun _ _ -> ())
 let gCellMenuRefresh = ref (fun _ -> ())
 let gCellMenuLength = ref 0
+let gCellsDialog = ref None 
 let gpulling = ref true 
 
 let readlines ic =
@@ -354,7 +355,7 @@ let exportCIF filename = (* this is a somewhat experimental feature! *)
 	close_out_noerr oc ; 
 	;;
 	
-let exportGerber filename = (* testing, testing. *)
+(*let exportGerber_old filename = (* testing, testing. *)
 	(* make an aperture list, w/ pads. *)
 	let apertures = Hashtbl.create 100 in
 	let cnt = ref 10 in
@@ -364,7 +365,7 @@ let exportGerber filename = (* testing, testing. *)
 			Hashtbl.add apertures (width, 0.0) !cnt; 
 			cnt := !cnt + 1; 
 		)
-	) !gtracks; 
+	) (allTracks()); 
 	(* iterate over pads, too *)
 	List.iter (fun m->
 		List.iter (fun p->
@@ -390,9 +391,9 @@ let exportGerber filename = (* testing, testing. *)
 		print_endline ("saving " ^ fnm );
 		let oc = open_out fnm in
 		let pc = "%" in
-		fprintf oc "G04 (created by kicadocaml v 112)*\n"; 
+		fprintf oc "G04 (created by kicadocaml)*\n"; 
 		fprintf oc "G01*\nG70*\nG90*\n" ; 
-		fprintf oc "%sMOIN*%s\n" pc pc;
+		fprintf oc "%sMOMM*%s\n" pc pc; (* units: MM *)
 		fprintf oc "G04 Gerber Fmt 3.4, Leading zero omitted, Abs format*\n";
 		fprintf oc "%sFSLAX34Y34*%s\n" pc pc; 
 		(* these won't be in order .. meh. *)
@@ -533,25 +534,7 @@ let exportGerber filename = (* testing, testing. *)
 	saveGerberFile (rootname ^ "_protect.gbr") [4] [] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_parylene_INVERT.gbr") [0] [23] npan pannelizeFun;
 	saveGerberFile (rootname ^ "_wafer.gbr") [3] [23] 1 (fun _ x -> x); 
-	;;
-	
-let exportGDS2 fnm = 
-	(* this is not going to be efficient... *)
-	(* basically, run through accumulate, and print out tracks as we go *)
-	let oc = open_out fnm in
-	fprintf oc "HEADER 600\n"; 
-	fprintf oc "BGNLIB 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
-	fprintf oc "LIBNAME LIB\n"; 
-	fprintf oc "UNITS 0.001 1e-09\n"; 
-	fprintf oc "BGNSTR 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
-	fprintf oc "STRNAME top\n"; 
-	Cell.accumulate !gcells (Some oc); 
-	fprintf oc "ENDSTR\n"; 
-	fprintf oc "ENDLIB\n"; 
-	flush oc ; (* this is necessary!!! *)
-	close_out_noerr oc ; 
-	;;
-	
+	;;*)
 (* UI stuff *)
 let abouttext =
 "Kicad PCB editor\n" ^
@@ -856,12 +839,12 @@ let selectSch top fname =
 	;;
 	
 (* track functions! *)
-let allTracks () = 
+let allTracks ?(with_invisible=false) () = 
 	(* cell list is flat -- instances are not! *)
 	(* returns a list of pairs (track, cell option) *)
 	let globalTracks = List.map (fun t -> (t, None)) !gtracks in
 	List.fold_left (fun tt ce -> 
-		if ce.visible then 
+		if ce.visible || with_invisible then 
 			List.rev_append 
 				(List.map (fun t -> (t, Some ce)) (ce.tracks))
 				tt
@@ -909,6 +892,60 @@ let updateLayers layer b =
 	
 let getPrefsFile () = try "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" 
 	with _ ->  (Unix.getcwd()) ^ "/.kicadocaml" 
+	;;
+	
+	
+let exportGerber fnm sclf = 
+	print_endline ("saving " ^ fnm );
+	(* generate the aperture list. 
+	does not allow for trapezoidal tracks ATM.  Danger! *)
+	let apertures = Hashtbl.create 1000 in
+	let cnt = ref 10 in
+	List.iter (fun (t,_)->
+		let whr = t#getWHR () in
+		if not (Hashtbl.mem apertures whr) then (
+			Hashtbl.add apertures whr !cnt; 
+			cnt := !cnt + 1; 
+		)
+	) (allTracks ~with_invisible:true ()); 
+	let oc = open_out fnm in
+	let pc = "%" in
+	fprintf oc "G04 (created by kicadocaml)*\n"; 
+	fprintf oc "G01*\nG70*\nG90*\n" ; 
+	fprintf oc "%sMOMM*%s\n" pc pc; (* units: MM *)
+	fprintf oc "G04 Gerber Fmt 3.4, Leading zero omitted, Abs format*\n";
+	fprintf oc "%sFSLAX34Y34*%s\n" pc pc; 
+	(* these won't be in order .. meh. *)
+	fprintf oc "G04 APERTURE LIST*\n"; 
+	Hashtbl.iter (fun k v -> 
+		let (w,h,r) = k in
+		if r = 0 then (
+			fprintf oc "%sADD%dC,%1.6f*%s\n" pc v (w *.sclf) pc
+		) else (
+			fprintf oc "%sADD%dR,%1.6fX%1.6f*%s\n" pc v (w *. sclf) (h *.sclf) pc
+		)
+	) apertures; 
+	Cell.accumulate !gcells None (Some (oc,apertures,sclf)); 
+	fprintf oc "M02*\n";
+	flush oc ; 
+	close_out_noerr oc ; 
+	;;
+	
+let exportGDS2 fnm = 
+	(* this is not going to be efficient... *)
+	(* basically, run through accumulate, and print out tracks as we go *)
+	let oc = open_out fnm in
+	fprintf oc "HEADER 600\n"; 
+	fprintf oc "BGNLIB 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
+	fprintf oc "LIBNAME LIB\n"; 
+	fprintf oc "UNITS 0.001 1e-09\n"; 
+	fprintf oc "BGNSTR 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
+	fprintf oc "STRNAME top\n"; 
+	Cell.accumulate !gcells (Some oc) None; 
+	fprintf oc "ENDSTR\n"; 
+	fprintf oc "ENDLIB\n"; 
+	flush oc ; 
+	close_out_noerr oc ; 
 	;;
 	
 
@@ -973,6 +1010,10 @@ let openFile top fname =
 	) !gtracks; 
 	SI2.iter (fun tw -> !gViaAdd ((foi (fst tw)) /. 1000.0) ((foi (snd tw)) /. 1000.0) ) !viaSize; 
 	
+	(* close the old cell dialog, it's invalid *)
+	match !gCellsDialog with 
+	| Some dlg -> Tk.destroy dlg 
+	| _ -> () ; 
 	(* and do the same for the cells. *)
 	!gCellMenuRefresh (); 
 	
@@ -2338,7 +2379,7 @@ let makemenu top togl filelist =
 			(match !cell with 
 			| Some ci -> 
 				Cell.ci_applyMove ci; 
-				Cell.accumulate !gcells None;
+				Cell.accumulate !gcells None None;
 			| _ -> ()); 
 			updatecurspos evinf ; 
 		) ; 
@@ -2704,17 +2745,20 @@ let makemenu top togl filelist =
 	gridAdd 0.002 ; 
 	gridAdd 0.003 ;
 	gridAdd 0.004 ;
+	gridAdd 0.005 ;
 	gridAdd 0.008 ;
 	gridAdd 0.006 ; 
 	gridAdd 0.010 ; 
 	gridAdd 0.020 ; 
 	gridAdd 0.040 ; 
+	gridAdd 0.050 ; 
 	gridAdd 0.060 ; 
 	gridAdd 0.080 ; 
 	gridAdd 0.100 ;
 	gridAdd 0.200 ;
 	gridAdd 0.300 ;
 	gridAdd 0.400 ;
+	gridAdd 0.500 ;
 	gridAdd 0.600 ; 
 	gridAdd 0.800 ; 
 	gridAdd 1.000 ; 
@@ -2735,6 +2779,7 @@ let makemenu top togl filelist =
 	let cellDialog () = 
 		(* dialog for doing cell things *)
 		let dlog = Toplevel.create top in
+		gCellsDialog := Some dlog; (* so it can be closed in case of Revert *)
 		Wm.title_set dlog "Cells" ; 
 		gCellCheckbuttons := [] ; 
 		(* have a bunch of checkboxes per cell, plus a box for adding a new one. *)
@@ -2754,13 +2799,13 @@ let makemenu top togl filelist =
 			gCellCheckbuttons := (ce.name, ckbutton) :: !gCellCheckbuttons ; 
 			let swbutton = Button.create cframe ~text:("select "^ce.name)
 				~command:(fun () -> updateCell (Some ce) ) in
-			let onlybutton = Button.create cframe ~text:"only"
+			(*let onlybutton = Button.create cframe ~text:"only"
 				~command:(fun () -> 
 					List.iter (fun c -> if c.name = ce.name then ce.visible <- true
 						else ce.visible <- false) !gcells; 
 						updateCellCheckbuttons () 
-					) in
-			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton; Tk.coe onlybutton]; 
+					) in*)
+			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
 			cframe 
 		) (cellSortName ()) in
 		(* add a button for global (non-cell) on/off *)
@@ -2819,7 +2864,7 @@ let makemenu top togl filelist =
 			(cellSortName ());
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 3)) cellmenu
 			~label:"Regenerate (Ctrl-G)" ~command:(fun _ -> 
-				Cell.accumulate !gcells None); 
+				Cell.accumulate !gcells None None); 
 		Menu.insert_command ~index:(`Num ((List.length !gcells) + 2)) cellmenu
 			~label:"Empty (Ctrl-E)" ~command:(fun _ -> 
 				Cell.empty () ); 
@@ -3268,12 +3313,24 @@ let makemenu top togl filelist =
 			~filetypes:filetyp ~title:"Save CIF layout" ()) in
 		exportCIF fname2; 
 	); 
-	Menu.add_command miscSub ~label:"Export Gerber" ~command:
+	Menu.add_command miscSub ~label:"Export Gerber (currently visible)" ~command:
 	(fun () -> 
-		let filetyp = [ {typename="Gerber 274x";extensions=[".gbr"];mactypes=[]} ] in
-		let fname2 = (getSaveFile ~defaultextension:".gbr" 
-			~filetypes:filetyp ~title:"Save gerber plot" ()) in
-		exportGerber fname2; 
+		let dlog = Toplevel.create top in
+		Wm.title_set dlog "Scale" ; 
+		let f2 = Frame.create dlog in
+		let msg = Message.create ~text:"factor:" f2 in
+		let sclentry = Entry.create ~width:10 f2 in
+		let button = Button.create ~text:("Export") ~command: 
+			(fun () -> 
+				let sclf = fos (Entry.get sclentry) in
+				let filetyp = [ {typename="Gerber 274x";extensions=[".gbr"];mactypes=[]} ] in
+				let fname2 = (getSaveFile ~defaultextension:".gbr" 
+					~filetypes:filetyp ~title:"Save gerber plot" ()) in
+				exportGerber fname2 sclf; 
+				Tk.destroy dlog; 
+			) f2 in
+		Tk.pack ~side:`Left ~fill:`Both ~expand:true [Tk.coe msg; Tk.coe sclentry; Tk.coe button] ; 
+		Tk.pack ~fill:`Both ~expand:true [f2]; 
 	); 
 	Menu.add_command miscSub ~label:"Export GDS2 (currently visible)" ~command:
 	(fun () -> 
@@ -3471,7 +3528,7 @@ let makemenu top togl filelist =
 	bind ~events:[`Modified([`Control], `KeyPressDetail"f")] ~action:
 		(fun _ -> Find.find_dlg top !gmodules center_found) top ; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"g")] ~action:
-		(fun _ -> Cell.accumulate !gcells None) top ; 
+		(fun _ -> Cell.accumulate !gcells None None) top ; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"e")] ~action:
 		(fun _ -> Cell.empty () ) top ; 
 	bind ~events:[`KeyPressDetail("F3")] ~action:(fun _ -> Find.find_next center_found;) top;  

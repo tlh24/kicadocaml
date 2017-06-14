@@ -328,9 +328,9 @@ method hit (x,y) =
 	let mx, my, xx, xy = bbx in
 	(x > mx && x < xx && y > my && y < xy ) 
 	
-method draw ?(hit=false) ?(hcolor=(1.,1.,1.)) bbox = 
+method draw ?(hit=false) ?(hcolor=(1.,1.,1.)) ?(force=false) bbox = 
 	(* do some visibility checking  .. *)
-	if  bbxIntersect bbox bbx && color != (0. , 0. , 0.) then (
+	if  (bbxIntersect bbox bbx && color != (0. , 0. , 0.)) || force then (
 		let col = 
 			if hit then 
 				hcolor

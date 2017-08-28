@@ -184,14 +184,13 @@ let ce_read ic line =
 	ce.name <- sp.(1); 
 	(* read in the tracks *)
 	line2 := input_line2 ic ; (* eat $TRACKS *)
-	while not (Pcre.pmatch ~pat:"EndTRACKS" !line2) do 
+	line2 := input_line2 ic ; (* eat $TRACKS *)
+	while not (Pcre.pmatch ~pat:"EndTRACK" !line2) do 
 	(
-		try( 
-			let t = new pcb_track in
-			t#read ic !line2 ; 
-			ce.tracks <- (t :: ce.tracks) ; 
-			line2 := input_line2 ic ; 
-		) with _ -> line2 := input_line2 ic ; 
+		let t = new pcb_track in
+		t#read ic !line2 ; 
+		ce.tracks <- (t :: ce.tracks) ; 
+		line2 := input_line2 ic ; 
 	)done ;
 	line2 := input_line2 ic;  (* eat $CELLINSTANCE *)
 	while not (Pcre.pmatch ~pat:"EndCELLINSTANCE" !line2) do 
@@ -234,7 +233,11 @@ let addTrack ce track =
 let filterTracks ce f = 
 	ce.tracks <- List.filter f ce.tracks
 	;;
-	
+let ce_prinfo ce printfn = 
+	printfn ("Cell " ^ (ce.name) ^ "; tracks " ^ (soi (List.length ce.tracks)) ^ 
+		"; cell instances " ^ (soi (List.length ce.cells))); 
+	(List.length ce.tracks)
+	;;
 let ce_hit ce (p, onlyworknet, netn_, hitsize_, hitz_, hitclear_) = 
 	if ce.visible then (
 		let (nn,hitsize2,hitz2,hitclear2) = 

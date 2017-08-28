@@ -228,15 +228,7 @@ let readlines ic =
 		eof := eoff ; 
 	)
 	done; 
-	close_in_noerr ic ; 
-	print_endline ( "file version:" ^ (soi !gfver) ^ " scale:" ^ (string_of_float !gscl) ); 
-	print_endline ( "number of nets:" ^ soi(List.length !gnets) ) ; 
-	print_endline ( "number of modules:" ^ soi(List.length !gmodules) ) ; 
-	print_endline ( "number of cells:" ^ soi(List.length !gcells) ) ; 
-	print_endline ( "number of tracks:" ^ soi(
-		List.length (List.filter (fun t-> not(t#is_drawsegment())) !gtracks) )) ; 
-	print_endline ( "number of drawsegments:" ^ string_of_int(
-		List.length (List.filter (fun t-> t#is_drawsegment()) !gtracks) )) ; 
+	close_in_noerr ic 
 ;;
 
 let addToFilelist fil schem = 
@@ -974,12 +966,12 @@ let openFile top fname =
 	let tracklen = List.length !gtracks in
 	printf "number of read tracks: %d; number of tracks with net of zero %d \n%!" tracklen trackzero ; 
 	
-	if (foi trackzero) /. (foi tracklen) > 0.4 then (
+	(*if (foi trackzero) /. (foi tracklen) > 0.4 then (
 		printf "It seems that this board was previously saved in PCBnew...\n%!"; 
 		propagateNetcodes2 gmodules gtracks true false top (fun () -> ()); 
 	); 
 	gratsnest#clearAll (); 
-	gratsnest#make !gmodules !gtracks; 
+	gratsnest#make !gmodules !gtracks; *)
 	(* figure out the (approximate) center of the board *)
 	if (List.length !gmodules) > 0 then (
 		let center = bbxCenter (List.fold_left 
@@ -3090,6 +3082,28 @@ let makemenu top togl filelist =
 	addAlignCmd "Distribute X (horizontal)" Align.distributeX ; 
 	addAlignCmd "Distribute Y (vertical)" Align.distributeY ; 
 
+	Menu.add_command checkSub ~label:"Layout information / statistics" 
+		~command:(fun () -> 
+			let dlog = Toplevel.create top in
+			Wm.title_set dlog "Layout information";
+			let infobx = Text.create ~width:100 ~height:50 dlog in
+			let layout_prinfo s = 
+				Text.insert  ~index:(`End, []) ~text:(s^"\n") infobx; 
+			in
+			layout_prinfo ( "file version:" ^ (soi !gfver) ^ " scale:" ^ (string_of_float !gscl) ); 
+			layout_prinfo ( "number of nets:" ^ soi(List.length !gnets) ) ; 
+			layout_prinfo ( "number of modules:" ^ soi(List.length !gmodules) ) ; 
+			layout_prinfo ( "number of global tracks:" ^ soi(
+				List.length (List.filter (fun t-> not(t#is_drawsegment())) !gtracks) )) ; 
+			layout_prinfo ( "number of cells:" ^ soi(List.length !gcells) ) ; 
+			(* print out the tracks per cell as well. *)
+			let cetracks = List.fold_left (fun i ce -> i + (Cell.ce_prinfo ce layout_prinfo)) 0 !gcells in
+			layout_prinfo ("Total tracks in cells:" ^ (soi cetracks)); 
+			layout_prinfo ( "number of drawsegments:" ^ soi(
+				List.length (List.filter (fun t-> t#is_drawsegment()) !gtracks) )) ; 
+			let all = [Tk.coe infobx; ] in
+				Tk.pack ~fill:`Both ~expand:true all; 
+		); 
 	Menu.add_command checkSub ~label:"Check soldermask on through-hole pads" 
 		~command:padSolderMaskAdjust ; 
 	Menu.add_command checkSub ~label:"Check pad connectivity" 

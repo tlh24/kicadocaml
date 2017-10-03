@@ -2775,8 +2775,16 @@ let makemenu top togl filelist =
 		Wm.title_set dlog "Cells" ; 
 		gCellCheckbuttons := [] ; 
 		(* have a bunch of checkboxes per cell, plus a box for adding a new one. *)
-		let buttons = List.map (fun ce -> 
-			let cframe = Frame.create dlog in (* horizontal *)
+		(* let's make two rows *)
+		let cellarr = Array.of_list (cellSortName ()) in
+		let arl = Array.length cellarr in
+		let columns = if arl mod 25 = 0 then arl / 25 else arl / 25 + 1 in
+		let container = Frame.create dlog in
+		let vframes = Array.init columns (fun _ -> Frame.create container) in
+		let vbuttons = Array.init columns (fun _ -> ref []) in
+		List.iteri (fun i ce -> 
+			let vfrm = vframes.(i / 25) in
+			let cframe = Frame.create vfrm in (* horizontal *)
 			let v = Textvariable.create ~on:cframe () in
 			Textvariable.set v (if ce.visible then "On" else "Off" ) ; 
 			let ckbutton = Checkbutton.create cframe ~text:ce.name
@@ -2784,8 +2792,8 @@ let makemenu top togl filelist =
 				~offvalue:"Off" ~onvalue:"On"
 				~command:(fun () -> 
 					(match (String.lowercase (Textvariable.get v)) with
-					| "on" -> ce.visible <- true
-					| _ -> ce.visible <- false); 
+					| "on" -> (ce.visible <- true; updateCell (Some ce))
+					| _ -> (ce.visible <- false; updateCell None)); 
 					render togl nulfun;
 					) in
 			gCellCheckbuttons := (ce.name, ckbutton) :: !gCellCheckbuttons ; 
@@ -2798,8 +2806,12 @@ let makemenu top togl filelist =
 						updateCellCheckbuttons () 
 					) in*)
 			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
-			cframe 
-		) (cellSortName ()) in
+			vbuttons.(i/25) := cframe :: !(vbuttons.(i/25)); 
+		) (cellSortName ()); 
+		Array.iteri (fun _ a ->
+			Tk.pack ~side:`Top ~fill:`Y ~expand:true !a
+			) vbuttons ; 
+		Tk.pack ~side:`Left ~fill:`X  ~expand:true (Array.to_list vframes); 
 		(* add a button for global (non-cell) on/off *)
 		let globbutton = 
 			let cframe = Frame.create dlog in (* horizontal *)
@@ -2839,8 +2851,8 @@ let makemenu top togl filelist =
 				Tk.destroy dlog; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
 			) f2 in
-		Tk.pack ~side:`Left ~fill:`Both ~expand:true [Tk.coe msg; Tk.coe newcell; Tk.coe button] ; 
-		let all = f2 :: (globbutton :: buttons) in
+		Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe msg; Tk.coe newcell; Tk.coe button] ; 
+		let all = [Tk.coe f2; Tk.coe globbutton; Tk.coe container ] in 
 		Tk.pack ~fill:`Both ~expand:true all; 
 	in
 	let cellMenuRefresh () =

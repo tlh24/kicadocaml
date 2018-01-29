@@ -1,7 +1,7 @@
 PROFILE = FALSE
 
 OCAMLC = ocamlfind ocamlc -g -c -w x -w Z
-OPTIONS = -package camlp4,pcre,lablGL,labltk,lablGL.togl,unix
+OPTIONS = -package camlp4,pcre,lablgl,labltk,lablgl.togl,unix,str
 LINKER = ocamlfind ocamlc -g
 
 ifeq ($(strip $(PROFILE)),TRUE)

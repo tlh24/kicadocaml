@@ -49,12 +49,6 @@ object
 		m_type <- (Pcre.extract ~pat:"\$(\w+)" line).(1) ; 
 		let line = ref (input_line2 ic) in
 		let endpat = "\$End" ^ m_type in
-(* 		print_endline ("pcb_generic section " ^ m_type);  *)
-		(* note!  assumes generic sections do not have sub-sections ! *)
-		(* some of the sections end with 'End', others with 'end', hence this must be 
-		case-insensitive *)
-		(* pcbnew occasionally seems to mess up the layer list - 
-		just set it to 6 layers by default. *)
 		glayerPresent := [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15]; 
 		while not ( Pcre.pmatch ~rex:(Pcre.regexp ~flags:[`CASELESS] endpat) !line ) do
 			m_lines <- ( !line :: m_lines ) ; 
@@ -101,7 +95,7 @@ object
 end;;
 
 let gnets = ref [] (*this must be a reference, as we are updating! *)
-let gtracks = ref [] (* for mask layout, most tracks should be in cells now. *)
+let gtracks = ref [] (* for mask layout, most tracks should be in cells. *)
 let gmodules = ref []
 let gzones = ref []
 let ggeneric = ref []
@@ -136,100 +130,9 @@ let gcrossProbeTX = ref true
 let gcrossProbeRX = ref true
 let gTrackAdd = ref (fun _ -> ())
 let gViaAdd = ref (fun _ _ -> ())
-let gCellMenuRefresh = ref (fun _ -> ())
-let gCellMenuLength = ref 0
 let gCellsDialog = ref None 
 let gpulling = ref true 
 
-let readlines ic =
-	(*remove the old modules *)
-	gnets := [] ; 
-	gmodules := [] ; 
-	gtracks := [] ; 
-	gcells := [] ;
-	gzones := [] ; 
-	ggeneric := [] ; 
-	let gitline ic = 
-		try
-			input_line2 ic, false 
-		with
-			| End_of_file -> "", true
-	in
-	let readtracks ic = 
-		let line = ref (input_line2 ic) in
-		while not (Pcre.pmatch ~pat:"\$EndTRACK" !line) do 
-		(
-			let t = new pcb_track in
-			t#read ic !line ; 
-			gtracks := (t :: !gtracks) ; 
-			line := input_line2 ic ; 
-		)
-		done ;
-	in
-	let readcells ic = 
-		let line = ref (input_line2 ic) in
-		while not (Pcre.pmatch ~pat:"\$EndCELL" !line) do 
-		(
-			gcells := (Cell.ce_read ic !line) :: !gcells ; 
-			line := input_line2 ic ; 
-		)
-		done ;
-	in
-	(* read the header *)
-	file_header := input_line2 ic ; 
-	gfver := ios (try (Pcre.extract ~pat:"Version (\d+)" !file_header).(1)
-		with _ -> "1"); 
-	if !gfver = 2 then gscl := 1.0 ; 
-	(* and the blank line after that *)
-	let eof = ref false in
-	while not !eof do (
-		let line, eoff = gitline ic in
-		let s, g = 
-			try (Pcre.extract ~pat:"(\$\w+)" line).(1), true
-			with Not_found -> "", false
-		in
-		if g then (
-			match s with
-				| "$EQUIPOT" -> ( 
-					let net = new pcb_net in
-					net#read ic; 
-					gnets := (net :: !gnets) ; 
-				)
-				| "$MODULE" -> (
-					let m = new pcb_module in
-					m#read ic; 
-					gmodules := m :: !gmodules; 
-				)
-				| "$DRAWSEGMENT" -> (
-					let t = new pcb_track in
-					t#read_drawsegment ic; 
-					gtracks := (t :: !gtracks) ; 
-				)
-				| "$TRACK" -> (
-					readtracks ic ; 
-				)
-				| "$CELL" -> (
-					readcells ic ; 
-				)
-				| "$CZONE_OUTLINE" -> (
-					let zon = new zone in
-					zon#read ic ;
-					gzones := zon ::!gzones;
-				)
-				| _ -> (
-					let generic = new pcb_generic_section in
-					try
-						generic#read ic line ; 
-						ggeneric := (generic :: !ggeneric); 
-					with
-						End_of_file -> ()
-				)
-		) ; 
-		eof := eoff ; 
-	)
-	done; 
-	close_in_noerr ic 
-;;
 
 let addToFilelist fil schem = 
 	(* remove  any old entries with the same board name *)
@@ -242,24 +145,19 @@ let saveall filename =
 	let oc = open_out filename in
 	fprintf oc "%s\n\n" !file_header ; 
 	let sv q = q#save oc ; in
-	let zones,others = List.partition (fun q -> Pcre.pmatch ~pat:"ZONE" (q#getType()))
-		(List.rev !ggeneric) in 
-	List.iter sv others;(*reverse b/c they are read in backwards. *)
-	List.iter sv (List.rev !gnets ); 
-	List.iter sv (List.rev !gmodules ); 
-	let segments, tracks = List.partition (fun t-> t#is_drawsegment()) !gtracks in
-	List.iter sv (List.rev segments ); 
+	List.iter sv !ggeneric;(*reverse b/c they are read in backwards. *)
+	List.iter sv !gnets; 
+	List.iter sv !gmodules; 
 	fprintf oc "$TRACK\n" ;
-	List.iter sv (List.rev  tracks ); 
+	List.iter sv !gtracks; 
 	fprintf oc "$EndTRACK\n" ;
 	fprintf oc "$CELL\n" ;
-	List.iter (fun ce -> Cell.ce_save ce oc) (List.rev  !gcells ); 
+	List.iter (fun ce -> Cell.ce_save ce oc) !gcells; 
 	fprintf oc "$EndCELL\n" ;
-	List.iter sv zones;
-	List.iter sv (List.rev !gzones ); 
+	List.iter sv !gzones; 
 	fprintf oc "$EndBOARD\n" ;
 	flush oc ; (* this is necessary!!! *)
-	(* addToFilelist filename ; *)
+	addToFilelist filename "null"; 
 	close_out_noerr oc ; 
 	;;
 	
@@ -774,7 +672,6 @@ let render togl cb =
 			drawRect !gselectRect ;
 		) ; 
 	);
-
 	GlMat.pop() ; 
 	Gl.flush ();
 	Togl.swap_buffers togl ; 
@@ -879,7 +776,6 @@ let updateLayers layer b =
 			if t#isVia() then t#updateColor () ; 
 		) (allTracks ()) ;
 		Cell.updateLayers (); 
-		(* render togl nulfun; *)
 	) ;;
 	
 let getPrefsFile () = try "/home/" ^ (Unix.getlogin ()) ^ "/.kicadocaml" 
@@ -924,7 +820,7 @@ let exportGerber fnm sclf =
 	;;
 	
 let exportGDS2 fnm = 
-	(* this is not going to be efficient... *)
+	(* this is not going to be efficient... but whatever*)
 	(* basically, run through accumulate, and print out tracks as we go *)
 	let oc = open_out fnm in
 	fprintf oc "HEADER 600\n"; 
@@ -940,31 +836,123 @@ let exportGDS2 fnm =
 	close_out_noerr oc ; 
 	;;
 	
+let readlines ic =
+	(*remove the old modules *)
+	gnets := [] ; 
+	gmodules := [] ; 
+	gtracks := [] ; 
+	gcells := [] ;
+	gzones := [] ; 
+	ggeneric := [] ; 
+	let gitline ic = 
+		try
+			input_line2 ic, false 
+		with
+			| End_of_file -> "", true
+	in
+	let readtracks ic = 
+		let line = ref (input_line2 ic) in
+		while not (Pcre.pmatch ~pat:"\$EndTRACK" !line) do 
+		(
+			let t = new pcb_track in
+			t#read ic !line ; 
+			gtracks := (t :: !gtracks) ; 
+			line := input_line2 ic ; 
+		)
+		done ;
+	in
+	let readcells ic = 
+		let line = ref (input_line2 ic) in
+		while not (Pcre.pmatch ~pat:"\$EndCELL" !line) do 
+		(
+			gcells := (Cell.ce_read ic !line) :: !gcells ; 
+			line := input_line2 ic ; 
+		)
+		done ;
+	in
+	(* read the header *)
+	file_header := input_line2 ic ; 
+	gfver := ios (try (Pcre.extract ~pat:"Version (\d+)" !file_header).(1)
+		with _ -> "1"); 
+	if !gfver = 2 then gscl := 1.0 ; 
+	(* and the blank line after that *)
+	let eof = ref false in
+	while not !eof do (
+		let line, eoff = gitline ic in
+		let s, g = 
+			try (Pcre.extract ~pat:"(\$\w+)" line).(1), true
+			with Not_found -> "", false
+		in
+		if g then (
+			match s with
+				| "$EQUIPOT" -> ( 
+					let net = new pcb_net in
+					net#read ic; 
+					gnets := (net :: !gnets) ; 
+				)
+				| "$MODULE" -> (
+					let m = new pcb_module in
+					m#read ic; 
+					gmodules := m :: !gmodules; 
+				)
+				| "$DRAWSEGMENT" -> (
+					let t = new pcb_track in
+					t#read_drawsegment ic; 
+					gtracks := (t :: !gtracks) ; 
+				)
+				| "$TRACK" -> (
+					readtracks ic ; 
+				)
+				| "$CELL" -> (
+					readcells ic ; 
+				)
+				| "$CZONE_OUTLINE" -> (
+					let zon = new zone in
+					zon#read ic ;
+					gzones := zon ::!gzones;
+				)
+				| _ -> (
+					let generic = new pcb_generic_section in
+					try
+						generic#read ic line ; 
+						ggeneric := (generic :: !ggeneric); 
+					with
+						End_of_file -> ()
+				)
+		) ; 
+		eof := eoff ; 
+	)
+	done; 
+	(* objects need to be read and written in the same order *)
+	gnets := List.rev !gnets; 
+	gmodules := List.rev !gmodules; 
+	gtracks := List.rev !gtracks; 
+	gcells := List.rev !gcells; 
+	gzones := List.rev !gzones; 
+	ggeneric := List.rev !ggeneric; 
+	close_in_noerr ic 
+;;
 
 (* open a file *)
 let openFile top fname = 
 	let ic = open_in fname in
 	glayerPresent := [] ; (* clear the old layer list, this file may have different layers present *)
 	readlines ic ; 
-	(* also add the other known layers -- see kicad!*)
 	glayerPresent := [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15]; (* debug, enable all *)
 	glayerPresent := [20;21;22;23;24] @ !glayerPresent; 
 	(* update the enabled list ... *)
 	for i = 0 to 31 do glayerEn.(i) <- false done;
-	List.iter (fun u -> glayerEn.(u) <- true) !glayerPresent;  
+List.iter (fun u -> glayerEn.(u) <- true) !glayerPresent; 
 	gfname := fname ; (* if we get this far, then we can assign it *)
 	(* addToFilelist fname ; *)
 	Wm.title_set top ("Kicad Ocaml " ^ fname );
 	List.iter (fun m -> m#update()) !gmodules ; 
-	List.iter (fun m -> m#update()) !gtracks ; 
+	List.iter (fun t -> t#update()) !gtracks ; 
 	List.iter (fun z -> z#update ()) !gzones ; 
 	List.iter (fun ce -> Cell.ce_update ce) !gcells ; 
 	updateLayers 15 true ; (* default to component layer *)
-	(* if the board was saved in pcbnew, then we need to propagate the netcodes to all tracks. *)
-	(* otherwise, adding tracks to existing ones becomes impossible ... *)
-	let trackzero = List.length (List.filter (fun t -> (t#getNet ()) <= 0) !gtracks) in
 	let tracklen = List.length !gtracks in
-	printf "number of read tracks: %d; number of tracks with net of zero %d \n%!" tracklen trackzero ; 
+	printf "number of read tracks: %d \n%!" tracklen ; 
 	
 	(*if (foi trackzero) /. (foi tracklen) > 0.4 then (
 		printf "It seems that this board was previously saved in PCBnew...\n%!"; 
@@ -1006,8 +994,6 @@ let openFile top fname =
 	match !gCellsDialog with 
 	| Some dlg -> Tk.destroy dlg 
 	| _ -> () ; 
-	(* and do the same for the cells. *)
-	!gCellMenuRefresh (); 
 	
 	linenum := 0 ; 
 	(*let schfil = selectSch top fname in
@@ -1703,7 +1689,8 @@ let makemenu top togl filelist =
 			render togl nulfun
 		) else ( print_endline "layer not present in board"; ) ; 
 	in
-	let laylist = ["SS_Top";"Top";"L1";"L2";"L3";"L4";"Bot";"SS_Bot";"Drawings";"SM_Top";"SM_Bot"] in
+	let laylistn = [0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;20;21;22;23;24] in
+	let laylist = List.map layer_to_string laylistn in
 	let (layerframe,changelayercallback) = makeLayerFrame 
 		laylist
 		laylist
@@ -2551,7 +2538,7 @@ let makemenu top togl filelist =
 		(* unselect all when changing mode -- 
 		otherwise, text can get 'stuck on' *)
 		List.iter (fun m -> m#setHit false) !gmodules; 
-		match (String.lowercase s) with 
+		match (String.lowercase_ascii s) with 
 			| "move module" -> bindMouseMoveModule () ; 
 			| "move cell" -> bindMouseMoveCell () ; 
 			| "move text" -> bindMouseMoveText () ; 
@@ -2568,7 +2555,7 @@ let makemenu top togl filelist =
 			modelist clist in
 	let updateMode choice =
 		List.iter2 (fun c b -> 
-			if (String.lowercase c) = (String.lowercase choice) then (
+			if (String.lowercase_ascii c) = (String.lowercase_ascii choice) then (
 				Radiobutton.select b ; 
 				setMode choice ; 
 			) else ())
@@ -2791,14 +2778,15 @@ let makemenu top togl filelist =
 				~indicatoron:true ~variable:v 
 				~offvalue:"Off" ~onvalue:"On"
 				~command:(fun () -> 
-					(match (String.lowercase (Textvariable.get v)) with
+					(match (String.lowercase_ascii (Textvariable.get v)) with
 					| "on" -> (ce.visible <- true; updateCell (Some ce))
 					| _ -> (ce.visible <- false; updateCell None)); 
 					render togl nulfun;
 					) in
 			gCellCheckbuttons := (ce.name, ckbutton) :: !gCellCheckbuttons ; 
-			let swbutton = Button.create cframe ~text:("select "^ce.name)
-				~command:(fun () -> updateCell (Some ce) ) in
+			let swbutton = Button.create cframe ~text:("display "^ce.name)
+				~command:(fun () -> updateCell (Some ce); 
+            Cell.accumulate !gcells None None ) in
 			(*let onlybutton = Button.create cframe ~text:"only"
 				~command:(fun () -> 
 					List.iter (fun c -> if c.name = ce.name then ce.visible <- true
@@ -2821,7 +2809,7 @@ let makemenu top togl filelist =
 				~indicatoron:true ~variable:v 
 				~offvalue:"Off" ~onvalue:"On"
 				~command:(fun () -> 
-					(match (String.lowercase (Textvariable.get v)) with
+					(match (String.lowercase_ascii (Textvariable.get v)) with
 					| "on" -> gdrawtracks := true
 					| _ -> gdrawtracks := false); 
 					render togl nulfun;
@@ -2846,7 +2834,6 @@ let makemenu top togl filelist =
 				let cell = Cell.ce_null () in
 				cell.name <- (Entry.get newcell) ; 
 				gcells := cell :: !gcells;  
-				!gCellMenuRefresh () ; 
 				updateCell (Some cell);
 				Tk.destroy dlog; 
 				print_endline "sorry closing the dialog as I don't know how to add a button to an existing frame"; 
@@ -2855,27 +2842,11 @@ let makemenu top togl filelist =
 		let all = [Tk.coe f2; Tk.coe globbutton; Tk.coe container ] in 
 		Tk.pack ~fill:`Both ~expand:true all; 
 	in
-	let cellMenuRefresh () =
-		Menu.delete ~first:(`Num 0) ~last:(`Num !gCellMenuLength) cellmenu ; 
-		Menu.insert_command ~index:(`Num 0) cellmenu
-			~label:"Cells Dialog" ~command:cellDialog ; 
-		Menu.insert_command ~index:(`Num 1) cellmenu ~label:"Global" 
-			~command:(fun _ -> updateCell None) ; 
-		List.iteri (fun i ce -> 
-			Menu.insert_command ~index:(`Num (i+2)) cellmenu 
-				~label:ce.name ~command: (fun _ ->
-					updateCell (Some ce) ) ) 
-			(cellSortName ());
-		Menu.insert_command ~index:(`Num ((List.length !gcells) + 3)) cellmenu
-			~label:"Regenerate (Ctrl-G)" ~command:(fun _ -> 
+	Menu.add_command cellmenu ~label:"Cells Dialog (Ctrl-C)" ~command:cellDialog ; 
+	Menu.add_command cellmenu ~label:"Regenerate (Ctrl-G)" ~command:(fun _ -> 
 				Cell.accumulate !gcells None None); 
-		Menu.insert_command ~index:(`Num ((List.length !gcells) + 2)) cellmenu
-			~label:"Empty (Ctrl-E)" ~command:(fun _ -> 
-				Cell.empty () ); 
-		gCellMenuLength := (List.length !gcells) + 4; 
-	in
-	gCellMenuRefresh := cellMenuRefresh ; 
-	cellMenuRefresh (); (* to get the 'all' and 'add' entries. *)
+  Menu.add_command cellmenu ~label:"Empty (Ctrl-E)" 
+        ~command:(fun _ -> Cell.empty () ); 
 	
 	(* transform menu *)
 	Menu.insert_command ~index:(`Num 0) transformmenu ~label:"Scale"
@@ -3553,6 +3524,8 @@ let makemenu top togl filelist =
 		~action:(fun _ -> openFile top !gfname;) top; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"f")] ~action:
 		(fun _ -> Find.find_dlg top !gmodules center_found) top ; 
+  bind ~events:[`Modified([`Control], `KeyPressDetail"c")] ~action:
+		(fun _ -> cellDialog () ) top ; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"g")] ~action:
 		(fun _ -> Cell.accumulate !gcells None None) top ; 
 	bind ~events:[`Modified([`Control], `KeyPressDetail"e")] ~action:
@@ -3854,7 +3827,7 @@ let makemenu top togl filelist =
 		Tk.coe gridb ;  Tk.coe cellb; Tk.coe transformb; Tk.coe infodisp; 
 		Tk.coe cursorbox ; Tk.coe snapbox ; Tk.coe originbox; Tk.coe cellbox;
 		Tk.coe mframe; Tk.coe layerframe];
-	place ~height:32 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
+	place ~height:40 ~x:0 ~y:0 ~relwidth:1.0 menubar ; 
 	(* return a function pointer for changing the info text *)
 	;;
 

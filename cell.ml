@@ -201,6 +201,8 @@ let ce_read ic line =
 			ce.cells <- (ces :: ce.cells); 
 		) with _ -> line2 := input_line2 ic ; 
 	) done ;
+	ce.tracks <- List.rev ce.tracks; 
+	ce.cells <- List.rev ce.cells; 
 	ce
 	;;
 let ce_save ce oc = 
@@ -209,7 +211,7 @@ let ce_save ce oc =
 	List.iter (fun t -> t#save oc) ce.tracks; 
 	fprintf oc "$EndTRACKS\n"; 
 	fprintf oc "$CELLINSTANCE\n"; 
-	List.iter (fun ci -> ci_save ci oc) (List.rev ce.cells); 
+	List.iter (fun ci -> ci_save ci oc) ce.cells; 
 	fprintf oc "$EndCELLINSTANCE\n"; 
 	;;
 let ce_draw ce bbx lay firstLayer = 

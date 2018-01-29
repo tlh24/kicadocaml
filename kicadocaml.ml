@@ -1849,180 +1849,179 @@ let makemenu top togl filelist =
 		(fun ev -> 
 			updatecurspos ev; (* get a new hit *)
 			workingnet := !gcurnet ; 
-			if ((!glayer >= 20 && glayerEn.(!glayer)) || (not !gtrackDRC)) then (
+			(*if ((!glayer >= 20 && glayerEn.(!glayer)) || (not !gtrackDRC)) then (
 				workingnet := 0; (* the drawing net. *)
 				printf "working net 0\n%!"; 
 			);
-			if !workingnet > 0 || !glayer >= 20 || (not !gtrackDRC) then (
-				if List.exists (fun z -> z#getHit () ) !gzones then (
-					(* try adding a point to a zone *)
-					let zones = List.filter (fun z -> z#getHit()) !gzones in
-					List.iter (fun z -> z#add !gcurspos) zones ;
-					render togl nulfun; 
-				) else (
-					(* we should figure out the orientation of the present track, if we are extending any *)
-					(* in this way, we won't allow 90 or even 45 deg bends *)
-					let hittracks = List.filter (fun t -> t#getHit()) !gtracks in
-					let hitvec, hiton = 
-						if List.length hittracks = 1 && !groute135 then (
-							let t = List.hd hittracks in
-							let u = t#getU () in
-							if u = 0.0 then ( (* we hit the start! *)
-								( Pts2.sub (t#getStart()) (t#getEnd()) ), true
-							) else if u = 1.0 then (
-								(Pts2.sub (t#getEnd()) (t#getStart()) ), true
-							) else ( (* if it was hit in the middle, we do whatever *)
-								(0.0, 0.0), false
-							)
-						) else ( (0.0, 0.0), false ) 
-					in
-					(* update the layer *)
-					(* see if we hit a pad - if we hit a pad and a track, may not need to change layers *)
-					(* therefore update the hit vars *)
-					printf "adding track ..\n%!" ; 
-					(* this is old code -- use the middle mouse button to change layers if need be. 
-					ignore( List.fold_left (fun (nn,hitsize,hitz,clearhit) m -> 
-						m#hit !gcurspos false nn hitsize hitz clearhit
-					) (0, 1e24, -2e2, (fun() -> ()) ) !gmodules ); 
-					let padHasLayer = List.exists (fun m-> 
-						List.exists (fun p -> 
-							(p#getHit ()) && (p#hasLayer !glayer)
-						) (m#getPads ())
-					) !gmodules in
-					(* see if the present layer is in the hittracks *)
-					let preslayergood = List.exists (fun t -> 
-						t#getLayer() = !glayer || t#isVia() ) hittracks in
-					(* if it's not, choose the one with the largest Z *)
-					let sorted = List.sort (fun b a -> 
-						compare (glayerZ.(a#getLayer())) (glayerZ.(b#getLayer()))) hittracks in
-					let lay = if preslayergood || padHasLayer || List.length sorted = 0 then !glayer else 
-						(List.hd sorted)#getLayer() in
-					if lay <> !glayer then changelayercallback (layer_to_string lay); *)
-					let track = new pcb_track in
-					addTrack track !gCurrentCell ;
-					gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true; 
-					track#setStart !gsnapped ; 
-					track#setEnd !gsnapped ; 
-					track#setNet !workingnet ; 
-					track#setLayer !glayer ; 
-					track#setWidth !gtrackwidth ; 
-					track#setMoving true ; 
-					let track2 = new pcb_track in
-					(* don't add the second track unless we are doing 135 routing. *)
-					if !groute135 then addTrack track !gCurrentCell ;
-					track2#setStart !gsnapped ; 
-					track2#setEnd !gsnapped ; 
-					track2#setNet !workingnet ; 
-					track2#setLayer !glayer ; 
-					track2#setWidth !gtrackwidth ; 
-					track2#setMoving true ; 
-					reenable := (fun () -> 
-						track#setMoving false ; 
-						track2#setMoving false ; ) ; 
-					track#update (); 
-					updatecurspos ev; (* calls render *)
-					let lastgood = ref (!gsnapped) in
-					let lastgoodmp = ref (!gsnapped) in
-					let start = !gsnapped in
-					Mouse.bindMove 1537 top ~action:
-					(fun evinf -> 
-						gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true evinf !gpan true; 
-						(* will also clear the selected ratsnest *)
-						let dx,dy = Pts2.sub !gsnapped start in
-						let sign f = 
-							if f = 0. then 0. 
-							else if f < 0. then -1. 
-							else 1.
-						in
-						let sx,sy= (sign dx),(sign dy) in
-						let fx,fy = (fabs dx), (fabs dy) in
-						let mpa, mpb, twosegments =  (* mp = mid point *)
-							if dx = 0. || dy = 0. || not !groute135 then (
-								!gsnapped , !gsnapped, false
-							) else (
-								(* method: project into the first quadrant & form midpoint 
-								then project back into proper quadrant *)
-								if fx > fy then (
-									(dx -. fy *. sx, 0.) , (fy *. sx, fy *. sy), true
-								) else (
-									(0. , dy -. fx *. sy) , (fx *. sx, fx *. sy), true
-								)
-							)
-						in
-						(* given the previous track, switch the order that the midpoint is 
-						tried out to lessen the chance we are making a 90 or 45 angle.*)
-						let mpa2, mpb2 = 
-							if hiton then (
-								if (Pts2.dotnorm mpa hitvec) > (Pts2.dotnorm mpb hitvec) then (
-									mpa, mpb
-								) else ( mpb, mpa )
-							) else (
-								mpa, mpb
-							)
-						in
-						(* try out both, default to the midpoint 'a' 
-						(the vertical / horizontal first) *)
-						if twosegments then (
-							track#setEnd (Pts2.add start mpa2) ; 
-							track2#setStart (Pts2.add start mpa2); 
-							track2#setEnd !gsnapped ; 
-							if !gtrackDRC && (testdrc2 track !gtracks !gmodules 
-								|| testdrc2 track2 !gtracks !gmodules) then (
-								(* that layout didn't work, try 'b' *)
-								track#setEnd (Pts2.add start mpb2) ; 
-								track2#setStart (Pts2.add start mpb2); 
-								(* don't need to update the end of track2 *)
-								if not(testdrc2 track !gtracks !gmodules) &&
-									not (testdrc2 track2 !gtracks !gmodules) then (
-									lastgood := !gsnapped ; 
-									lastgoodmp := Pts2.add start mpb2 ; 
-								); 
-							) else (
-								(*no problem with midpoint a *)
-								lastgood := !gsnapped; 
-								lastgoodmp := Pts2.add start mpa2 ; 
-							); 
-						) else (
-							track#setEnd !gsnapped ; 
-							if !gtrackDRC then (
-								let vio, (suggest,_) = testdrc track !gtracks !gmodules in
-								if vio && suggest != (0. , 0.) then (
-									(* if there is a violation, try out the suggestion! *)
-									(* try  to normalize track length though, so that it is (approximately)
-									the length the user desires. *)
-									let sugstart = Pts2.norm (Pts2.sub suggest start) in
-									let desstart = Pts2.sub !gsnapped start in
-									let suggest2 = Pts2.add start 
-										(Pts2.scl sugstart (Pts2.length desstart)) in
-									track#setEnd suggest2 ;
-									gsnapped := suggest2 ;
-									if testdrc2 track !gtracks !gmodules then (
-										(* if extending it didn't work, stick with the original suggestion *)
-										track#setEnd suggest ;
-										gsnapped := suggest ;
-									);
-								) ;
-								if not (testdrc2 track !gtracks !gmodules) then (
-									lastgood := !gsnapped; 
-									lastgoodmp := !gsnapped ; 
-								)
-							) else (
-								lastgood := !gsnapped; 
-								lastgoodmp := !gsnapped ; 
-							); 
-						) ; 
-						let node = Ratnode.create !workingnet !lastgood in
-						gratsnest#highlight node !workingnet (); 
-						track#setEnd !lastgoodmp ; 
-						track#update () ; 
-						track#dispinfo (); 
-						track2#setStart !lastgoodmp ; 
-						track2#setEnd !lastgood ; 
-						if !groute135 then track2#update () ; 
-						gcurnet := !workingnet;
-						updatecurspos evinf; 
-					); 
-				) ;
+			if !workingnet > 0 || !glayer >= 20 || (not !gtrackDRC) then ( *)
+      if List.exists (fun z -> z#getHit () ) !gzones then (
+        (* try adding a point to a zone *)
+        let zones = List.filter (fun z -> z#getHit()) !gzones in
+        List.iter (fun z -> z#add !gcurspos) zones ;
+        render togl nulfun; 
+      ) else (
+        (* we should figure out the orientation of the present track, if we are extending any *)
+        (* in this way, we won't allow 90 or even 45 deg bends *)
+        let hittracks = List.filter (fun t -> t#getHit()) !gtracks in
+        let hitvec, hiton = 
+          if List.length hittracks = 1 && !groute135 then (
+            let t = List.hd hittracks in
+            let u = t#getU () in
+            if u = 0.0 then ( (* we hit the start! *)
+              ( Pts2.sub (t#getStart()) (t#getEnd()) ), true
+            ) else if u = 1.0 then (
+              (Pts2.sub (t#getEnd()) (t#getStart()) ), true
+            ) else ( (* if it was hit in the middle, we do whatever *)
+              (0.0, 0.0), false
+            )
+          ) else ( (0.0, 0.0), false ) 
+        in
+        (* update the layer *)
+        (* see if we hit a pad - if we hit a pad and a track, may not need to change layers *)
+        (* therefore update the hit vars *)
+        printf "adding track ..\n%!" ; 
+        (* this is old code -- use the middle mouse button to change layers if need be. 
+        ignore( List.fold_left (fun (nn,hitsize,hitz,clearhit) m -> 
+          m#hit !gcurspos false nn hitsize hitz clearhit
+        ) (0, 1e24, -2e2, (fun() -> ()) ) !gmodules ); 
+        let padHasLayer = List.exists (fun m-> 
+          List.exists (fun p -> 
+            (p#getHit ()) && (p#hasLayer !glayer)
+          ) (m#getPads ())
+        ) !gmodules in
+        (* see if the present layer is in the hittracks *)
+        let preslayergood = List.exists (fun t -> 
+          t#getLayer() = !glayer || t#isVia() ) hittracks in
+        (* if it's not, choose the one with the largest Z *)
+        let sorted = List.sort (fun b a -> 
+          compare (glayerZ.(a#getLayer())) (glayerZ.(b#getLayer()))) hittracks in
+        let lay = if preslayergood || padHasLayer || List.length sorted = 0 then !glayer else 
+          (List.hd sorted)#getLayer() in
+        if lay <> !glayer then changelayercallback (layer_to_string lay); *)
+        let track = new pcb_track in
+        addTrack track !gCurrentCell ;
+        gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true ev !gpan true; 
+        track#setStart !gsnapped ; 
+        track#setEnd !gsnapped ; 
+        track#setNet !workingnet ; 
+        track#setLayer !glayer ; 
+        track#setWidth !gtrackwidth ; 
+        track#setMoving true ; 
+        let track2 = new pcb_track in
+        (* don't add the second track unless we are doing 135 routing. *)
+        if !groute135 then addTrack track !gCurrentCell ;
+        track2#setStart !gsnapped ; 
+        track2#setEnd !gsnapped ; 
+        track2#setNet !workingnet ; 
+        track2#setLayer !glayer ; 
+        track2#setWidth !gtrackwidth ; 
+        track2#setMoving true ; 
+        reenable := (fun () -> 
+          track#setMoving false ; 
+          track2#setMoving false ; ) ; 
+        track#update (); 
+        updatecurspos ev; (* calls render *)
+        let lastgood = ref (!gsnapped) in
+        let lastgoodmp = ref (!gsnapped) in
+        let start = !gsnapped in
+        Mouse.bindMove 1537 top ~action:
+        (fun evinf -> 
+          gcurspos := calcCursPos ~worknet:!workingnet ~onlyworknet:true evinf !gpan true; 
+          (* will also clear the selected ratsnest *)
+          let dx,dy = Pts2.sub !gsnapped start in
+          let sign f = 
+            if f = 0. then 0. 
+            else if f < 0. then -1. 
+            else 1.
+          in
+          let sx,sy= (sign dx),(sign dy) in
+          let fx,fy = (fabs dx), (fabs dy) in
+          let mpa, mpb, twosegments =  (* mp = mid point *)
+            if dx = 0. || dy = 0. || not !groute135 then (
+              !gsnapped , !gsnapped, false
+            ) else (
+              (* method: project into the first quadrant & form midpoint 
+              then project back into proper quadrant *)
+              if fx > fy then (
+                (dx -. fy *. sx, 0.) , (fy *. sx, fy *. sy), true
+              ) else (
+                (0. , dy -. fx *. sy) , (fx *. sx, fx *. sy), true
+              )
+            )
+          in
+          (* given the previous track, switch the order that the midpoint is 
+          tried out to lessen the chance we are making a 90 or 45 angle.*)
+          let mpa2, mpb2 = 
+            if hiton then (
+              if (Pts2.dotnorm mpa hitvec) > (Pts2.dotnorm mpb hitvec) then (
+                mpa, mpb
+              ) else ( mpb, mpa )
+            ) else (
+              mpa, mpb
+            )
+          in
+          (* try out both, default to the midpoint 'a' 
+          (the vertical / horizontal first) *)
+          if twosegments then (
+            track#setEnd (Pts2.add start mpa2) ; 
+            track2#setStart (Pts2.add start mpa2); 
+            track2#setEnd !gsnapped ; 
+            if !gtrackDRC && (testdrc2 track !gtracks !gmodules 
+              || testdrc2 track2 !gtracks !gmodules) then (
+              (* that layout didn't work, try 'b' *)
+              track#setEnd (Pts2.add start mpb2) ; 
+              track2#setStart (Pts2.add start mpb2); 
+              (* don't need to update the end of track2 *)
+              if not(testdrc2 track !gtracks !gmodules) &&
+                not (testdrc2 track2 !gtracks !gmodules) then (
+                lastgood := !gsnapped ; 
+                lastgoodmp := Pts2.add start mpb2 ; 
+              ); 
+            ) else (
+              (*no problem with midpoint a *)
+              lastgood := !gsnapped; 
+              lastgoodmp := Pts2.add start mpa2 ; 
+            ); 
+          ) else (
+            track#setEnd !gsnapped ; 
+            if !gtrackDRC then (
+              let vio, (suggest,_) = testdrc track !gtracks !gmodules in
+              if vio && suggest != (0. , 0.) then (
+                (* if there is a violation, try out the suggestion! *)
+                (* try  to normalize track length though, so that it is (approximately)
+                the length the user desires. *)
+                let sugstart = Pts2.norm (Pts2.sub suggest start) in
+                let desstart = Pts2.sub !gsnapped start in
+                let suggest2 = Pts2.add start 
+                  (Pts2.scl sugstart (Pts2.length desstart)) in
+                track#setEnd suggest2 ;
+                gsnapped := suggest2 ;
+                if testdrc2 track !gtracks !gmodules then (
+                  (* if extending it didn't work, stick with the original suggestion *)
+                  track#setEnd suggest ;
+                  gsnapped := suggest ;
+                );
+              ) ;
+              if not (testdrc2 track !gtracks !gmodules) then (
+                lastgood := !gsnapped; 
+                lastgoodmp := !gsnapped ; 
+              )
+            ) else (
+              lastgood := !gsnapped; 
+              lastgoodmp := !gsnapped ; 
+            ); 
+          ) ; 
+          let node = Ratnode.create !workingnet !lastgood in
+          gratsnest#highlight node !workingnet (); 
+          track#setEnd !lastgoodmp ; 
+          track#update () ; 
+          track#dispinfo (); 
+          track2#setStart !lastgoodmp ; 
+          track2#setEnd !lastgood ; 
+          if !groute135 then track2#update () ; 
+          gcurnet := !workingnet;
+          updatecurspos evinf; 
+        ); 
 			);
 		)
 		~onRelease:

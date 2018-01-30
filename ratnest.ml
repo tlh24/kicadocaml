@@ -227,7 +227,7 @@ method highlight node netnum () =
 						try (
 							m_rnsel <- (List.hd !sorted :: m_rnsel); 
 							sorted := List.tl !sorted ;
-						) with Failure("hd") -> () ; 
+						) with _ -> () ; 
 					) done; 
 				)
 			); 

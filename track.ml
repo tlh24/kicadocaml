@@ -207,12 +207,13 @@ object (self)
 		method dispinfo () = (
 			let len = self#getLength () in
 			let s = match m_type with
-				| Track_Track -> "track, width: "
+				| Track_Track -> "trk, width: "
 				| Track_Via -> "via, diameter: "
 			in
+			let layer = layer_to_string m_layer in
 			let wid = if m_stw = m_enw then (format_dim m_stw)
 				else (format_dim m_stw) ^ "," ^ (format_dim m_enw) in
-			!ginfodisp ( s ^ wid ^"\nlength: "^ (format_dim len) )
+			!ginfodisp ( layer ^" "^ s ^ wid ^"\nlength: "^ (format_dim len) )
 				(* used to have netname in here  ^ " netname:" ^ (!glookupnet m_net) *)
 		)
 		method draw bbox = (

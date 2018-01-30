@@ -938,7 +938,7 @@ let openFile top fname =
 	let ic = open_in fname in
 	glayerPresent := [] ; (* clear the old layer list, this file may have different layers present *)
 	readlines ic ; 
-	glayerPresent := [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15]; (* debug, enable all *)
+	glayerPresent := [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 15]; (* debug, enable all *)
 	glayerPresent := [20;21;22;23;24] @ !glayerPresent; 
 	(* update the enabled list ... *)
 	for i = 0 to 31 do glayerEn.(i) <- false done;
@@ -1689,7 +1689,7 @@ let makemenu top togl filelist =
 			render togl nulfun
 		) else ( print_endline "layer not present in board"; ) ; 
 	in
-	let laylistn = [0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;20;21;22;23;24] in
+	let laylistn = [0;1;2;3;4;5;6;7;8;9;10;11;15;20;21;22;23;24] in
 	let laylist = List.map layer_to_string laylistn in
 	let (layerframe,changelayercallback) = makeLayerFrame 
 		laylist

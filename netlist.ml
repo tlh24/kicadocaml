@@ -30,7 +30,7 @@ object
 	(
 		let line = input_line2 ic in
 		let d = ref "" in
-		let sp = Pcre.extract ~pat:"Na (\d+) \"([^\"]*)\"" line in
+		let sp = Pcre.extract ~pat:"Na (\\d+) \"([^\"]*)\"" line in
 		m_net <- ios sp.(1); 
 		m_name <- sp.(2); 
 		d := input_line2 ic ; (*read the St ~ line, not used*)

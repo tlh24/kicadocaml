@@ -92,9 +92,7 @@ object (self)
 		(ax, ay, bx, by)
 		
 	method render togl =
-		Togl.make_current togl ; 
-(* 		GlClear.accum ~alpha:0.0 (0.0, 0.0, 0.0) ;  *)
-(* 		GlFunc.accum `load 0.0 ;  *)
+		Togl.make_current togl ;
 		GlClear.color (0.0, 0.0, 0.0) ~alpha:0.0;
 		GlClear.clear [`color; `depth];
 		Gl.disable `depth_test ;
@@ -108,8 +106,6 @@ object (self)
 		(* callbacks *)
 		List.iter (fun f -> f() ) m_renderCB ; 
 		Gl.flush ();
-(* 		GlFunc.accum `accum 0.5 ;  *)
-(* 		GlFunc.accum `return 1.0 ;  *)
 		Togl.swap_buffers togl ; 
 		
 	method frustrum fovy aspect zmin zmax = 

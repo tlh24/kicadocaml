@@ -165,9 +165,9 @@ let string_to_layer s =
 
 let layer_to_color layer = 
 	match layer with 
-		| 0 -> (0. , 1. , 0. ) ; (*green, copper, bottom *)
+		| 0 -> (0. , 0.75 , 0. ) ; (*green, copper, bottom *)
 		| 1 -> (0. , 0. , 1. ) ; (*blue, inner L1 *)
-		| 2 -> (0.6 , 0.75 , 0.6 ) ; (*gray, inner L2 *)
+		| 2 -> (0.65 , 0.70 , 0.65 ) ; (*gray, inner L2 *)
 		| 3 -> (0.6 , 0.6 , 0.0 ) ; (*magenta, inner L3 *)
 		| 4 -> (0.0 , 0.6 , 0.6 ) ; (*cyan, inner L4 *)
 		| 5 -> (0.8 , 0.2 , 0. ) ; (*red, inner L5 *)

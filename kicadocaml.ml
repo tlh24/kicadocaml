@@ -458,7 +458,8 @@ let abouttext =
 " v - insert a via (in add tracks mode) \n" ^
 " v - edit module value (in move module mode)\n"^
 " Ctrl-V - select via size \n" ^
-" w - change width of highlited wire\n" ^
+" w - change width of highlighted track \n" ^
+" Ctrl-w - trapezoid highlighted track \n" ^
 " X - mirror along x axis\n" ^
 " Y - mirror along y axis\n" ^
 " .... \n" ^
@@ -1025,7 +1026,7 @@ let makemenu top togl filelist =
 	let infodisp = Text.create ~width:45 ~height:2 menubar in
 	let cursorbox = Text.create ~width:30 ~height:2 menubar in
 	let snapbox = Text.create ~width:30 ~height:2 menubar in
-	let cellbox = Text.create ~width:27 ~height:2 menubar in
+	let cellbox = Text.create ~width:35 ~height:2 menubar in
 	let originbox = Text.create ~width:30 ~height:2 menubar in
 	(* information display callback *)
 	ginfodisp := ( fun s ->  

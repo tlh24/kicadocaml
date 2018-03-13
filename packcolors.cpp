@@ -51,12 +51,12 @@ int main(void){
   srand((unsigned) time(&t));
   float p[NN][3]; 
   bestd = -1e6; 
-  int n=0; 
+  long long n=0; 
   best[0][0] = 1; best[0][1] = 0; best[0][2] = 0; //red, metal.
   best[1][0] = 0; best[1][1] = 1; best[1][2] = 0; //green, parylene.
   best[2][0] = 0.5; best[2][1] = 0.5; best[2][2] = 0.5; //gray, outline.
   while(1){
-    if((n%10) == 0){
+    if(n<1e7){
       for(int j=0; j<FIXED; j++){
         for(int i=0; i<3; i++){
           p[j][i] = best[j][i]; 
@@ -93,20 +93,20 @@ int main(void){
           if(len > 0.35 && len < 1.3) ok = 1; 
         }
       }
-    }
+    } 
     float min = 1e6; 
     for(int j=0; j<NN-1; j++){
       for(int i=j+1; i<NN; i++){
         float dist = (p[j][0]-p[i][0])*(p[j][0]-p[i][0]) + 
           (p[j][1]-p[i][1])*(p[j][1]-p[i][1]) + 
           (p[j][2]-p[i][2])*(p[j][2]-p[i][2]); 
-        dist -= 0.2 * dotnorm(p[j], p[i]); // maximize negative cosine theta; orthogonal = 0.
+        dist -= 0.3 * dotnorm(p[j], p[i]); // maximize negative cosine theta; orthogonal = 0.
         if(dist < min) min = dist; 
       }
     }
     if(min > bestd){
       bestd = min; 
-      printf("----- maximizing min (dist - 0.2*cos(theta)) %f\n", bestd); 
+      printf("(* %d maximizing min (dist - 0.3*cos(theta)) %f *)\n", n, bestd); 
       for(int j=0; j<NN; j++){
         printf("| %d -> (", layers[j]); 
         for(int i=0; i<3; i++){

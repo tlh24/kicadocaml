@@ -1054,13 +1054,17 @@ let makemenu top togl filelist =
 			| Some ce -> ce.name
 			| _ -> "none" in
 		let tracklist = trackHit () in
+(*       (* first match the tracks; if not, match cells. *) *)
 		let hitname = match tracklist with 
 			| (hd::_) -> 
 				(match (snd hd) with
-				| Some ce -> ce.name
+				| Some ce -> (" trk in "^ce.name)
 				| _ -> "")
-			| [] -> "" in
-		let s2 = s ^ "\n" ^ "hit cell: " ^ hitname in
+			| [] -> (
+        (List.fold_left (fun nfo ce -> Cell.ce_ci_hit_info ce nfo)
+          "--" !gcells
+        )) in
+		let s2 = s ^ "\n" ^ hitname in
 		Text.insert  ~index:(`End, []) ~text:("active: "^s2) cellbox;
 	in
 	let updateCell cell = 

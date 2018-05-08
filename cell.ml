@@ -19,7 +19,7 @@ open Comm
 open Grfx
 open Track
 
-(* ocaml indexing: a.(row).(col) -- C-style. *) 
+(* ocaml indexing: a.(row).(col) -- C-style, read-style. *) 
 let matrix_multiply x y =
   let x0 = Array.length x
   and y0 = Array.length y in
@@ -203,6 +203,7 @@ let ce_read ic line =
 	) done ;
 	ce.tracks <- List.rev ce.tracks; 
 	ce.cells <- List.rev ce.cells; 
+	ce.visible <- false; (* default to invisible. *)
 	ce
 	;;
 let ce_save ce oc = 
@@ -255,6 +256,16 @@ let ce_hit ce (p, onlyworknet, netn_, hitsize_, hitz_, hitclear_) =
 		) else (nn, hitsize2, hitz2, hitclear2)
 	) else (netn_, hitsize_, hitz_, hitclear_)
 	;;
+	
+let ce_ci_hit_info ce info = 
+  (* returns a string describing the cell that was hit -- if any. *)
+  if ce.visible then (
+		if !gmode = Mode_MoveCell then (
+			List.fold_left (fun nfo ci -> 
+        if ci.hit then ce.name ^ "/" ^ ci.name else nfo
+			) info (ce.cells)
+		) else info
+	) else info
 	
 let rec ce_updateBBX ce (cells:cell list) tm = 
 	let bbx2 = List.fold_left (fun bbx t -> 

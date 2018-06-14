@@ -420,11 +420,11 @@ and ce_accumulate (ce:cell) (gr:grfx) (cells:cell list) lay tm toplevel gds2 ger
 				(match gerber with 
 				| Some (oc,apertures,globscl) -> (
 					(* this is not efficient -- switches tool for each track.  eh! *)
-					let cnvt d = round (d *. 10000.0 *. globscl) in
+					let cnvt d = round (d *. 100000.0 *. globscl) in
 					let gerbPrint x y flashcode = 
 						let six = if x < 0.0 then "-" else "" in
 						let siy = if y > 0.0 then "-" else "" in (*flip vertical axis .. not sure why.*)
-						fprintf oc "X%s%06dY%s%06dD%s*\n" 
+						fprintf oc "X%s%07dY%s%07dD%s*\n" 
 							six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
 					in
 					let getAper whr = 

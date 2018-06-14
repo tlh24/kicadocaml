@@ -802,8 +802,8 @@ let exportGerber fnm sclf =
 	fprintf oc "G04 (created by kicadocaml)*\n"; 
 	fprintf oc "G01*\nG70*\nG90*\n" ; 
 	fprintf oc "%sMOMM*%s\n" pc pc; (* units: MM *)
-	fprintf oc "G04 Gerber Fmt 3.4, Leading zero omitted, Abs format*\n";
-	fprintf oc "%sFSLAX34Y34*%s\n" pc pc; 
+	fprintf oc "G04 Gerber Fmt 3.5, Abs format*\n";
+	fprintf oc "%sFSLAX35Y35*%s\n" pc pc; 
 	(* these won't be in order .. meh. *)
 	fprintf oc "G04 APERTURE LIST*\n"; 
 	Hashtbl.iter (fun k v -> 

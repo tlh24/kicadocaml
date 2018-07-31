@@ -1,0 +1,170 @@
+PCBNEW-BOARD Version 1 date Mon 11 Nov 2013 02:03:22 PM PST
+
+$GENERAL
+encoding utf-8
+LayerCount 2
+Ly 1FFF8001
+EnabledLayers 1FFF8001
+Links 64
+NoConn 64
+Di -41488 -34001 104738 264738
+Ndraw 3641
+Ntrack 3390
+Nzone 0
+BoardThickness 630
+Nmodule 18
+Nnets 66
+$EndGENERAL
+
+$SHEETDESCR
+Sheet A4 11700 8267
+Title ""
+Date "11 nov 2013"
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndSHEETDESCR
+
+$SETUP
+InternalUnit 0.000100 INCH
+Layers 2
+Layer[0] Back signal
+Layer[15] Front signal
+TrackWidth 80
+TrackClearence 100
+ZoneClearence 200
+TrackMinWidth 80
+DrawSegmWidth 600
+EdgeSegmWidth 150
+ViaSize 350
+ViaDrill 250
+ViaMinSize 350
+ViaMinDrill 200
+MicroViaSize 200
+MicroViaDrill 50
+MicroViasAllowed 0
+MicroViaMinSize 200
+MicroViaMinDrill 50
+TextPcbWidth 120
+TextPcbSize 600 800
+EdgeModWidth 150
+TextModSize 600 600
+TextModWidth 120
+PadSize 250 250
+PadDrill 0
+Pad2MaskClearance 100
+AuxiliaryAxisOrg 0 0
+PcbPlotParams (pcbplotparams (layerselection 3178497) (usegerberextensions true) (excludeedgelayer true) (linewidth 60) (plotframeref false) (viasonmask false) (mode 1) (useauxorigin false) (hpglpennumber 1) (hpglpenspeed 20) (hpglpendiameter 15) (hpglpenoverlay 0) (pscolor true) (psnegative false) (psa4output false) (plotreference true) (plotvalue true) (plotothertext true) (plotinvisibletext false) (padsonsilk false) (subtractmaskfromsilk false) (outputformat 1) (mirror false) (drillshape 1) (scaleselection 1) (outputdirectory ""))
+$EndSETUP
+
+$TRACK
+Po 0 0 -40000 40000 -40000 4000 0 4000
+De 24 0 0 0 0
+$EndTRACK
+$CELL
+Cn tile_2x2
+$TRACKS
+Po 0 68000 -12000 76000 -12000 4000 0 4000
+De 24 0 0 0 0
+Po 0 68000 4000 80000 4000 4000 0 4000
+De 24 0 0 0 0
+Po 0 68000 -28000 68000 4000 4000 0 4000
+De 24 0 0 0 0
+Po 0 80000 -28000 68000 -28000 4000 0 4000
+De 24 0 0 0 0
+Po 0 52000 4000 60000 4000 4000 0 4000
+De 24 0 0 0 0
+Po 0 52000 -36000 52000 4000 4000 0 4000
+De 24 0 0 0 0
+Po 0 36000 -20000 36000 -20000 4000 0 4000
+De 24 0 0 0 0
+Po 0 36000 -12000 36000 4000 4000 0 4000
+De 24 0 0 0 0
+Po 0 24000 -32000 24000 4000 4000 0 4000
+De 24 0 0 0 0
+Po 0 4000 -32000 44000 -32000 4000 0 4000
+De 24 0 0 0 0
+Po 0 -9000 21000 -9000 -53000 2000 0 2000
+De 24 0 0 0 0
+Po 0 97000 21000 -9000 21000 2000 0 2000
+De 24 0 0 0 0
+Po 0 97000 -53000 97000 21000 2000 0 2000
+De 24 0 0 0 0
+Po 0 -9000 -53000 97000 -53000 2000 0 2000
+De 24 0 0 0 0
+$EndTRACKS
+$CELLINSTANCE
+Ci rat_velv
+Tm 1.000000 0.000000 0.000000
+Tm 0.000000 1.000000 0.000000
+Tm 0.000000 0.000000 1.000000
+Ni 2
+Tm 1.000000 0.000000 5.000000
+Tm 0.000000 1.000000 0.000000
+Tm 0.000000 0.000000 1.000000
+Ci rat_velv_canti
+Tm 1.000000 0.000000 0.000000
+Tm 0.000000 1.000000 0.000000
+Tm 0.000000 0.000000 1.000000
+Ni 2
+Tm 1.000000 0.000000 5.000000
+Tm 0.000000 1.000000 0.000000
+Tm 0.000000 0.000000 1.000000
+$EndCELLINSTANCE
+Cn tile_vertical
+$TRACKS
+$EndTRACKS
+$CELLINSTANCE
+Ci tile_2x2
+Tm 1.000000 0.000000 0.000000
+Tm 0.000000 1.000000 -43.400000
+Tm 0.000000 0.000000 1.000000
+Ni 13
+Tm 1.000000 0.000000 0.000000
+Tm 0.000000 1.000000 7.500000
+Tm 0.000000 0.000000 1.000000
+$EndCELLINSTANCE
+Cn tile_horizontal
+$TRACKS
+$EndTRACKS
+$CELLINSTANCE
+Ci tile_vertical
+Tm 1.000000 0.000000 -51.400000
+Tm 0.000000 1.000000 0.000000
+Tm 0.000000 0.000000 1.000000
+Ni 10
+Tm 1.000000 0.000000 10.500000
+Tm 0.000000 1.000000 0.000000
+Tm 0.000000 0.000000 1.000000
+$EndCELLINSTANCE
+Cn rat_velv_canti
+$TRACKS
+Po 0 20000 -40000 12000 -48000 4000 0 4000
+De 15 0 0 0 0
+Po 0 12000 -32000 20000 -40000 4000 0 4000
+De 15 0 0 0 0
+Po 0 4000 -40000 12000 -32000 4000 0 4000
+De 15 0 0 0 0
+Po 0 12000 -48000 4000 -40000 4000 0 4000
+De 15 0 0 0 0
+$EndTRACKS
+$CELLINSTANCE
+$EndCELLINSTANCE
+Cn rat_velv
+$TRACKS
+Po 0 8000 12000 4000 0 4000 0 4000
+De 20 0 0 0 0
+Po 0 12000 0 8000 12000 4000 0 4000
+De 20 0 0 0 0
+Po 0 8000 -4000 12000 0 4000 0 4000
+De 20 0 0 0 0
+Po 0 4000 0 8000 -4000 4000 0 4000
+De 20 0 0 0 0
+$EndTRACKS
+$CELLINSTANCE
+$EndCELLINSTANCE
+$EndCELL
+$EndBOARD

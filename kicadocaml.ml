@@ -1,4 +1,4 @@
-(* Copyright 2008-2017, Timothy L Hanson *)
+(* Copyright 2008-2018, Timothy L Hanson *)
 (* This file is part of Kicadocaml.
 
     Kicadocaml is free software: you can redistribute it and/or modify
@@ -825,13 +825,34 @@ let exportGDS2 fnm =
 	(* basically, run through accumulate, and print out tracks as we go *)
 	let oc = open_out fnm in
 	fprintf oc "HEADER 600\n"; 
-	fprintf oc "BGNLIB 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
+	let td = Unix.localtime (Unix.time ()) in
+	fprintf oc "BGNLIB %d/%d/%d %d:%02d:%02d\n"
+    (td.Unix.tm_mon+1) (td.Unix.tm_mday+1) (td.Unix.tm_year+2000) td.Unix.tm_hour td.Unix.tm_min td.Unix.tm_sec; 
 	fprintf oc "LIBNAME LIB\n"; 
-	fprintf oc "UNITS 0.001 1e-09\n"; 
-	fprintf oc "BGNSTR 5/22/2017 22:03:24 5/22/2017 22:03:24\n"; 
-	fprintf oc "STRNAME top\n"; 
-	Cell.accumulate !gcells (Some oc) None; 
-	fprintf oc "ENDSTR\n"; 
+	fprintf oc "UNITS 0.001 1e-09\n\n"; 
+	(* looks like klayout infers the hierarchy *)
+	(* but we still need to output them in order, leaves to trunk *)
+	List.iter (fun ce -> 
+    ce.level <- 0; 
+  ) !gcells; 
+  (* iterate through the trunk cells, labeling subcell depth. *)
+  let rec ce_iter ce = 
+    List.iter (fun (ci:cell_instance) ->
+      List.iter (fun c2 -> 
+        if c2.name = ci.name then (
+          let newlevel = ce.level + 1 in
+          if c2.level < newlevel then
+            c2.level <- newlevel; 
+          ce_iter c2
+        )
+      ) !gcells; 
+    ) ce.cells; 
+  in
+  List.iter (fun ce -> ce_iter ce) !gcells; 
+	List.iter (fun ce -> 
+    printf "saving %s\n%!" ce.name; 
+    Cell.ce_save_gds2 ce oc
+	) (List.rev (List.sort (fun a b -> compare a.level b.level) !gcells)); 
 	fprintf oc "ENDLIB\n"; 
 	flush oc ; 
 	close_out_noerr oc ; 
@@ -975,7 +996,7 @@ List.iter (fun u -> glayerEn.(u) <- true) !glayerPresent;
 		if t#getType () = Track_Track then (
 			trackWidth := SI.add (round((t#getWidth())*.1000.0)) !trackWidth ; 
 		)
-	) (allTracks ()); 
+	) (allTracks ~with_invisible:true ()); 
 	(* convert them to floating-point *)
 	SI.iter (fun tw -> !gTrackAdd ((foi tw) /. 1000.0) ) !trackWidth; 
 
@@ -2788,16 +2809,15 @@ let makemenu top togl filelist =
 					render togl nulfun;
 					) in
 			gCellCheckbuttons := (ce.name, ckbutton) :: !gCellCheckbuttons ; 
-			let swbutton = Button.create cframe ~text:("display "^ce.name)
-				~command:(fun () -> updateCell (Some ce); 
-            Cell.accumulate !gcells None None ) in
-			(*let onlybutton = Button.create cframe ~text:"only"
-				~command:(fun () -> 
-					List.iter (fun c -> if c.name = ce.name then ce.visible <- true
-						else ce.visible <- false) !gcells; 
-						updateCellCheckbuttons () 
-					) in*)
-			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton]; 
+			let dispCB () =
+        updateCell (Some ce); 
+        Cell.accumulate !gcells None None in
+			let swbutton = Button.create cframe ~text:"disp"
+				~command:dispCB in
+      let edbutton = Button.create cframe ~text:"edit"
+				~command:(fun () -> Cell.ce_dialog ce top dispCB) in
+
+			Tk.pack ~side:`Left ~fill:`Y ~expand:true [Tk.coe ckbutton; Tk.coe swbutton; Tk.coe edbutton]; 
 			vbuttons.(i/25) := cframe :: !(vbuttons.(i/25)); 
 		) (cellSortName ()); 
 		Array.iteri (fun _ a ->
@@ -3333,7 +3353,7 @@ let makemenu top togl filelist =
 		Tk.pack ~side:`Left ~fill:`Both ~expand:true [Tk.coe msg; Tk.coe sclentry; Tk.coe button] ; 
 		Tk.pack ~fill:`Both ~expand:true [f2]; 
 	); 
-	Menu.add_command miscSub ~label:"Export GDS2 (currently visible)" ~command:
+	Menu.add_command miscSub ~label:"Export GDS2 TXT (currently visible)" ~command:
 	(fun () -> 
 		let filetyp = [ {typename="GDS2 txt";extensions=[".txt"];mactypes=[]} ] in
 		let fname2 = (getSaveFile ~defaultextension:".txt" 

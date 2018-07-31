@@ -56,9 +56,9 @@ let read_matrix ic =
 	let line2 = ref "" in
 	line2 := input_line2 ic ; 
 	let mat = matrix_identity 3 in
-	for j = 0 to 2 do 
+	for j = 0 to 2 do (* row *)
 		let sp = Pcre.extract ~pat:"Tm ([\.\d-]+) ([\.\d-]+) ([\.\d-]+)" !line2 in
-		for i = 0 to 2 do
+		for i = 0 to 2 do (* column *)
 			mat.(j).(i) <- fos sp.(1+i) ; 
 		done ;
 		line2 := input_line2 ic ;
@@ -82,6 +82,7 @@ type cell = {
 	mutable tracks : pcb_track list ;
 	mutable cells : cell_instance list ; 
 	mutable bbx : (float * float * float * float);
+	mutable level : int ; 
 }
 
 let ci_null () = 
@@ -105,6 +106,7 @@ let ce_null () =
 		tracks = []; 
 		cells = [];
 		bbx = (0.0, 0.0, 0.0, 0.0); 
+		level = 0; 
 	} in
 	ce
 	;;
@@ -350,6 +352,99 @@ let trapezoidal_track t transfn =
 	endcap 1 n ex ey enw2; 
 	;;
 	
+let ce_print_track (t:pcb_track) tmm gds2 gerber = 
+  let transform (x,y) = 
+    (* matrix - column product *)
+    (tmm.(0).(0) *. x +. tmm.(0).(1) *. y +. tmm.(0).(2) , 
+    tmm.(1).(0) *. x +. tmm.(1).(1) *. y +. tmm.(1).(2) )
+  in
+  let st = t#getStart () in
+  let stw = t#getWidthSt () in
+  let en = t#getEnd () in
+  let enw = t#getWidthEn () in 
+  let shape = t#getShape () in
+  let lay = t#getLayer () in
+  if glayerEn.(lay) then (
+    (match gds2 with 
+    | Some oc -> (
+      let transform2 p scl = 
+        let x,y = transform p in
+        (* GDS units are nm *)
+        let xx,yy = (iof (x *. scl)), (iof (y *. -1.0 *. scl)) in
+          fprintf oc "%d: %d\n" xx yy; 
+      in
+      if stw = enw then (
+        fprintf oc "PATH\n"; 
+        fprintf oc "LAYER %d\n" lay; 
+        fprintf oc "DATATYPE 0\n"; 
+        fprintf oc "PATHTYPE %d\n" (if shape = 0 then 1 else 0); 
+        fprintf oc "WIDTH %d\n" (iof (stw *. 1000000.0)); 
+        fprintf oc "XY "; 
+        transform2 st 1e6; 
+        transform2 en 1e6; 
+        fprintf oc "ENDEL\n\n"; 
+      ) else ( 
+      (* polygon output; have to duplicate code here as opengl order is different . *)
+        fprintf oc "BOUNDARY\n"; 
+        fprintf oc "LAYER %d\n" lay; 
+        fprintf oc "DATATYPE 0\n"; 
+        fprintf oc "XY "; 
+        trapezoidal_track t (fun p -> transform2 p 1e6);
+        fprintf oc "ENDEL\n\n"; 
+      ); )
+    | _ -> ()
+    );
+    (match gerber with 
+    | Some (oc,apertures,globscl) -> (
+      (* this is not efficient -- switches tool for each track.  eh, zip will compress it away *)
+      let cnvt d = round (d *. 100000.0 *. globscl) in
+      let gerbPrint x y flashcode = 
+        let six = if x < 0.0 then "-" else "" in
+        let siy = if y > 0.0 then "-" else "" in (*flip vertical axis .. not sure why.*)
+        fprintf oc "X%s%07dY%s%07dD%s*\n" 
+          six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
+      in
+      let getAper whr = 
+        let w,h,r = whr in
+        let aper = try Hashtbl.find apertures whr 
+          with _ -> 
+            printf "whr %f %f %d not found!\n" w h r; 
+            10 in
+        aper
+      in
+      let gerbTrack (sx,sy) (ex,ey) whr = 
+        let aper =getAper whr in
+        fprintf oc "G54D%d*\n" aper ; 
+        gerbPrint sx sy "02"; 
+        gerbPrint ex ey "01"; 
+      in
+      let (w,h,r) = t#getWHR () in
+      (match r with 
+      | 0 -> gerbTrack (transform st) (transform en) (w,h,r)
+      | 1 -> (
+        let aper = getAper (w,h,r) in
+        fprintf oc "G54D%d*\n" aper ; 
+        let mx,my = Pts2.scl (Pts2.add (transform st) (transform en)) 0.5 in
+        gerbPrint mx my "03" )
+      | _ -> (
+        fprintf oc "G36*\n"; 
+        let lst = ref [] in
+        trapezoidal_track t (fun p -> 
+          lst := (transform p) :: !lst); 
+        let l2 = List.rev !lst in
+        let sx,sy = List.hd l2 in 
+        gerbPrint sx sy "02";
+        fprintf oc "G01*\n"; 
+        List.iter(fun (x,y) -> 
+          gerbPrint x y "01"
+        ) (List.tl l2); 
+        gerbPrint sx sy "01";
+        fprintf oc "G37*\n"; 
+      )))
+    | _ -> ()
+    ); 
+  );;
+  
 let rec ci_accumulate (ci:cell_instance) (gr:grfx) (cells:cell list) lay tm gds2 gerber = 
 	let cr = try Some (List.find (fun ce -> ce.name = ci.name) cells)
 		with Not_found -> None in
@@ -374,112 +469,60 @@ and ce_accumulate (ce:cell) (gr:grfx) (cells:cell list) lay tm toplevel gds2 ger
 	munctr.(0).(2) <- ox;
 	munctr.(1).(2) <- oy; 
 	let tmm = matrix_multiply (matrix_multiply munctr tm) mctr in*)
-	let tmm = tm in
+	let transform (x,y) = 
+    (* matrix - column product *)
+    (tm.(0).(0) *. x +. tm.(0).(1) *. y +. tm.(0).(2) , 
+    tm.(1).(0) *. x +. tm.(1).(1) *. y +. tm.(1).(2) )
+  in
+  let tmm = tm in (* copy. *)
 	List.iter (fun t -> 
-		if t#getLayer () = lay then (
-			let transform (x,y) = 
-				(* matrix - column product *)
-				( tmm.(0).(0) *. x +. tmm.(0).(1) *. y +. tmm.(0).(2) , 
-				tmm.(1).(0) *. x +. tmm.(1).(1) *. y +. tmm.(1).(2) )
-			in
-			let st = t#getStart () in
-			let stw = t#getWidthSt () in
-			let en = t#getEnd () in
-			let enw = t#getWidthEn () in 
-			let shape = t#getShape () in
-			if glayerEn.(lay) then (
-				(match gds2 with 
-				| Some oc -> (
-					let transform2 p scl = 
-						let x,y = transform p in
-						(* GDS units are nm *)
-						let xx,yy = (iof (x *. scl)), (iof (y *. -1.0 *. scl)) in
-							fprintf oc "%d: %d\n" xx yy; 
-					in
-					if stw = enw then (
-						fprintf oc "PATH\n"; 
-						fprintf oc "LAYER %d\n" lay; 
-						fprintf oc "DATATYPE 0\n"; 
-						fprintf oc "PATHTYPE %d\n" (if shape = 0 then 1 else 0); 
-						fprintf oc "WIDTH %d\n" (iof (stw *. 1000000.0)); 
-						fprintf oc "XY "; 
-						transform2 st 1e6; 
-						transform2 en 1e6; 
-						fprintf oc "ENDEL\n\n"; 
-					) else ( 
-					(* polygon output; have to duplicate code here as opengl order is different . *)
-						fprintf oc "BOUNDARY\n"; 
-						fprintf oc "LAYER %d\n" lay; 
-						fprintf oc "DATATYPE 0\n"; 
-						fprintf oc "XY "; 
-						trapezoidal_track t (fun p -> transform2 p 1e6);
-						fprintf oc "ENDEL\n\n"; 
-					); )
-				| _ -> ()
-				);
-				(match gerber with 
-				| Some (oc,apertures,globscl) -> (
-					(* this is not efficient -- switches tool for each track.  eh! *)
-					let cnvt d = round (d *. 100000.0 *. globscl) in
-					let gerbPrint x y flashcode = 
-						let six = if x < 0.0 then "-" else "" in
-						let siy = if y > 0.0 then "-" else "" in (*flip vertical axis .. not sure why.*)
-						fprintf oc "X%s%07dY%s%07dD%s*\n" 
-							six (cnvt (fabs x)) siy (cnvt (fabs y)) flashcode;
-					in
-					let getAper whr = 
-						let w,h,r = whr in
-						let aper = try Hashtbl.find apertures whr 
-							with _ -> 
-								printf "whr %f %f %d not found!\n" w h r; 
-								10 in
-						aper
-					in
-					let gerbTrack (sx,sy) (ex,ey) whr = 
-						let aper =getAper whr in
-						fprintf oc "G54D%d*\n" aper ; 
-						gerbPrint sx sy "02"; 
-						gerbPrint ex ey "01"; 
-					in
-					let (w,h,r) = t#getWHR () in
-					(match r with 
-					| 0 -> gerbTrack (transform st) (transform en) (w,h,r)
-					| 1 -> (
-						let aper = getAper (w,h,r) in
-						fprintf oc "G54D%d*\n" aper ; 
-						let mx,my = Pts2.scl (Pts2.add (transform st) (transform en)) 0.5 in
-						gerbPrint mx my "03" )
-					| _ -> (
-						fprintf oc "G36*\n"; 
-						let lst = ref [] in
-						trapezoidal_track t (fun p -> 
-							lst := (transform p) :: !lst); 
-						let l2 = List.rev !lst in
-						let sx,sy = List.hd l2 in 
-						gerbPrint sx sy "02";
-						fprintf oc "G01*\n"; 
-						List.iter(fun (x,y) -> 
-							gerbPrint x y "01"
-						) (List.tl l2); 
-						gerbPrint sx sy "01";
-						fprintf oc "G37*\n"; 
-					)))
-				| _ -> ()
-				); 
-			);
-			if not toplevel then (
-				(* tracks are already displayed, editable. *)
-				let g = t#getGrfx () in
-				let v = g#getVerts () in
-				List.iter (fun p -> 
-					gr#appendVert (transform p)
-				) v ;
-			); 
-		); 
+    if t#getLayer () = lay then (
+      ce_print_track t tmm gds2 gerber; 
+      if glayerEn.(lay) then (
+        if not toplevel then (
+          (* tracks are already displayed, editable. *)
+          let g = t#getGrfx () in
+          let v = g#getVerts () in
+          List.iter (fun p -> 
+            gr#appendVert (transform p)
+          ) v ;
+        ); 
+      );
+    )
 	) ce.tracks ; 
-(* 	printf "accumulating %s layer %d n=%d ..\n%!" ce.name lay (List.length ce.cells);  *)
 	List.iter (fun ci -> ci_accumulate ci gr cells lay tm gds2 gerber) ce.cells
 	;;
+	
+let ci_save_gds2 (ci:cell_instance) gds2 = 
+  fprintf gds2 "AREF\n"; 
+  fprintf gds2 "SNAME %s\n" ci.name; 
+  fprintf gds2 "MAG 1\n"; 
+  fprintf gds2 "ANGLE 0\n"; 
+  fprintf gds2 "COLROW %d 0\n" ci.n; 
+  (* following data appears to be vectors -- origin, col vec, row vec. *)
+  (* these seem to start from inital translation spot. *)
+  let trnsfrm a = iof (a *. 1e6) in
+  let n = foi ci.n in
+  let ox,oy = (trnsfrm ci.offset.(0).(2)), (trnsfrm ci.offset.(1).(2)) in
+  let vx,vy = (trnsfrm (ci.iter.(0).(2)*.n)), (trnsfrm (ci.iter.(1).(2)*.n)) in
+  fprintf gds2 "XY %d: %d\n" ox oy; 
+  fprintf gds2 "%d: %d\n" (ox+vx) (oy+vy); 
+  fprintf gds2 "%d: %d\n" (ox-vy) (oy+vx); (* rotate 90deg ccw *) 
+  fprintf gds2 "ENDEL\n\n";
+  ;;
+	
+let ce_save_gds2 (ce:cell) gds2 = 
+  fprintf gds2 "BGNSTR\n"; (* structure or string?  not sure. *)
+  fprintf gds2 "STRNAME %s\n\n" ce.name; 
+  List.iter (fun ci -> 
+    ci_save_gds2 ci gds2
+  ) ce.cells; 
+  let tmm = matrix_identity 3 in
+  List.iter (fun t -> 
+    ce_print_track t tmm (Some gds2) None ; 
+  ) ce.tracks ; 
+  fprintf gds2 "ENDSTR\n\n"; 
+  ;;
 	
 (* global section -- better here than in the main file. *)
 let gcells : cell list ref = ref []
@@ -516,3 +559,76 @@ let drawInstances bbox lay =
 let updateLayers () = 
 	Array.iteri (fun lay gr -> gr#updateLayer lay ) gAccg; 
 	;;
+let ci_dialog (ci:cell_instance) top dispCB = 
+  let dlog = Toplevel.create top in
+  Wm.title_set dlog (ci.name^" - cell instance");
+  
+  let off_label = Message.create dlog ~width:200 
+    ~text:"Offset matrix (initial transformation)" in
+  let off_frame = Frame.create dlog in
+  let off_vframe = Array.init 3 (fun _ -> 
+    Frame.create off_frame) in
+  let off_entries = Array.make_matrix 3 3 (Entry.create dlog) in
+  for i = 0 to 2 do
+    for j = 0 to 2 do
+      let ent = Entry.create ~width:10 off_vframe.(i) in
+      Entry.insert ~index:(`Num 0) ~text:(sof ci.offset.(j).(i)) ent; 
+      off_entries.(j).(i) <- ent; 
+    done; 
+    Tk.pack ~fill:`Both ~expand:true ~side:`Top 
+      [Tk.coe off_entries.(0).(i);Tk.coe off_entries.(1).(i);Tk.coe off_entries.(2).(i)]; 
+  done;
+  Tk.pack ~fill:`Both ~expand:true ~side:`Left 
+    [Tk.coe off_vframe.(0);Tk.coe off_vframe.(1);Tk.coe off_vframe.(2)]; 
+    
+  let iter_label = Message.create dlog ~width:200 
+    ~text:"Iteration matrix (sequential transformation)" in
+  let iter_frame = Frame.create dlog in
+  let iter_vframe = Array.init 3 (fun _ -> 
+    Frame.create iter_frame) in
+  let iter_entries = Array.make_matrix 3 3 (Entry.create dlog) in
+  for i = 0 to 2 do
+    for j = 0 to 2 do
+      let ent = Entry.create ~width:10 iter_vframe.(i) in
+      Entry.insert ~index:(`Num 0) ~text:(sof ci.iter.(j).(i)) ent; 
+      iter_entries.(j).(i) <- ent; 
+    done; 
+    Tk.pack ~fill:`Both ~expand:true ~side:`Top 
+      [Tk.coe iter_entries.(0).(i);Tk.coe iter_entries.(1).(i);Tk.coe iter_entries.(2).(i)]; 
+  done;
+  Tk.pack ~fill:`Both ~expand:true ~side:`Left 
+    [Tk.coe iter_vframe.(0);Tk.coe iter_vframe.(1);Tk.coe iter_vframe.(2)]; 
+    
+  let n_frame = Frame.create dlog in
+  let n_msg = Message.create n_frame ~width:140 ~text:"Number of copies" in
+  let n_entry = Entry.create n_frame ~width:10 in
+  Entry.insert ~index:(`Num 0) ~text:(soi ci.n) n_entry; 
+  Tk.pack ~fill:`Both ~expand:true ~side:`Left [Tk.coe n_msg;Tk.coe n_entry]; 
+    
+  let apply_button = Button.create dlog ~text:"Apply"
+  ~command:( fun () -> 
+    for i = 0 to 2 do
+      for j = 0 to 2 do
+        ci.offset.(j).(i) <- fos (Entry.get off_entries.(j).(i));
+        ci.iter.(j).(i) <- fos (Entry.get iter_entries.(j).(i)); 
+      done; 
+    done; 
+    ci.n <- ios (Entry.get n_entry); 
+    dispCB () ); in 
+    
+  Tk.pack ~fill:`Both ~expand:true ~side:`Top 
+    [Tk.coe off_label; Tk.coe off_frame; Tk.coe iter_label; Tk.coe iter_frame; 
+    Tk.coe n_frame; Tk.coe apply_button]; 
+  ;;
+
+let ce_dialog (ce:cell) top dispCB = 
+  let dlog = Toplevel.create top in
+  Wm.title_set dlog (ce.name^" - cell");
+  let buttons = List.map (fun ci -> 
+    Button.create dlog ~text:ci.name 
+      ~command:(fun () -> ci_dialog ci top dispCB )
+    ) ce.cells in
+  printf "cells dialog %d subs\n%!" (List.length ce.cells); 
+  Tk.pack ~fill:`Both ~expand:true ~side:`Top 
+    (List.map Tk.coe buttons); 
+  ;;
